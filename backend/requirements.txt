@@ -4,3 +4,4 @@ supabase>=2,<3
 slowapi>=0.1.9,<1
 pydantic-settings>=2,<3
 python-dotenv>=1,<2
+openai>=1.50,<2
