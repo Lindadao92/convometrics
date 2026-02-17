@@ -51,23 +51,23 @@ interface IntentDetail {
 }
 
 const PIE_COLORS: Record<string, string> = {
-  completed: "#6366f1",
-  partial: "#a78bfa",
+  completed: "#10b981",
+  partial: "#f59e0b",
   abandoned: "#475569",
   failed: "#ef4444",
 };
 
 const STATUS_BADGE: Record<string, string> = {
-  completed: "bg-indigo-500/15 text-indigo-300",
-  partial: "bg-purple-500/15 text-purple-300",
+  completed: "bg-emerald-500/15 text-emerald-300",
+  partial: "bg-amber-500/15 text-amber-300",
   abandoned: "bg-zinc-500/15 text-zinc-400",
   failed: "bg-red-500/15 text-red-300",
 };
 
 const SCORE_COLOR = (s: number | null) => {
   if (s === null) return "text-zinc-600";
-  if (s >= 80) return "text-emerald-400";
-  if (s >= 60) return "text-amber-400";
+  if (s > 75) return "text-emerald-400";
+  if (s >= 50) return "text-amber-400";
   return "text-red-400";
 };
 
@@ -418,9 +418,6 @@ export default function IntentsPage() {
                         Date
                       </th>
                       <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                        User
-                      </th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 uppercase tracking-wider">
                         Quality
                       </th>
                       <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500 uppercase tracking-wider">
@@ -463,9 +460,6 @@ export default function IntentsPage() {
                             <td className="px-4 py-2.5 text-zinc-400 whitespace-nowrap text-xs">
                               {date}
                             </td>
-                            <td className="px-4 py-2.5 text-zinc-300 font-mono text-xs">
-                              {conv.user_id || "--"}
-                            </td>
                             <td
                               className={`px-4 py-2.5 font-medium text-xs ${SCORE_COLOR(conv.quality_score)}`}
                             >
@@ -490,7 +484,7 @@ export default function IntentsPage() {
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td colSpan={5} className="bg-[#0f1015]">
+                              <td colSpan={4} className="bg-[#0f1015]">
                                 <div className="px-6 py-4 max-w-3xl">
                                   <div className="flex flex-col gap-3">
                                     {conv.messages.map((msg, i) => (
