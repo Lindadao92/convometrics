@@ -3,131 +3,84 @@ import { getSupabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
+const MS_DAY  = 864e5;
+const MS_WEEK = 7 * MS_DAY;
+
 export async function GET(req: NextRequest) {
   const sb = getSupabaseServer();
   const selected = req.nextUrl.searchParams.get("intent");
 
-  // Fetch all conversations (only the fields we need)
   const { data: rows, error } = await sb
     .from("conversations")
     .select("intent, quality_score, completion_status, created_at, user_id, messages, conversation_id, id");
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  // Group by intent
-  const byIntent: Record<
-    string,
-    {
-      count: number;
-      scores: number[];
-      statuses: Record<string, number>;
-      recent: number[];
-      older: number[];
-    }
-  > = {};
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const now = Date.now();
-  const sevenDays = 7 * 24 * 3600 * 1000;
-  const fourteenDays = 14 * 24 * 3600 * 1000;
+  const t7  = now - MS_WEEK;
+
+  // Group by intent
+  const byIntent: Record<string, {
+    count: number;
+    countThisWeek: number;
+    scores: number[];
+    statuses: Record<string, number>;
+  }> = {};
 
   for (const row of rows) {
     const intent = row.intent;
     if (!intent) continue;
-
-    if (!byIntent[intent]) {
-      byIntent[intent] = { count: 0, scores: [], statuses: {}, recent: [], older: [] };
-    }
+    byIntent[intent] ??= { count: 0, countThisWeek: 0, scores: [], statuses: {} };
     const g = byIntent[intent];
     g.count++;
-
-    if (row.quality_score !== null) {
-      g.scores.push(row.quality_score);
-      const age = now - new Date(row.created_at).getTime();
-      if (age <= sevenDays) g.recent.push(row.quality_score);
-      else if (age <= fourteenDays) g.older.push(row.quality_score);
-    }
-
+    if (new Date(row.created_at).getTime() >= t7) g.countThisWeek++;
+    if (row.quality_score !== null) g.scores.push(row.quality_score);
     const s = row.completion_status;
     if (s) g.statuses[s] = (g.statuses[s] || 0) + 1;
   }
 
-  // Build summary table
+  // Build summary, sorted by impact score descending
   const summary = Object.entries(byIntent)
     .map(([intent, g]) => {
-      const avgScore =
-        g.scores.length > 0
-          ? Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length)
-          : null;
-
-      const completionRate =
-        g.count > 0
-          ? Math.round(((g.statuses["completed"] || 0) / g.count) * 100)
-          : 0;
-
-      // Trend: compare recent 7d avg vs prior 7d avg
-      const recentAvg =
-        g.recent.length > 0
-          ? g.recent.reduce((a, b) => a + b, 0) / g.recent.length
-          : null;
-      const olderAvg =
-        g.older.length > 0
-          ? g.older.reduce((a, b) => a + b, 0) / g.older.length
-          : null;
-
-      let trend: "up" | "down" | "flat" = "flat";
-      if (recentAvg !== null && olderAvg !== null) {
-        if (recentAvg - olderAvg > 2) trend = "up";
-        else if (olderAvg - recentAvg > 2) trend = "down";
-      }
-
+      const avgScore = g.scores.length
+        ? Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length)
+        : null;
+      const completed   = g.statuses["completed"]  || 0;
+      const failed      = g.statuses["failed"]      || 0;
+      const abandoned   = g.statuses["abandoned"]   || 0;
+      const completionRate = g.count ? Math.round((completed / g.count) * 100)          : 0;
+      const failureRate    = g.count ? Math.round(((failed + abandoned) / g.count) * 100) : 0;
+      const impactScore    = Math.round(g.count * (failureRate / 100));  // raw # of bad sessions
       return {
         intent,
         count: g.count,
+        countThisWeek: g.countThisWeek,
         avgScore,
         completionRate,
-        trend,
+        failureRate,
+        impactScore,
         statuses: g.statuses,
       };
     })
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.impactScore - a.impactScore);
 
-  // If a specific intent is selected, return its detail data
+  // Detail for selected intent
   let detail = null;
   if (selected) {
     const intentRows = rows.filter((r) => r.intent === selected);
 
-    // Quality over time (daily, last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const dailyScores: Record<string, { sum: number; count: number }> = {};
-    for (const row of intentRows) {
-      if (row.quality_score === null) continue;
-      const date = row.created_at?.slice(0, 10);
-      if (!date || new Date(date) < thirtyDaysAgo) continue;
-      if (!dailyScores[date]) dailyScores[date] = { sum: 0, count: 0 };
-      dailyScores[date].sum += row.quality_score;
-      dailyScores[date].count += 1;
-    }
-    const qualityTrend = Object.entries(dailyScores)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, { sum, count }]) => ({
-        date: date.slice(5),
-        avg_score: Math.round(sum / count),
-      }));
-
-    // Completion breakdown
+    // Completion breakdown for pie
     const completionBreakdown: Record<string, number> = {};
     for (const row of intentRows) {
       const s = row.completion_status;
       if (s) completionBreakdown[s] = (completionBreakdown[s] || 0) + 1;
     }
 
-    // Recent conversations (last 10)
-    const conversations = intentRows
+    // 5 most recent failed or abandoned conversations
+    const failedConversations = intentRows
+      .filter((r) => r.completion_status === "failed" || r.completion_status === "abandoned")
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 10)
+      .slice(0, 5)
       .map((r) => ({
         id: r.id,
         conversation_id: r.conversation_id,
@@ -138,12 +91,7 @@ export async function GET(req: NextRequest) {
         messages: r.messages,
       }));
 
-    detail = {
-      intent: selected,
-      qualityTrend,
-      completionBreakdown,
-      conversations,
-    };
+    detail = { intent: selected, completionBreakdown, failedConversations };
   }
 
   return NextResponse.json({ summary, detail });

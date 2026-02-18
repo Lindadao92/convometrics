@@ -466,95 +466,46 @@ function SegmentCard({ data }: { data: ApiData["kpis"]["segmentPerformance"] }) 
 
 // ─── Weekly Briefing card ─────────────────────────────────────────────────────
 
-function BriefingCard({ b }: { b: ApiData["briefing"] }) {
-  const { successRateThisWeek, successRatePrevWeek, successRateDelta,
-          failedUsersThisWeek, worstIntent, fastestGrowing } = b;
-
-  const dir   = successRateDelta >= 0 ? "↑" : "↓";
-  const srCls = successRateDelta >= 0 ? "text-emerald-400" : "text-red-400";
-
-  let recommendation = "review completion rates across all intent categories";
-  if (worstIntent && worstIntent.avgQuality < 45) {
-    recommendation = `focus engineering effort on ${label(worstIntent.intent)} — quality is critically low`;
-  } else if (fastestGrowing && fastestGrowing.pctChange > 30) {
-    recommendation = `scale quality investment in ${label(fastestGrowing.intent)} as usage grows rapidly`;
-  }
+function BriefingCard({
+  b,
+  topGap,
+}: {
+  b: ApiData["briefing"];
+  topGap: FeatureGap | null;
+}) {
+  const { successRateThisWeek, failedUsersThisWeek, worstIntent } = b;
 
   return (
-    <div className="relative rounded-xl border border-indigo-500/20 overflow-hidden
-                    bg-gradient-to-br from-indigo-500/[0.07] via-[#13141b] to-[#13141b] p-6">
-      {/* background glow */}
-      <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="flex rounded-xl border border-white/[0.06] bg-[#13141b] overflow-hidden">
+      {/* amber left border */}
+      <div className="w-1 shrink-0 bg-amber-400" />
 
-      <div className="relative">
-        {/* header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-50" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">
-              Weekly Briefing
-            </span>
-          </div>
-          <span className="text-xs text-zinc-600">Auto-generated · {todayStr()}</span>
-        </div>
-
-        {/* narrative */}
-        <p className="text-sm text-zinc-300 leading-[1.9] max-w-4xl">
-          This week: AI Success Rate{" "}
-          <strong className="text-white">{successRateThisWeek}%</strong>{" "}
-          <span className={srCls}>({dir} from {successRatePrevWeek}% last week)</span>.{" "}
+      <div className="flex-1 px-5 py-4">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-2">
+          This Week&apos;s Briefing
+        </p>
+        <p className="text-sm text-zinc-300 leading-relaxed">
+          AI Success Rate:{" "}
+          <strong className="text-white">{successRateThisWeek}%</strong>.{" "}
           <strong className="text-white">{failedUsersThisWeek}</strong>{" "}
-          {failedUsersThisWeek === 1 ? "user" : "users"} had failed or abandoned experiences.{" "}
+          {failedUsersThisWeek === 1 ? "user" : "users"} had failed experiences.{" "}
           {worstIntent ? (
             <>
-              Worst-performing intent:{" "}
-              <strong className="text-white capitalize">{label(worstIntent.intent)}</strong>{" "}
-              with avg quality{" "}
-              <strong className="text-red-400">{worstIntent.avgQuality}</strong>/100.{" "}
+              Worst performing intent:{" "}
+              <strong className="text-white capitalize">{label(worstIntent.intent)}</strong>.{" "}
             </>
           ) : null}
-          {fastestGrowing ? (
+          {topGap ? (
             <>
-              Fastest growing:{" "}
-              <strong className="text-white capitalize">{label(fastestGrowing.intent)}</strong>{" "}
-              up{" "}
-              <strong className="text-emerald-400">+{fastestGrowing.pctChange}%</strong>{" "}
-              week-over-week ({fastestGrowing.prevWeekCount}→{fastestGrowing.thisWeekCount} sessions).{" "}
+              Biggest opportunity:{" "}
+              <strong className="text-amber-300 capitalize">{label(topGap.intent)}</strong>{" "}
+              <span className="text-zinc-500">
+                ({topGap.volume} sessions, {topGap.completionRate}% completion).
+              </span>
             </>
           ) : null}
-          <span className="text-zinc-500">Recommended: {recommendation}.</span>
         </p>
-
-        {/* pill row */}
-        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/[0.04]">
-          <Pill color={successRateDelta >= 0 ? "green" : "red"} label="Success rate" value={`${successRateThisWeek}%`} />
-          <Pill color="amber" label="Users at risk" value={`${failedUsersThisWeek}`} />
-          {worstIntent && (
-            <Pill color="red" label="Worst quality" value={`${label(worstIntent.intent)} · ${worstIntent.avgQuality}`} />
-          )}
-          {fastestGrowing && (
-            <Pill color="indigo" label="Fastest growing" value={`${label(fastestGrowing.intent)} +${fastestGrowing.pctChange}%`} />
-          )}
-        </div>
       </div>
-    </div>
-  );
-}
-
-function Pill({ color, label: lbl, value }: { color: string; label: string; value: string }) {
-  const cls: Record<string, string> = {
-    green:  "bg-emerald-500/10 border-emerald-500/20 text-emerald-300",
-    red:    "bg-red-500/10 border-red-500/20 text-red-300",
-    amber:  "bg-amber-500/10 border-amber-500/20 text-amber-300",
-    indigo: "bg-indigo-500/10 border-indigo-500/20 text-indigo-300",
-  };
-  return (
-    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${cls[color] ?? ""}`}>
-      <span className="text-zinc-500">{lbl}:</span>
-      <span className="font-medium capitalize">{value}</span>
     </div>
   );
 }
@@ -633,7 +584,7 @@ export default function Overview() {
       </div>
 
       {/* briefing */}
-      <BriefingCard b={briefing} />
+      <BriefingCard b={briefing} topGap={kpis.topFeatureGap} />
 
       {/* KPI grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
