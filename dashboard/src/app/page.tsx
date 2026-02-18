@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Regression {
+interface WorstIntent {
   intent: string;
-  drop: number;
-  thisWeek: number;
-  prevWeek: number;
+  avgQuality: number;
+  volume: number;
 }
 
 interface FastestGrowing {
@@ -18,17 +17,11 @@ interface FastestGrowing {
   prevWeekCount: number;
 }
 
-interface BriefingSection {
-  successRateThisWeek: number;
-  successRatePrevWeek: number;
-  successRateDelta: number;
-  failedUsersThisWeek: number;
-  biggestRegression: Regression | null;
-  fastestGrowing: FastestGrowing | null;
-  totalThisWeek: number;
+interface FeatureGap {
+  intent: string;
+  completionRate: number;
+  volume: number;
 }
-
-interface SparkPoint { date: string; rate: number }
 
 interface SegmentData {
   completed: number;
@@ -36,41 +29,34 @@ interface SegmentData {
   rate: number;
 }
 
-interface ReleaseIntentRow {
-  intent: string;
-  last7: number;
-  prev7: number;
-  delta: number;
+interface SparkPoint {
+  date: string;
+  rate: number;
 }
 
-interface FeatureGap {
-  intent: string;
-  completionRate: number;
-  volume: number;
-}
-
-interface BriefingResponse {
-  briefing: BriefingSection;
+interface ApiData {
+  briefing: {
+    successRateThisWeek: number;
+    successRatePrevWeek: number;
+    successRateDelta: number;
+    failedUsersThisWeek: number;
+    worstIntent: WorstIntent | null;
+    fastestGrowing: FastestGrowing | null;
+  };
   kpis: {
     successRate: { current: number; delta: number; sparkline: SparkPoint[] };
     revenueAtRisk: {
       current: number;
       usersAtRisk: number;
-      delta: number;
       thisWeekUsers: number;
       lastWeekUsers: number;
       failedSessions: number;
       abandonedSessions: number;
     };
-    timeToValue: { avgMessages: number; delta: number; thisWeek: number; lastWeek: number };
     topFeatureGap: FeatureGap | null;
     allFeatureGaps: FeatureGap[];
-    releaseImpact: {
-      last7: number;
-      prev7: number;
-      delta: number;
-      byIntent: ReleaseIntentRow[];
-    };
+    worstIntent: WorstIntent | null;
+    usersAffected: { thisWeek: number; lastWeek: number; delta: number };
     segmentPerformance: {
       beginner: SegmentData;
       designer: SegmentData;
@@ -79,140 +65,122 @@ interface BriefingResponse {
   };
 }
 
-// ─── Utility helpers ──────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatIntent(intent: string): string {
-  const parts = intent.split(" > ");
-  return parts[parts.length - 1].replace(/_/g, " ");
-}
-
-function formatIntentFull(intent: string): string {
+function label(intent: string): string {
   return intent.replace(/_/g, " ");
 }
 
-function fmt$(n: number): string {
-  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
-  return `$${n}`;
+function fmtMoney(n: number): string {
+  return n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n}`;
 }
 
-function today(): string {
-  return new Date().toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function todayStr(): string {
+  return new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-// ─── Sparkline SVG ────────────────────────────────────────────────────────────
+// ─── Sparkline ────────────────────────────────────────────────────────────────
 
-function Sparkline({
-  data,
-  color = "#6366f1",
-  width = 88,
-  height = 32,
-}: {
-  data: SparkPoint[];
-  color?: string;
-  width?: number;
-  height?: number;
-}) {
+function Sparkline({ data, color }: { data: SparkPoint[]; color: string }) {
   if (data.length < 2) return null;
+  const W = 80, H = 28, PAD = 2;
   const vals = data.map((d) => d.rate);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const range = max - min || 1;
-  const pad = 2;
+  const lo = Math.min(...vals), hi = Math.max(...vals), range = hi - lo || 1;
   const pts = vals.map((v, i) => [
-    pad + (i / (vals.length - 1)) * (width - pad * 2),
-    pad + (1 - (v - min) / range) * (height - pad * 2),
+    PAD + (i / (vals.length - 1)) * (W - PAD * 2),
+    PAD + (1 - (v - lo) / range) * (H - PAD * 2),
   ]);
-  const pathD = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const last = pts[pts.length - 1];
+  const d = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   return (
-    <svg width={width} height={height} className="overflow-visible">
-      <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={last[0]} cy={last[1]} r={2.5} fill={color} />
+    <svg width={W} height={H} className="overflow-visible">
+      <path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={2.5} fill={color} />
     </svg>
   );
 }
 
-// ─── Mini bar ─────────────────────────────────────────────────────────────────
+// ─── Delta pill ───────────────────────────────────────────────────────────────
 
-function MiniBar({ label, rate, color }: { label: string; rate: number; color: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="text-xs text-zinc-500 w-16 capitalize">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${rate}%`, backgroundColor: color }}
-        />
-      </div>
-      <span className="text-xs font-mono text-zinc-200 w-7 text-right">{rate}%</span>
-    </div>
-  );
-}
-
-// ─── Delta badge ─────────────────────────────────────────────────────────────
-
-function Delta({
-  value,
+function TrendBadge({
+  delta,
   unit = "pp",
   invert = false,
-  showZero = false,
 }: {
-  value: number;
+  delta: number;
   unit?: string;
   invert?: boolean;
-  showZero?: boolean;
 }) {
-  if (value === 0 && !showZero)
-    return <span className="text-xs text-zinc-500">No change</span>;
-  const good = invert ? value < 0 : value > 0;
-  const arrow = value > 0 ? "↑" : "↓";
-  const abs = Math.abs(value);
+  if (delta === 0) return <span className="text-xs text-zinc-600">unchanged</span>;
+  const positive = invert ? delta < 0 : delta > 0;
+  const arrow = delta > 0 ? "↑" : "↓";
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-md ${
-        good
-          ? "bg-emerald-500/10 text-emerald-400"
-          : "bg-red-500/10 text-red-400"
+      className={`inline-flex items-center gap-px text-xs font-medium px-1.5 py-0.5 rounded ${
+        positive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
       }`}
     >
-      {arrow} {abs}{unit} vs last week
+      {arrow} {Math.abs(delta)}{unit} vs last week
     </span>
   );
 }
 
-// ─── Tooltip wrapper ─────────────────────────────────────────────────────────
+// ─── Quality score bar ────────────────────────────────────────────────────────
 
-function KPICard({
+function QualityBar({ score }: { score: number }) {
+  const color = score >= 70 ? "#34d399" : score >= 50 ? "#fbbf24" : "#f87171";
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <div className="flex-1 h-1 rounded-full bg-white/[0.06]">
+        <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, backgroundColor: color }} />
+      </div>
+      <span className="text-xs font-mono tabular-nums" style={{ color }}>{score}</span>
+    </div>
+  );
+}
+
+// ─── Mini horizontal bar (segments) ──────────────────────────────────────────
+
+function MiniBar({ label: lbl, rate, color }: { label: string; rate: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="text-xs text-zinc-500 w-[72px] capitalize shrink-0">{lbl}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
+        <div className="h-full rounded-full" style={{ width: `${rate}%`, backgroundColor: color }} />
+      </div>
+      <span className="text-xs font-mono text-zinc-300 w-7 text-right">{rate}%</span>
+    </div>
+  );
+}
+
+// ─── KPI card shell ───────────────────────────────────────────────────────────
+
+function Card({
   children,
   tooltip,
-  className = "",
 }: {
   children: React.ReactNode;
-  tooltip: React.ReactNode;
-  className?: string;
+  tooltip?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [tip, setTip] = useState(false);
   return (
     <div
-      className={`relative rounded-2xl border border-white/[0.06] bg-[#13141b] p-5 cursor-pointer transition-colors hover:border-white/[0.12] hover:bg-[#15161e] ${className}`}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      className="relative rounded-xl border border-white/[0.07] bg-[#13141b] p-5 cursor-default
+                 transition-colors hover:border-white/[0.13] hover:bg-[#14151c]"
+      onMouseEnter={() => setTip(true)}
+      onMouseLeave={() => setTip(false)}
     >
       {children}
-      {/* Info icon */}
-      <div className="absolute top-4 right-4 w-4 h-4 rounded-full border border-white/10 flex items-center justify-center">
-        <span className="text-[9px] text-zinc-500 font-bold leading-none">i</span>
-      </div>
-      {/* Tooltip */}
-      {open && (
-        <div
-          className="absolute top-full left-0 mt-2 z-50 w-72 rounded-xl border border-white/[0.08] bg-[#1a1b26] p-4 shadow-2xl pointer-events-none"
-          style={{ backdropFilter: "blur(12px)" }}
-        >
+      {/* info dot */}
+      {tooltip && (
+        <div className="absolute top-3.5 right-3.5 w-3.5 h-3.5 rounded-full border border-white/10
+                        flex items-center justify-center">
+          <span className="text-[8px] text-zinc-600 font-bold">i</span>
+        </div>
+      )}
+      {/* tooltip panel */}
+      {tip && tooltip && (
+        <div className="absolute top-full left-0 mt-2 z-50 w-68 min-w-[260px] rounded-xl
+                        border border-white/[0.08] bg-[#1c1d28] p-3.5 shadow-2xl pointer-events-none">
           {tooltip}
         </div>
       )}
@@ -220,23 +188,34 @@ function KPICard({
   );
 }
 
-// ─── KPI: AI Success Rate ─────────────────────────────────────────────────────
+// ─── Card label ───────────────────────────────────────────────────────────────
 
-function SuccessRateCard({ data }: { data: BriefingResponse["kpis"]["successRate"] }) {
-  const color = data.delta >= 0 ? "#34d399" : "#f87171";
+function CardLabel({ children }: { children: React.ReactNode }) {
   return (
-    <KPICard
+    <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
+      {children}
+    </p>
+  );
+}
+
+// ─── 1. AI Success Rate ───────────────────────────────────────────────────────
+
+function SuccessRateCard({ data }: { data: ApiData["kpis"]["successRate"] }) {
+  const up = data.delta >= 0;
+  const arrowColor = up ? "text-emerald-400" : "text-red-400";
+  const lineColor  = up ? "#34d399" : "#f87171";
+  const arrow = up ? "↑" : "↓";
+
+  return (
+    <Card
       tooltip={
-        <div className="space-y-2.5">
-          <p className="text-xs font-semibold text-white">AI Success Rate — 14-day trend</p>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Percentage of conversations that reached <span className="text-zinc-200">completed</span>{" "}
-            status. Measures how often users successfully accomplish their goal in a single session.
-          </p>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            {data.sparkline.slice(-7).map((d) => (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-white">AI Success Rate — daily (14d)</p>
+          <p className="text-xs text-zinc-400">Conversations reaching completed status ÷ total.</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
+            {data.sparkline.slice(-8).map((d) => (
               <div key={d.date} className="flex justify-between text-xs">
-                <span className="text-zinc-500">{d.date}</span>
+                <span className="text-zinc-600">{d.date}</span>
                 <span className="text-zinc-300 font-mono">{d.rate}%</span>
               </div>
             ))}
@@ -244,115 +223,65 @@ function SuccessRateCard({ data }: { data: BriefingResponse["kpis"]["successRate
         </div>
       }
     >
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-        AI Success Rate
-      </p>
-      <div className="flex items-end justify-between gap-3">
+      <CardLabel>AI Success Rate</CardLabel>
+      <div className="flex items-end justify-between">
         <div>
-          <p className="text-4xl font-bold text-white tabular-nums">{data.current}%</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-bold text-white tabular-nums">{data.current}%</span>
+            <span className={`text-xl font-bold ${arrowColor}`}>{arrow}</span>
+          </div>
           <div className="mt-2">
-            <Delta value={data.delta} />
+            <TrendBadge delta={data.delta} />
           </div>
         </div>
-        <div className="pb-1">
-          <Sparkline data={data.sparkline} color={color} />
+        <div className="pb-1 opacity-80">
+          <Sparkline data={data.sparkline} color={lineColor} />
         </div>
       </div>
-    </KPICard>
+    </Card>
   );
 }
 
-// ─── KPI: Revenue at Risk ────────────────────────────────────────────────────
+// ─── 2. Revenue at Risk ───────────────────────────────────────────────────────
 
-function RevenueAtRiskCard({ data }: { data: BriefingResponse["kpis"]["revenueAtRisk"] }) {
+function RevenueAtRiskCard({ data }: { data: ApiData["kpis"]["revenueAtRisk"] }) {
+  const weekDelta = (data.thisWeekUsers - data.lastWeekUsers) * 35;
   return (
-    <KPICard
+    <Card
       tooltip={
-        <div className="space-y-2.5">
-          <p className="text-xs font-semibold text-white">Revenue at Risk calculation</p>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Unique users who experienced a <span className="text-zinc-200">failed</span> or{" "}
-            <span className="text-zinc-200">abandoned</span> session × $35 estimated MRR per user.
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-white">Revenue at Risk</p>
+          <p className="text-xs text-zinc-400">
+            Unique users with failed or abandoned sessions × $35 estimated MRR.
           </p>
-          <div className="space-y-1.5 pt-1 border-t border-white/[0.06]">
-            <div className="flex justify-between text-xs">
-              <span className="text-zinc-400">Failed sessions</span>
-              <span className="text-red-400 font-mono">{data.failedSessions}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-zinc-400">Abandoned sessions</span>
-              <span className="text-amber-400 font-mono">{data.abandonedSessions}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-zinc-400">Unique at-risk users (all-time)</span>
-              <span className="text-zinc-200 font-mono">{data.usersAtRisk}</span>
-            </div>
-            <div className="flex justify-between text-xs pt-1 border-t border-white/[0.06]">
-              <span className="text-zinc-300 font-medium">This week users at risk</span>
-              <span className="text-zinc-200 font-mono">{data.thisWeekUsers}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-zinc-300 font-medium">Last week users at risk</span>
-              <span className="text-zinc-200 font-mono">{data.lastWeekUsers}</span>
-            </div>
+          <div className="space-y-1 pt-1 border-t border-white/[0.06]">
+            {[
+              ["Failed sessions",    data.failedSessions,   "text-red-400"],
+              ["Abandoned sessions", data.abandonedSessions, "text-amber-400"],
+              ["Unique at-risk users",     data.usersAtRisk, "text-zinc-200"],
+              ["This week users",   data.thisWeekUsers,    "text-zinc-200"],
+              ["Last week users",   data.lastWeekUsers,    "text-zinc-200"],
+            ].map(([lbl, val, cls]) => (
+              <div key={lbl as string} className="flex justify-between text-xs">
+                <span className="text-zinc-500">{lbl}</span>
+                <span className={`font-mono ${cls}`}>{val}</span>
+              </div>
+            ))}
           </div>
         </div>
       }
     >
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-        Revenue at Risk
-      </p>
-      <p className="text-4xl font-bold text-white tabular-nums">{fmt$(data.current)}</p>
-      <p className="text-xs text-zinc-500 mt-1">{data.usersAtRisk} unique users · $35 MRR est.</p>
+      <CardLabel>Revenue at Risk</CardLabel>
+      <p className="text-4xl font-bold text-white tabular-nums">{fmtMoney(data.current)}</p>
+      <p className="text-xs text-zinc-500 mt-1">{data.usersAtRisk} users · $35 MRR est.</p>
       <div className="mt-2">
-        <Delta value={data.delta} unit="" invert={true} />
+        <TrendBadge delta={weekDelta} unit="" invert={true} />
       </div>
-    </KPICard>
+    </Card>
   );
 }
 
-// ─── KPI: Time to Value ───────────────────────────────────────────────────────
-
-function TimeToValueCard({ data }: { data: BriefingResponse["kpis"]["timeToValue"] }) {
-  return (
-    <KPICard
-      tooltip={
-        <div className="space-y-2.5">
-          <p className="text-xs font-semibold text-white">Time to Value</p>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Average number of prompts a user sends before their session reaches{" "}
-            <span className="text-zinc-200">completed</span> status. Lower = faster value delivery.
-          </p>
-          <div className="space-y-1.5 pt-1 border-t border-white/[0.06]">
-            <div className="flex justify-between text-xs">
-              <span className="text-zinc-400">This week avg</span>
-              <span className="text-zinc-200 font-mono">{data.thisWeek} prompts</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-zinc-400">Last week avg</span>
-              <span className="text-zinc-200 font-mono">{data.lastWeek} prompts</span>
-            </div>
-          </div>
-          <p className="text-xs text-zinc-500">
-            A rising TtV signals users are struggling to get the outcome they want — typically indicating prompt quality issues or model regressions.
-          </p>
-        </div>
-      }
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-        Time to Value
-      </p>
-      <p className="text-4xl font-bold text-white tabular-nums">{data.avgMessages}</p>
-      <p className="text-xs text-zinc-500 mt-1">avg prompts to completion</p>
-      <div className="mt-2">
-        {/* Higher is worse for TtV */}
-        <Delta value={data.delta} unit=" prompts" invert={true} />
-      </div>
-    </KPICard>
-  );
-}
-
-// ─── KPI: Top Feature Gap ─────────────────────────────────────────────────────
+// ─── 3. Top Feature Gap ───────────────────────────────────────────────────────
 
 function TopFeatureGapCard({
   gap,
@@ -361,157 +290,161 @@ function TopFeatureGapCard({
   gap: FeatureGap | null;
   allGaps: FeatureGap[];
 }) {
-  if (!gap)
+  if (!gap) {
     return (
-      <KPICard tooltip={<p className="text-xs text-zinc-400">No intents below 50% completion.</p>}>
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-          Top Feature Gap
-        </p>
-        <p className="text-zinc-400 text-sm">No gaps detected</p>
-      </KPICard>
+      <Card>
+        <CardLabel>Top Feature Gap</CardLabel>
+        <p className="text-zinc-500 text-sm">No intents below 50%</p>
+      </Card>
     );
-
+  }
   return (
-    <KPICard
+    <Card
       tooltip={
-        <div className="space-y-2.5">
-          <p className="text-xs font-semibold text-white">
-            All intents below 50% completion ({allGaps.length})
-          </p>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-white">All intents below 50% completion</p>
           <div className="space-y-1.5">
-            {allGaps.slice(0, 7).map((g) => (
-              <div key={g.intent} className="flex items-center justify-between text-xs gap-2">
-                <span className="text-zinc-400 truncate">{formatIntentFull(g.intent)}</span>
-                <span className="shrink-0 text-red-400 font-mono">{g.completionRate}%</span>
+            {allGaps.slice(0, 8).map((g) => (
+              <div key={g.intent} className="flex justify-between text-xs">
+                <span className="text-zinc-400 capitalize truncate max-w-[160px]">{label(g.intent)}</span>
+                <span className="text-red-400 font-mono shrink-0 ml-2">{g.completionRate}% · {g.volume} sess</span>
               </div>
             ))}
-            {allGaps.length > 7 && (
-              <p className="text-xs text-zinc-600">+{allGaps.length - 7} more</p>
+            {allGaps.length > 8 && (
+              <p className="text-zinc-600 text-xs">+{allGaps.length - 8} more</p>
             )}
           </div>
         </div>
       }
     >
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-        Top Feature Gap
+      <CardLabel>Top Feature Gap</CardLabel>
+      <p className="text-base font-semibold text-white capitalize leading-snug">
+        {label(gap.intent)}
       </p>
-      <p className="text-lg font-semibold text-white capitalize leading-tight">
-        {formatIntent(gap.intent)}
-      </p>
-      <p className="text-xs text-zinc-500 mt-0.5 capitalize">
-        {gap.intent.split(" > ")[0].replace(/_/g, " ")}
-      </p>
-      <div className="mt-3 flex items-center gap-3">
+      <div className="flex items-center gap-4 mt-3">
         <div>
-          <p className="text-2xl font-bold text-red-400 tabular-nums">{gap.completionRate}%</p>
-          <p className="text-[11px] text-zinc-500 mt-0.5">completion rate</p>
+          <p className="text-3xl font-bold text-red-400 tabular-nums">{gap.completionRate}%</p>
+          <p className="text-[10px] text-zinc-500 mt-0.5">completion</p>
         </div>
         <div className="w-px h-8 bg-white/[0.06]" />
         <div>
-          <p className="text-2xl font-bold text-zinc-200 tabular-nums">{gap.volume}</p>
-          <p className="text-[11px] text-zinc-500 mt-0.5">sessions</p>
+          <p className="text-3xl font-bold text-zinc-300 tabular-nums">{gap.volume}</p>
+          <p className="text-[10px] text-zinc-500 mt-0.5">sessions</p>
         </div>
       </div>
-    </KPICard>
+    </Card>
   );
 }
 
-// ─── KPI: Release Impact ──────────────────────────────────────────────────────
+// ─── 4. Worst Intent ──────────────────────────────────────────────────────────
 
-function ReleaseImpactCard({ data }: { data: BriefingResponse["kpis"]["releaseImpact"] }) {
-  const deltaColor = data.delta >= 0 ? "text-emerald-400" : "text-red-400";
-  const sign = data.delta >= 0 ? "+" : "";
+function WorstIntentCard({ data }: { data: WorstIntent | null }) {
+  if (!data) {
+    return (
+      <Card>
+        <CardLabel>Worst Intent</CardLabel>
+        <p className="text-zinc-500 text-sm">Not enough data</p>
+      </Card>
+    );
+  }
   return (
-    <KPICard
+    <Card
       tooltip={
-        <div className="space-y-2.5">
-          <p className="text-xs font-semibold text-white">Release Impact — last 7 days vs prior 7</p>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-white">Worst Intent by Quality</p>
           <p className="text-xs text-zinc-400">
-            Average quality score shift between periods. A negative delta indicates a model update
-            or release that degraded response quality.
+            Average quality score across all sessions for this intent. Scale 0–100.
           </p>
           <div className="space-y-1 pt-1 border-t border-white/[0.06]">
             <div className="flex justify-between text-xs">
-              <span className="text-zinc-400">Last 7 days avg quality</span>
-              <span className="text-zinc-200 font-mono">{data.last7}</span>
+              <span className="text-zinc-500">Intent</span>
+              <span className="text-zinc-200 capitalize">{label(data.intent)}</span>
             </div>
             <div className="flex justify-between text-xs">
-              <span className="text-zinc-400">Prior 7 days avg quality</span>
-              <span className="text-zinc-200 font-mono">{data.prev7}</span>
+              <span className="text-zinc-500">Avg quality</span>
+              <span className="text-red-400 font-mono">{data.avgQuality} / 100</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-zinc-500">Sessions</span>
+              <span className="text-zinc-200 font-mono">{data.volume}</span>
             </div>
           </div>
         </div>
       }
     >
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-        Release Impact
+      <CardLabel>Worst Intent</CardLabel>
+      <p className="text-base font-semibold text-white capitalize leading-snug">
+        {label(data.intent)}
       </p>
-      <div className="flex items-end gap-2 mb-3">
-        <p className={`text-4xl font-bold tabular-nums ${deltaColor}`}>
-          {sign}{data.delta} pts
-        </p>
-      </div>
-      <p className="text-xs text-zinc-500 mb-3">overall quality · last 7d vs prior 7d</p>
-      {/* Per-intent breakdown */}
-      <div className="space-y-1.5">
-        {data.byIntent.slice(0, 5).map((row) => {
-          const d = row.delta;
-          const c = d >= 0 ? "text-emerald-400" : "text-red-400";
-          const s = d >= 0 ? "+" : "";
-          return (
-            <div key={row.intent} className="flex items-center justify-between text-xs">
-              <span className="text-zinc-500 truncate max-w-[148px] capitalize">
-                {formatIntentFull(row.intent)}
-              </span>
-              <span className={`font-mono shrink-0 ${c}`}>
-                {s}{d}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </KPICard>
+      <p className="text-3xl font-bold text-red-400 tabular-nums mt-2">{data.avgQuality}</p>
+      <p className="text-[10px] text-zinc-500 mt-0.5">avg quality score · {data.volume} sessions</p>
+      <QualityBar score={data.avgQuality} />
+    </Card>
   );
 }
 
-// ─── KPI: Segment Performance ─────────────────────────────────────────────────
+// ─── 5. Users Affected ────────────────────────────────────────────────────────
 
-function SegmentPerformanceCard({
-  data,
-}: {
-  data: BriefingResponse["kpis"]["segmentPerformance"];
-}) {
-  const segments: { key: keyof typeof data; color: string }[] = [
-    { key: "developer", color: "#818cf8" },
-    { key: "designer", color: "#a78bfa" },
-    { key: "beginner", color: "#60a5fa" },
-  ];
-
+function UsersAffectedCard({ data }: { data: ApiData["kpis"]["usersAffected"] }) {
   return (
-    <KPICard
+    <Card
       tooltip={
-        <div className="space-y-2.5">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-white">Users Affected</p>
+          <p className="text-xs text-zinc-400">
+            Unique users who had at least one <span className="text-zinc-200">failed</span>{" "}
+            conversation this week. Does not count abandoned sessions.
+          </p>
+          <div className="space-y-1 pt-1 border-t border-white/[0.06]">
+            <div className="flex justify-between text-xs">
+              <span className="text-zinc-500">This week</span>
+              <span className="text-zinc-200 font-mono">{data.thisWeek}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-zinc-500">Last week</span>
+              <span className="text-zinc-200 font-mono">{data.lastWeek}</span>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <CardLabel>Users Affected</CardLabel>
+      <p className="text-4xl font-bold text-white tabular-nums">{data.thisWeek}</p>
+      <p className="text-xs text-zinc-500 mt-1">unique users with failed sessions this week</p>
+      <div className="mt-2">
+        <TrendBadge delta={data.delta} unit="" invert={true} />
+      </div>
+    </Card>
+  );
+}
+
+// ─── 6. Segment Performance ───────────────────────────────────────────────────
+
+function SegmentCard({ data }: { data: ApiData["kpis"]["segmentPerformance"] }) {
+  const rows: { key: keyof typeof data; color: string }[] = [
+    { key: "developer", color: "#818cf8" },
+    { key: "designer",  color: "#a78bfa" },
+    { key: "beginner",  color: "#60a5fa" },
+  ];
+  return (
+    <Card
+      tooltip={
+        <div className="space-y-2">
           <p className="text-xs font-semibold text-white">Segment Performance</p>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Completion rates by user experience level, derived from{" "}
-            <span className="text-zinc-200">metadata.user_experience</span> field.
+          <p className="text-xs text-zinc-400">
+            Completion rates by <span className="text-zinc-200">metadata.user_experience</span>.
           </p>
           <div className="space-y-2 pt-1 border-t border-white/[0.06]">
-            {segments.map(({ key, color }) => {
+            {rows.map(({ key, color }) => {
               const s = data[key];
               return (
-                <div key={key} className="text-xs space-y-0.5">
+                <div key={key} className="text-xs space-y-1">
                   <div className="flex justify-between">
                     <span className="text-zinc-300 capitalize">{key}</span>
-                    <span className="text-zinc-400 font-mono">
-                      {s.completed}/{s.total} sessions
-                    </span>
+                    <span className="text-zinc-500 font-mono">{s.completed}/{s.total}</span>
                   </div>
-                  <div className="h-1 rounded-full bg-white/[0.06]">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${s.rate}%`, backgroundColor: color }}
-                    />
+                  <div className="h-1 rounded-full bg-white/[0.05]">
+                    <div className="h-full rounded-full" style={{ width: `${s.rate}%`, backgroundColor: color }} />
                   </div>
                 </div>
               );
@@ -520,147 +453,90 @@ function SegmentPerformanceCard({
         </div>
       }
     >
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
-        Segment Performance
-      </p>
+      <CardLabel>Segment Performance</CardLabel>
       <div className="space-y-3 mt-1">
-        {segments.map(({ key, color }) => (
-          <MiniBar
-            key={key}
-            label={key}
-            rate={data[key].rate}
-            color={color}
-          />
+        {rows.map(({ key, color }) => (
+          <MiniBar key={key} label={key} rate={data[key].rate} color={color} />
         ))}
       </div>
-      <p className="text-xs text-zinc-600 mt-4">completion rate by experience level</p>
-    </KPICard>
+      <p className="text-[10px] text-zinc-600 mt-3">completion rate by experience level</p>
+    </Card>
   );
 }
 
-// ─── Briefing Card ────────────────────────────────────────────────────────────
+// ─── Weekly Briefing card ─────────────────────────────────────────────────────
 
-function BriefingCard({ data }: { data: BriefingSection }) {
-  const {
-    successRateThisWeek,
-    successRatePrevWeek,
-    successRateDelta,
-    failedUsersThisWeek,
-    biggestRegression,
-    fastestGrowing,
-  } = data;
+function BriefingCard({ b }: { b: ApiData["briefing"] }) {
+  const { successRateThisWeek, successRatePrevWeek, successRateDelta,
+          failedUsersThisWeek, worstIntent, fastestGrowing } = b;
 
-  const srDir = successRateDelta >= 0 ? "↑" : "↓";
-  const srColor = successRateDelta >= 0 ? "text-emerald-400" : "text-red-400";
+  const dir   = successRateDelta >= 0 ? "↑" : "↓";
+  const srCls = successRateDelta >= 0 ? "text-emerald-400" : "text-red-400";
 
-  // Recommendation logic
   let recommendation = "review completion rates across all intent categories";
-  if (biggestRegression && Math.abs(biggestRegression.drop) >= 3) {
-    recommendation = `investigate the ${formatIntent(biggestRegression.intent)} quality regression before it escalates`;
-  } else if (fastestGrowing && fastestGrowing.pctChange > 20) {
-    recommendation = `ensure quality keeps pace with ${formatIntent(fastestGrowing.intent)} growth`;
+  if (worstIntent && worstIntent.avgQuality < 45) {
+    recommendation = `focus engineering effort on ${label(worstIntent.intent)} — quality is critically low`;
+  } else if (fastestGrowing && fastestGrowing.pctChange > 30) {
+    recommendation = `scale quality investment in ${label(fastestGrowing.intent)} as usage grows rapidly`;
   }
 
   return (
-    <div className="relative rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] via-[#13141b] to-blue-500/[0.04] p-6 overflow-hidden">
-      {/* Subtle glow */}
-      <div className="absolute -top-12 -left-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-blue-500/8 rounded-full blur-2xl pointer-events-none" />
+    <div className="relative rounded-xl border border-indigo-500/20 overflow-hidden
+                    bg-gradient-to-br from-indigo-500/[0.07] via-[#13141b] to-[#13141b] p-6">
+      {/* background glow */}
+      <div className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative">
-        {/* Header row */}
+        {/* header */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            {/* Pulse dot */}
+          <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-50" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
             </span>
-            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">
-              This Week&apos;s Briefing
+            <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">
+              Weekly Briefing
             </span>
           </div>
-          <span className="text-xs text-zinc-600">Auto-generated · {today()}</span>
+          <span className="text-xs text-zinc-600">Auto-generated · {todayStr()}</span>
         </div>
 
-        {/* Narrative */}
-        <div className="text-sm text-zinc-300 leading-[1.85] space-y-0 max-w-4xl">
-          {/* Sentence 1: Success rate */}
-          <p>
-            This week: AI Success Rate{" "}
-            <strong className="text-white font-semibold">{successRateThisWeek}%</strong>{" "}
-            <span className={srColor}>
-              ({srDir} from {successRatePrevWeek}% last week)
-            </span>
-            .{" "}
-            {/* Sentence 2: Failed users */}
-            <strong className="text-white font-semibold">{failedUsersThisWeek}</strong>{" "}
-            {failedUsersThisWeek === 1 ? "user" : "users"} had failed or abandoned
-            experiences this week.{" "}
-            {/* Sentence 3: Regression */}
-            {biggestRegression ? (
-              <>
-                Biggest regression:{" "}
-                <strong className="text-white font-semibold">
-                  {formatIntentFull(biggestRegression.intent)}
-                </strong>{" "}
-                quality dropped{" "}
-                <strong className="text-red-400 font-semibold">
-                  {Math.abs(biggestRegression.drop)} pts
-                </strong>{" "}
-                ({biggestRegression.prevWeek} → {biggestRegression.thisWeek}) vs last week.{" "}
-              </>
-            ) : (
-              "No significant quality regressions detected this week. "
-            )}
-            {/* Sentence 4: Fastest growing */}
-            {fastestGrowing ? (
-              <>
-                Fastest growing intent:{" "}
-                <strong className="text-white font-semibold">
-                  {formatIntentFull(fastestGrowing.intent)}
-                </strong>{" "}
-                up{" "}
-                <strong className="text-emerald-400 font-semibold">
-                  +{fastestGrowing.pctChange}%
-                </strong>{" "}
-                week-over-week ({fastestGrowing.prevWeekCount} → {fastestGrowing.thisWeekCount} sessions).{" "}
-              </>
-            ) : (
-              "Intent volume distribution is stable week-over-week. "
-            )}
-            {/* Sentence 5: Recommendation */}
-            <span className="text-zinc-400">
-              Recommended: {recommendation}.
-            </span>
-          </p>
-        </div>
+        {/* narrative */}
+        <p className="text-sm text-zinc-300 leading-[1.9] max-w-4xl">
+          This week: AI Success Rate{" "}
+          <strong className="text-white">{successRateThisWeek}%</strong>{" "}
+          <span className={srCls}>({dir} from {successRatePrevWeek}% last week)</span>.{" "}
+          <strong className="text-white">{failedUsersThisWeek}</strong>{" "}
+          {failedUsersThisWeek === 1 ? "user" : "users"} had failed or abandoned experiences.{" "}
+          {worstIntent ? (
+            <>
+              Worst-performing intent:{" "}
+              <strong className="text-white capitalize">{label(worstIntent.intent)}</strong>{" "}
+              with avg quality{" "}
+              <strong className="text-red-400">{worstIntent.avgQuality}</strong>/100.{" "}
+            </>
+          ) : null}
+          {fastestGrowing ? (
+            <>
+              Fastest growing:{" "}
+              <strong className="text-white capitalize">{label(fastestGrowing.intent)}</strong>{" "}
+              up{" "}
+              <strong className="text-emerald-400">+{fastestGrowing.pctChange}%</strong>{" "}
+              week-over-week ({fastestGrowing.prevWeekCount}→{fastestGrowing.thisWeekCount} sessions).{" "}
+            </>
+          ) : null}
+          <span className="text-zinc-500">Recommended: {recommendation}.</span>
+        </p>
 
-        {/* Stat pills */}
-        <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-white/[0.04]">
-          <Pill
-            label="This week"
-            value={`${successRateThisWeek}% success`}
-            color={successRateDelta >= 0 ? "emerald" : "red"}
-          />
-          <Pill
-            label="At-risk users"
-            value={`${failedUsersThisWeek} this week`}
-            color="amber"
-          />
-          {biggestRegression && (
-            <Pill
-              label="Worst regression"
-              value={`${Math.abs(biggestRegression.drop)}pt drop in ${formatIntent(biggestRegression.intent)}`}
-              color="red"
-            />
+        {/* pill row */}
+        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/[0.04]">
+          <Pill color={successRateDelta >= 0 ? "green" : "red"} label="Success rate" value={`${successRateThisWeek}%`} />
+          <Pill color="amber" label="Users at risk" value={`${failedUsersThisWeek}`} />
+          {worstIntent && (
+            <Pill color="red" label="Worst quality" value={`${label(worstIntent.intent)} · ${worstIntent.avgQuality}`} />
           )}
           {fastestGrowing && (
-            <Pill
-              label="Fastest growing"
-              value={`+${fastestGrowing.pctChange}% ${formatIntent(fastestGrowing.intent)}`}
-              color="indigo"
-            />
+            <Pill color="indigo" label="Fastest growing" value={`${label(fastestGrowing.intent)} +${fastestGrowing.pctChange}%`} />
           )}
         </div>
       </div>
@@ -668,63 +544,49 @@ function BriefingCard({ data }: { data: BriefingSection }) {
   );
 }
 
-function Pill({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color: "emerald" | "red" | "amber" | "indigo";
-}) {
-  const styles = {
-    emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-300",
-    red: "bg-red-500/10 border-red-500/20 text-red-300",
-    amber: "bg-amber-500/10 border-amber-500/20 text-amber-300",
+function Pill({ color, label: lbl, value }: { color: string; label: string; value: string }) {
+  const cls: Record<string, string> = {
+    green:  "bg-emerald-500/10 border-emerald-500/20 text-emerald-300",
+    red:    "bg-red-500/10 border-red-500/20 text-red-300",
+    amber:  "bg-amber-500/10 border-amber-500/20 text-amber-300",
     indigo: "bg-indigo-500/10 border-indigo-500/20 text-indigo-300",
   };
   return (
-    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${styles[color]}`}>
-      <span className="text-zinc-500">{label}:</span>
-      <span className="font-medium">{value}</span>
+    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ${cls[color] ?? ""}`}>
+      <span className="text-zinc-500">{lbl}:</span>
+      <span className="font-medium capitalize">{value}</span>
     </div>
   );
 }
 
-// ─── Loading skeleton ─────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return (
-    <div className={`animate-pulse rounded-lg bg-white/[0.04] ${className}`} />
-  );
+function Bone({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-white/[0.04] ${className}`} />;
 }
 
 function LoadingSkeleton() {
   return (
     <div className="p-8 max-w-7xl space-y-6">
-      <div>
-        <Skeleton className="h-7 w-36 mb-2" />
-        <Skeleton className="h-4 w-64" />
+      <div className="space-y-2">
+        <Bone className="h-7 w-32" />
+        <Bone className="h-3.5 w-56" />
       </div>
-      {/* Briefing skeleton */}
-      <div className="rounded-2xl border border-white/[0.06] bg-[#13141b] p-6 space-y-3">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-5/6" />
-        <Skeleton className="h-4 w-4/6" />
+      <div className="rounded-xl border border-white/[0.06] bg-[#13141b] p-6 space-y-3">
+        <Bone className="h-3 w-32" />
+        <Bone className="h-4 w-full" />
+        <Bone className="h-4 w-4/5" />
+        <Bone className="h-4 w-3/5" />
         <div className="flex gap-2 pt-2">
-          <Skeleton className="h-6 w-28 rounded-lg" />
-          <Skeleton className="h-6 w-32 rounded-lg" />
-          <Skeleton className="h-6 w-36 rounded-lg" />
+          {[28, 32, 40, 36].map((w, i) => <Bone key={i} className={`h-5 w-${w} rounded-lg`} />)}
         </div>
       </div>
-      {/* KPI grid skeleton */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="rounded-2xl border border-white/[0.06] bg-[#13141b] p-5 space-y-3">
-            <Skeleton className="h-3 w-28" />
-            <Skeleton className="h-9 w-24" />
-            <Skeleton className="h-4 w-36" />
+          <div key={i} className="rounded-xl border border-white/[0.06] bg-[#13141b] p-5 space-y-3">
+            <Bone className="h-2.5 w-24" />
+            <Bone className="h-9 w-20" />
+            <Bone className="h-3 w-32" />
           </div>
         ))}
       </div>
@@ -735,18 +597,15 @@ function LoadingSkeleton() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Overview() {
-  const [data, setData] = useState<BriefingResponse | null>(null);
+  const [data, setData]     = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/briefing")
-      .then((r) => {
-        if (!r.ok) return r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`));
-        return r.json();
-      })
+      .then((r) => (r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))))
       .then(setData)
-      .catch((e) => setError(typeof e === "string" ? e : "Failed to load briefing"))
+      .catch((e) => setError(typeof e === "string" ? e : String(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -756,7 +615,7 @@ export default function Overview() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-xl p-5 max-w-md">
-          <p className="font-semibold mb-1">Failed to load briefing</p>
+          <p className="font-semibold mb-1">Failed to load</p>
           <p className="text-red-300">{error}</p>
         </div>
       </div>
@@ -767,25 +626,23 @@ export default function Overview() {
 
   return (
     <div className="p-8 max-w-7xl space-y-6">
-      {/* Page header */}
+      {/* page header */}
       <div>
-        <h1 className="text-2xl font-semibold text-white">Briefing</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">
-          AI performance summary for product leadership · {today()}
-        </p>
+        <h1 className="text-2xl font-semibold text-white">Overview</h1>
+        <p className="text-sm text-zinc-500 mt-0.5">AI performance summary · {todayStr()}</p>
       </div>
 
-      {/* Briefing narrative */}
-      <BriefingCard data={briefing} />
+      {/* briefing */}
+      <BriefingCard b={briefing} />
 
-      {/* KPI grid — 3 × 2 */}
+      {/* KPI grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        <SuccessRateCard data={kpis.successRate} />
+        <SuccessRateCard   data={kpis.successRate} />
         <RevenueAtRiskCard data={kpis.revenueAtRisk} />
-        <TimeToValueCard data={kpis.timeToValue} />
         <TopFeatureGapCard gap={kpis.topFeatureGap} allGaps={kpis.allFeatureGaps} />
-        <ReleaseImpactCard data={kpis.releaseImpact} />
-        <SegmentPerformanceCard data={kpis.segmentPerformance} />
+        <WorstIntentCard   data={kpis.worstIntent} />
+        <UsersAffectedCard data={kpis.usersAffected} />
+        <SegmentCard       data={kpis.segmentPerformance} />
       </div>
     </div>
   );

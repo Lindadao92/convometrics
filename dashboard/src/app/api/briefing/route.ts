@@ -16,7 +16,7 @@ type Row = {
   user_id: string | null;
 };
 
-const MS = { DAY: 864e5 };
+const MS_DAY = 864e5;
 
 function successRate(rows: Row[]): number {
   if (!rows.length) return 0;
@@ -33,7 +33,7 @@ function avgQuality(rows: Row[]): number {
   );
 }
 
-function qualityByIntent(rows: Row[]): Record<string, number> {
+function qualityByIntent(rows: Row[]): Record<string, { avg: number; n: number }> {
   const acc: Record<string, { sum: number; n: number }> = {};
   for (const r of rows) {
     if (!r.intent || r.quality_score === null) continue;
@@ -41,7 +41,7 @@ function qualityByIntent(rows: Row[]): Record<string, number> {
     acc[r.intent].n++;
   }
   return Object.fromEntries(
-    Object.entries(acc).map(([i, { sum, n }]) => [i, Math.round(sum / n)])
+    Object.entries(acc).map(([i, { sum, n }]) => [i, { avg: Math.round(sum / n), n }])
   );
 }
 
@@ -60,18 +60,6 @@ function atRiskUserSet(rows: Row[]): Set<string> {
   );
 }
 
-function avgTtv(rows: Row[]): number {
-  const valid = rows.filter(
-    (r) =>
-      r.completion_status === "completed" && r.metadata?.prompt_count_in_session != null
-  );
-  if (!valid.length) return 0;
-  const avg =
-    valid.reduce((s, r) => s + (r.metadata!.prompt_count_in_session as number), 0) /
-    valid.length;
-  return Math.round(avg * 10) / 10;
-}
-
 export async function GET() {
   const sb = getSupabaseServer();
   const { data: rows, error } = await sb
@@ -82,10 +70,9 @@ export async function GET() {
   if (!rows?.length) return NextResponse.json({ error: "No data" }, { status: 500 });
 
   const now = Date.now();
-  const t7 = now - 7 * MS.DAY;
-  const t14 = now - 14 * MS.DAY;
+  const t7  = now - 7  * MS_DAY;
+  const t14 = now - 14 * MS_DAY;
 
-  // Attach timestamp once
   const allTs = (rows as Row[]).map((r) => ({
     ...r,
     _ts: new Date(r.created_at).getTime(),
@@ -93,47 +80,54 @@ export async function GET() {
   const thisWeek = allTs.filter((r) => r._ts >= t7);
   const lastWeek = allTs.filter((r) => r._ts >= t14 && r._ts < t7);
 
-  // ── Briefing section ──────────────────────────────────────────────────────
+  // ── Success rate ──────────────────────────────────────────────────────────
   const srThis = successRate(thisWeek);
   const srLast = successRate(lastWeek);
 
-  const failedThisWeek = new Set(
+  // ── Failed users this week (failed OR abandoned) ───────────────────────────
+  const failedUsersThisWeek = new Set(
     thisWeek
       .filter((r) => r.completion_status === "failed" || r.completion_status === "abandoned")
       .map((r) => r.user_id)
       .filter((id): id is string => id !== null)
-  );
+  ).size;
 
-  const qThis = qualityByIntent(thisWeek);
-  const qLast = qualityByIntent(lastWeek);
+  // ── Users affected: strictly 'failed' this week ───────────────────────────
+  const usersAffectedThisWeek = new Set(
+    thisWeek
+      .filter((r) => r.completion_status === "failed")
+      .map((r) => r.user_id)
+      .filter((id): id is string => id !== null)
+  ).size;
+
+  const usersAffectedLastWeek = new Set(
+    lastWeek
+      .filter((r) => r.completion_status === "failed")
+      .map((r) => r.user_id)
+      .filter((id): id is string => id !== null)
+  ).size;
+
+  // ── Volume by intent (for briefing fastest-growing) ───────────────────────
   const vThis = volumeByIntent(thisWeek);
   const vLast = volumeByIntent(lastWeek);
 
-  // Biggest quality regression (most negative delta)
-  let biggestRegression: {
-    intent: string;
-    drop: number;
-    thisWeek: number;
-    prevWeek: number;
-  } | null = null;
-
-  for (const [intent, q] of Object.entries(qThis)) {
-    const prev = qLast[intent];
-    if (prev === undefined) continue;
-    const drop = q - prev; // negative = regression
-    if (biggestRegression === null || drop < biggestRegression.drop) {
-      biggestRegression = { intent, drop, thisWeek: q, prevWeek: prev };
+  // ── Worst intent by avg quality (all-time, min 5 conversations) ───────────
+  const allIntentQuality = qualityByIntent(allTs);
+  let worstIntent: { intent: string; avgQuality: number; volume: number } | null = null;
+  for (const [intent, { avg, n }] of Object.entries(allIntentQuality)) {
+    if (n < 5) continue;
+    if (worstIntent === null || avg < worstIntent.avgQuality) {
+      worstIntent = { intent, avgQuality: avg, volume: n };
     }
   }
 
-  // Fastest growing intent by volume week-over-week
+  // ── Fastest growing intent week-over-week ─────────────────────────────────
   let fastestGrowing: {
     intent: string;
     pctChange: number;
     thisWeekCount: number;
     prevWeekCount: number;
   } | null = null;
-
   for (const [intent, count] of Object.entries(vThis)) {
     const prev = vLast[intent] ?? 0;
     if (prev === 0 || count < 2) continue;
@@ -143,8 +137,7 @@ export async function GET() {
     }
   }
 
-  // ── KPI: Success Rate ─────────────────────────────────────────────────────
-  // Daily sparkline covering last 14 days
+  // ── Success rate sparkline (14 days) ─────────────────────────────────────
   const daily: Record<string, { c: number; t: number }> = {};
   for (const r of allTs) {
     if (r._ts < t14) continue;
@@ -156,31 +149,18 @@ export async function GET() {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, { c, t }]) => ({ date: date.slice(5), rate: Math.round((c / t) * 100) }));
 
-  // ── KPI: Revenue at Risk ──────────────────────────────────────────────────
-  const riskAll = atRiskUserSet(allTs);
+  // ── Revenue at risk ────────────────────────────────────────────────────────
+  const riskAll  = atRiskUserSet(allTs);
   const riskThis = atRiskUserSet(thisWeek);
   const riskLast = atRiskUserSet(lastWeek);
 
-  const failedSessionsCount = (rows as Row[]).filter(
-    (r) => r.completion_status === "failed"
-  ).length;
-  const abandonedSessionsCount = (rows as Row[]).filter(
-    (r) => r.completion_status === "abandoned"
-  ).length;
-
-  // ── KPI: Time to Value ────────────────────────────────────────────────────
-  const ttvAll = avgTtv(rows as Row[]);
-  const ttvThis = avgTtv(thisWeek);
-  const ttvLast = avgTtv(lastWeek);
-
-  // ── KPI: Feature Gap ─────────────────────────────────────────────────────
+  // ── Top feature gap (highest-volume intent with <50% completion) ──────────
   const intentStats: Record<string, { completed: number; total: number }> = {};
   for (const r of rows as Row[]) {
     if (!r.intent) continue;
     (intentStats[r.intent] ??= { completed: 0, total: 0 }).total++;
     if (r.completion_status === "completed") intentStats[r.intent].completed++;
   }
-
   const featureGaps = Object.entries(intentStats)
     .map(([intent, { completed, total }]) => ({
       intent,
@@ -190,24 +170,14 @@ export async function GET() {
     .filter((x) => x.completionRate < 50)
     .sort((a, b) => b.volume - a.volume);
 
-  // ── KPI: Release Impact ───────────────────────────────────────────────────
-  const l7q = qualityByIntent(thisWeek);
-  const p7q = qualityByIntent(lastWeek);
-
-  const releaseByIntent = Object.keys(l7q)
-    .filter((i) => p7q[i] !== undefined)
-    .map((i) => ({ intent: i, last7: l7q[i], prev7: p7q[i], delta: l7q[i] - p7q[i] }))
-    .sort((a, b) => a.delta - b.delta); // worst first
-
-  // ── KPI: Segment Performance ──────────────────────────────────────────────
+  // ── Segment performance ────────────────────────────────────────────────────
   type SegKey = "beginner" | "designer" | "developer";
   const segs: SegKey[] = ["beginner", "designer", "developer"];
   const segPerf: Record<SegKey, { completed: number; total: number; rate: number }> = {
-    beginner: { completed: 0, total: 0, rate: 0 },
-    designer: { completed: 0, total: 0, rate: 0 },
+    beginner:  { completed: 0, total: 0, rate: 0 },
+    designer:  { completed: 0, total: 0, rate: 0 },
     developer: { completed: 0, total: 0, rate: 0 },
   };
-
   for (const r of rows as Row[]) {
     const exp = r.metadata?.user_experience as SegKey | undefined;
     if (!exp || !segPerf[exp]) continue;
@@ -223,40 +193,32 @@ export async function GET() {
     briefing: {
       successRateThisWeek: srThis,
       successRatePrevWeek: srLast,
-      successRateDelta: srThis - srLast,
-      failedUsersThisWeek: failedThisWeek.size,
-      biggestRegression,
+      successRateDelta:    srThis - srLast,
+      failedUsersThisWeek,
+      worstIntent,
       fastestGrowing,
-      totalThisWeek: thisWeek.length,
     },
     kpis: {
       successRate: {
-        current: srThis,
-        delta: srThis - srLast,
+        current:   srThis,
+        delta:     srThis - srLast,
         sparkline,
       },
       revenueAtRisk: {
-        current: riskAll.size * 35,
-        usersAtRisk: riskAll.size,
-        delta: (riskThis.size - riskLast.size) * 35,
-        thisWeekUsers: riskThis.size,
-        lastWeekUsers: riskLast.size,
-        failedSessions: failedSessionsCount,
-        abandonedSessions: abandonedSessionsCount,
+        current:          riskAll.size * 35,
+        usersAtRisk:      riskAll.size,
+        thisWeekUsers:    riskThis.size,
+        lastWeekUsers:    riskLast.size,
+        failedSessions:   (rows as Row[]).filter((r) => r.completion_status === "failed").length,
+        abandonedSessions:(rows as Row[]).filter((r) => r.completion_status === "abandoned").length,
       },
-      timeToValue: {
-        avgMessages: ttvAll,
-        delta: Math.round((ttvThis - ttvLast) * 10) / 10,
-        thisWeek: ttvThis,
-        lastWeek: ttvLast,
-      },
-      topFeatureGap: featureGaps[0] ?? null,
+      topFeatureGap:  featureGaps[0] ?? null,
       allFeatureGaps: featureGaps,
-      releaseImpact: {
-        last7: avgQuality(thisWeek),
-        prev7: avgQuality(lastWeek),
-        delta: avgQuality(thisWeek) - avgQuality(lastWeek),
-        byIntent: releaseByIntent,
+      worstIntent,
+      usersAffected: {
+        thisWeek: usersAffectedThisWeek,
+        lastWeek: usersAffectedLastWeek,
+        delta:    usersAffectedThisWeek - usersAffectedLastWeek,
       },
       segmentPerformance: segPerf,
     },
