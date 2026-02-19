@@ -25,14 +25,24 @@ interface FailedConversation {
   user_id: string | null;
   quality_score: number | null;
   completion_status: string | null;
+  abandon_point: number | null;
   created_at: string;
   messages: Message[];
+}
+
+interface FailurePattern {
+  label:   string;
+  pct:     number;
+  example: string;
 }
 
 interface IntentDetail {
   intent: string;
   completionBreakdown: Record<string, number>;
   failedConversations: FailedConversation[];
+  typicalAbandonPoint: number | null;
+  abandonmentAiResponse: string | null;
+  failurePatterns: FailurePattern[] | null;
 }
 
 const PIE_COLORS: Record<string, string> = {
@@ -86,6 +96,21 @@ const SUGGESTED_ACTIONS: Record<string, string> = {
 const DEFAULT_ACTION =
   "Review the recent failed conversations to identify the most common failure point, then add targeted guidance or guardrails for that specific step.";
 
+const SEGMENTS = [
+  { value: "all",       label: "All Users" },
+  { value: "beginner",  label: "Beginner"  },
+  { value: "designer",  label: "Designer"  },
+  { value: "developer", label: "Developer" },
+] as const;
+
+type SegmentValue = (typeof SEGMENTS)[number]["value"];
+
+interface SegmentStats {
+  avgScore: number | null;
+  completionRate: number;
+  count: number;
+}
+
 function scoreColor(s: number | null) {
   if (s === null) return "text-zinc-600";
   if (s > 75) return "text-emerald-400";
@@ -100,37 +125,42 @@ function impactBarColor(failureRate: number) {
 }
 
 export default function IntentsPage() {
-  const [summary, setSummary]           = useState<IntentSummary[]>([]);
-  const [detail, setDetail]             = useState<IntentDetail | null>(null);
-  const [selected, setSelected]         = useState<string | null>(null);
-  const [loading, setLoading]           = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [expandedId, setExpandedId]     = useState<string | null>(null);
+  const [summary, setSummary]               = useState<IntentSummary[]>([]);
+  const [segmentSummary, setSegmentSummary] = useState<Record<string, SegmentStats>>({});
+  const [segment, setSegment]               = useState<SegmentValue>("all");
+  const [detail, setDetail]                 = useState<IntentDetail | null>(null);
+  const [selected, setSelected]             = useState<string | null>(null);
+  const [loading, setLoading]               = useState(true);
+  const [detailLoading, setDetailLoading]   = useState(false);
+  const [expandedId, setExpandedId]         = useState<string | null>(null);
 
-  const fetchSummary = useCallback(async () => {
+  const fetchSummary = useCallback(async (seg: SegmentValue) => {
     setLoading(true);
     try {
-      const res  = await fetch("/api/intents");
-      const data = await res.json();
+      const params = seg !== "all" ? `?segment=${encodeURIComponent(seg)}` : "";
+      const res    = await fetch(`/api/intents${params}`);
+      const data   = await res.json();
       setSummary(data.summary ?? []);
+      setSegmentSummary(data.segmentSummary ?? {});
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const fetchDetail = useCallback(async (intent: string) => {
+  const fetchDetail = useCallback(async (intent: string, seg: SegmentValue) => {
     setDetailLoading(true);
     setExpandedId(null);
     try {
-      const res  = await fetch(`/api/intents?intent=${encodeURIComponent(intent)}`);
-      const data = await res.json();
+      const params = seg !== "all" ? `&segment=${encodeURIComponent(seg)}` : "";
+      const res    = await fetch(`/api/intents?intent=${encodeURIComponent(intent)}${params}`);
+      const data   = await res.json();
       setDetail(data.detail);
     } finally {
       setDetailLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchSummary(); }, [fetchSummary]);
+  useEffect(() => { fetchSummary(segment); }, [fetchSummary, segment]);
 
   const handleSelect = (intent: string) => {
     if (selected === intent) {
@@ -138,9 +168,11 @@ export default function IntentsPage() {
       setDetail(null);
     } else {
       setSelected(intent);
-      fetchDetail(intent);
+      fetchDetail(intent, segment);
     }
   };
+
+  const segmentLabel = SEGMENTS.find((s) => s.value === segment)?.label ?? "Segment";
 
   const top3              = summary.slice(0, 3);
   const top3WeeklyUsers   = top3.reduce((sum, r) => sum + r.countThisWeek, 0);
@@ -156,7 +188,21 @@ export default function IntentsPage() {
 
   return (
     <div className="p-8 max-w-7xl">
-      <h1 className="text-2xl font-semibold text-white mb-1">Where Users Struggle</h1>
+      <div className="flex items-start justify-between mb-1">
+        <h1 className="text-2xl font-semibold text-white">Where Users Struggle</h1>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500">Segment by</span>
+          <select
+            value={segment}
+            onChange={(e) => setSegment(e.target.value as SegmentValue)}
+            className="text-sm bg-[#1e1f2b] border border-white/[0.08] text-zinc-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 cursor-pointer"
+          >
+            {SEGMENTS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
       <p className="text-sm text-zinc-500 mb-6">
         Intents ranked by impact — volume × failure rate
       </p>
@@ -196,8 +242,14 @@ export default function IntentsPage() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider w-10">#</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Intent</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Convos / week</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Success rate</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Avg quality</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                  Success rate
+                  {segment !== "all" && <span className="ml-1 text-indigo-400 normal-case font-normal">/ {segmentLabel}</span>}
+                </th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                  Avg quality
+                  {segment !== "all" && <span className="ml-1 text-indigo-400 normal-case font-normal">/ {segmentLabel}</span>}
+                </th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Impact</th>
               </tr>
             </thead>
@@ -219,6 +271,13 @@ export default function IntentsPage() {
                     ? "text-amber-400"
                     : "text-red-400";
 
+                  const segStats = segmentSummary[row.intent] ?? null;
+                  const segSrColor = segStats
+                    ? segStats.completionRate >= 60 ? "text-emerald-400"
+                    : segStats.completionRate >= 40 ? "text-amber-400"
+                    : "text-red-400"
+                    : "";
+
                   return (
                     <tr
                       key={row.intent}
@@ -239,11 +298,25 @@ export default function IntentsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-zinc-400 tabular-nums">{row.countThisWeek}</td>
-                      <td className={`px-4 py-3 tabular-nums font-medium ${srColor}`}>
-                        {row.completionRate}%
+                      <td className="px-4 py-3 tabular-nums font-medium">
+                        {segment !== "all" && segStats ? (
+                          <div>
+                            <span className={segSrColor}>{segStats.completionRate}%</span>
+                            <div className="text-xs text-zinc-600 mt-0.5 font-normal">{row.completionRate}% overall</div>
+                          </div>
+                        ) : (
+                          <span className={srColor}>{row.completionRate}%</span>
+                        )}
                       </td>
-                      <td className={`px-4 py-3 font-medium tabular-nums ${scoreColor(row.avgScore)}`}>
-                        {row.avgScore ?? "--"}
+                      <td className="px-4 py-3 font-medium tabular-nums">
+                        {segment !== "all" && segStats ? (
+                          <div>
+                            <span className={scoreColor(segStats.avgScore)}>{segStats.avgScore ?? "--"}</span>
+                            <div className="text-xs text-zinc-600 mt-0.5 font-normal">{row.avgScore ?? "--"} overall</div>
+                          </div>
+                        ) : (
+                          <span className={scoreColor(row.avgScore)}>{row.avgScore ?? "--"}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -294,6 +367,78 @@ export default function IntentsPage() {
                   {SUGGESTED_ACTIONS[selected] ?? DEFAULT_ACTION}
                 </p>
               </div>
+
+              {/* Common Failure Patterns */}
+              {detail.failurePatterns && detail.failurePatterns.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
+                    Common Failure Patterns
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {detail.failurePatterns.map((p, i) => {
+                      const rank = i === 0 ? "border-red-500/30 bg-red-500/[0.04]"
+                                 : i === 1 ? "border-amber-500/30 bg-amber-500/[0.04]"
+                                 :           "border-white/[0.06] bg-zinc-900/40";
+                      const pctColor = i === 0 ? "text-red-400"
+                                     : i === 1 ? "text-amber-400"
+                                     :           "text-zinc-400";
+                      return (
+                        <div key={i} className={`rounded-lg border ${rank} p-4 flex flex-col gap-2.5`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-zinc-200 leading-snug">
+                              {p.label}
+                            </p>
+                            <span className={`shrink-0 text-sm font-bold tabular-nums ${pctColor}`}>
+                              {p.pct}%
+                            </span>
+                          </div>
+                          <div className="w-full h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                i === 0 ? "bg-red-500" : i === 1 ? "bg-amber-500" : "bg-zinc-600"
+                              }`}
+                              style={{ width: `${p.pct}%` }}
+                            />
+                          </div>
+                          <blockquote className="text-xs text-zinc-500 italic leading-relaxed border-l-2 border-zinc-700 pl-2.5 line-clamp-3">
+                            "{p.example}"
+                          </blockquote>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Abandonment insight */}
+              {detail.typicalAbandonPoint !== null && (
+                <div className="rounded-lg border border-white/[0.06] bg-zinc-900/60 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-white/[0.06]">
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-0.5">
+                      Drop-off Point
+                    </p>
+                    <p className="text-sm text-white">
+                      Users typically give up after message{" "}
+                      <span className="font-bold text-amber-400">{detail.typicalAbandonPoint + 1}</span>
+                      <span className="text-zinc-500 font-normal text-xs ml-1.5">
+                        (turn {detail.typicalAbandonPoint + 1} in the conversation)
+                      </span>
+                    </p>
+                  </div>
+                  {detail.abandonmentAiResponse && (
+                    <div className="px-4 py-3">
+                      <p className="text-xs font-medium text-zinc-500 mb-2">
+                        AI response they saw before giving up:
+                      </p>
+                      <blockquote className="border-l-2 border-zinc-700 pl-3 text-sm text-zinc-400 leading-relaxed italic line-clamp-4">
+                        {detail.abandonmentAiResponse.length > 400
+                          ? detail.abandonmentAiResponse.slice(0, 400) + "…"
+                          : detail.abandonmentAiResponse}
+                      </blockquote>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Failure breakdown pie */}
               <div>

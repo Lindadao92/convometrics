@@ -76,12 +76,33 @@ def get_openai():
     return OpenAI(api_key=OPENAI_API_KEY)
 
 
+def find_abandon_point(messages: list[dict]) -> int | None:
+    """Return the index of the last user message in the conversation."""
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i].get("role") == "user":
+            return i
+    return None
+
+
 def fetch_unanalyzed(sb, limit: int) -> list[dict]:
     """Fetch conversations where completion_status is NULL."""
     result = (
         sb.table("conversations")
         .select("id, messages")
         .is_("completion_status", "null")
+        .limit(limit)
+        .execute()
+    )
+    return result.data
+
+
+def fetch_missing_abandon_point(sb, limit: int) -> list[dict]:
+    """Fetch already-classified abandoned/failed rows that still need abandon_point set."""
+    result = (
+        sb.table("conversations")
+        .select("id, messages, completion_status")
+        .in_("completion_status", ["abandoned", "failed"])
+        .is_("abandon_point", "null")
         .limit(limit)
         .execute()
     )
@@ -149,12 +170,29 @@ def process_batch(sb, openai_client: OpenAI, conversations: list[dict]) -> int:
             continue
 
         if status:
-            sb.table("conversations").update({"completion_status": status}).eq("id", conv_id).execute()
+            update: dict = {"completion_status": status}
+            if status in {"abandoned", "failed"}:
+                ap = find_abandon_point(messages)
+                if ap is not None:
+                    update["abandon_point"] = ap
+            sb.table("conversations").update(update).eq("id", conv_id).execute()
             updated += 1
-            logger.info("Analyzed %s → %s", conv_id, status)
+            logger.info("Analyzed %s → %s (abandon_point=%s)", conv_id, status, update.get("abandon_point"))
         else:
             logger.warning("No status returned for conversation %s", conv_id)
 
+    return updated
+
+
+def backfill_abandon_points(sb, conversations: list[dict]) -> int:
+    """Set abandon_point for already-classified conversations that are missing it."""
+    updated = 0
+    for conv in conversations:
+        ap = find_abandon_point(conv["messages"])
+        if ap is not None:
+            sb.table("conversations").update({"abandon_point": ap}).eq("id", conv["id"]).execute()
+            updated += 1
+            logger.info("Backfilled abandon_point=%d for %s", ap, conv["id"])
     return updated
 
 
@@ -168,14 +206,21 @@ def run():
     while True:
         try:
             conversations = fetch_unanalyzed(sb, BATCH_SIZE)
+            needs_ap = fetch_missing_abandon_point(sb, BATCH_SIZE)
 
-            if not conversations:
+            if not conversations and not needs_ap:
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            logger.info("Processing batch of %d conversations", len(conversations))
-            updated = process_batch(sb, openai_client, conversations)
-            logger.info("Updated %d/%d conversations", updated, len(conversations))
+            if conversations:
+                logger.info("Processing batch of %d conversations", len(conversations))
+                updated = process_batch(sb, openai_client, conversations)
+                logger.info("Updated %d/%d conversations", updated, len(conversations))
+
+            if needs_ap:
+                logger.info("Backfilling abandon_point for %d conversations", len(needs_ap))
+                filled = backfill_abandon_points(sb, needs_ap)
+                logger.info("Backfilled %d/%d abandon_points", filled, len(needs_ap))
 
         except KeyboardInterrupt:
             logger.info("Shutting down")
