@@ -30,9 +30,14 @@ export default function RootLayout({
         <div className="flex min-h-screen">
           <aside className="w-56 shrink-0 border-r border-white/[0.06] bg-[#0a0b10] flex flex-col">
             <div className="px-5 py-6">
-              <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              <a
+                href="https://convometrics-landing.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lg font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
+              >
                 Convometrics
-              </span>
+              </a>
             </div>
             <nav className="flex flex-col gap-1 px-3 mt-2">
               <a
@@ -109,8 +114,19 @@ export default function RootLayout({
                 Settings
               </a>
             </nav>
-            <div className="mt-auto px-5 py-4 border-t border-white/[0.06]">
+            <div className="mt-auto px-5 py-4 border-t border-white/[0.06] flex items-center justify-between">
               <p className="text-xs text-zinc-500">v0.1.0</p>
+              <a
+                href="https://convometrics-landing.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-zinc-500 hover:text-purple-400 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to site
+              </a>
             </div>
           </aside>
           <main className="flex-1 overflow-auto">{children}</main>
