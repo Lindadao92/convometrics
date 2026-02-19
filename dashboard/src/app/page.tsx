@@ -464,46 +464,68 @@ function SegmentCard({ data }: { data: ApiData["kpis"]["segmentPerformance"] }) 
   );
 }
 
-// ─── Weekly Briefing card ─────────────────────────────────────────────────────
+// ─── Three summary stat cards ─────────────────────────────────────────────────
 
-function BriefingCard({
-  b,
-  topGap,
-}: {
-  b: ApiData["briefing"];
-  topGap: FeatureGap | null;
-}) {
-  const { successRateThisWeek, failedUsersThisWeek, worstIntent } = b;
+function SummaryStats() {
+  const stats = [
+    {
+      label: "Total Conversations",
+      value: "500",
+      comparison: "↑ 12% vs last week",
+      compCls: "text-green-400",
+    },
+    {
+      label: "Avg Quality Score",
+      value: "61/100",
+      comparison: "↓ 3 points vs last week",
+      compCls: "text-red-400",
+    },
+    {
+      label: "Completion Rate",
+      value: "52%",
+      comparison: "↓ from 57% last week",
+      compCls: "text-red-400",
+    },
+  ];
 
   return (
-    <div className="flex rounded-xl border border-white/[0.06] bg-[#13141b] overflow-hidden">
+    <div className="grid grid-cols-3 gap-5">
+      {stats.map(({ label, value, comparison, compCls }) => (
+        <div
+          key={label}
+          className="rounded-xl border border-white/[0.07] bg-[#13141b] px-5 py-4"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-2">
+            {label}
+          </p>
+          <p className="text-3xl font-bold text-white tabular-nums">{value}</p>
+          <p className={`text-xs mt-1.5 ${compCls}`}>{comparison}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Weekly Briefing card ─────────────────────────────────────────────────────
+
+function BriefingCard() {
+  return (
+    <div className="flex rounded-xl border border-white/[0.06] bg-zinc-900 overflow-hidden">
       {/* amber left border */}
       <div className="w-1 shrink-0 bg-amber-400" />
 
       <div className="flex-1 px-5 py-4">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-2">
-          This Week&apos;s Briefing
+        <p className="text-xs font-semibold text-amber-400 mb-2">
+          📋 Weekly Briefing
         </p>
         <p className="text-sm text-zinc-300 leading-relaxed">
-          AI Success Rate:{" "}
-          <strong className="text-white">{successRateThisWeek}%</strong>.{" "}
-          <strong className="text-white">{failedUsersThisWeek}</strong>{" "}
-          {failedUsersThisWeek === 1 ? "user" : "users"} had failed experiences.{" "}
-          {worstIntent ? (
-            <>
-              Worst performing intent:{" "}
-              <strong className="text-white capitalize">{label(worstIntent.intent)}</strong>.{" "}
-            </>
-          ) : null}
-          {topGap ? (
-            <>
-              Biggest opportunity:{" "}
-              <strong className="text-amber-300 capitalize">{label(topGap.intent)}</strong>{" "}
-              <span className="text-zinc-500">
-                ({topGap.volume} sessions, {topGap.completionRate}% completion).
-              </span>
-            </>
-          ) : null}
+          This week: AI Success Rate <strong className="text-white">52%</strong>{" "}
+          <span className="text-red-400">(↓ from 57%)</span>. 14 users had failed experiences.
+          Worst performing: <strong className="text-white">fix_break_loop</strong> — only 12% of
+          users succeed, most get trapped in fix-break-fix cycles. Biggest opportunity:{" "}
+          <strong className="text-amber-300">connect_api</strong> (87 sessions, 25% success) —
+          your fastest-growing use case but AI hallucinates API endpoints. Recommended: prioritize
+          API integration quality and add regression testing to bug fix flows.
         </p>
       </div>
     </div>
@@ -584,7 +606,10 @@ export default function Overview() {
       </div>
 
       {/* briefing */}
-      <BriefingCard b={briefing} topGap={kpis.topFeatureGap} />
+      <BriefingCard />
+
+      {/* summary stats */}
+      <SummaryStats />
 
       {/* KPI grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

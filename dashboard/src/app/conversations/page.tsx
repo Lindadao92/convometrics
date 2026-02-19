@@ -25,6 +25,13 @@ type SortField =
   | "quality_score"
   | "completion_status";
 
+const FAILURE_REASONS: Record<string, string> = {
+  fix_bug:        "AI attempted to fix the reported error but introduced a new TypeError in an unrelated component.",
+  connect_api:    "AI generated a non-existent API endpoint (api.stripe.com/v3/charges) — correct endpoint is api.stripe.com/v1/charges.",
+  fix_break_loop: "User entered 4th consecutive fix attempt. Each AI response fixed the previous bug but broke something else.",
+  scaffold_app:   "App scaffold was incomplete — missing routing configuration and database connection.",
+};
+
 const STATUS_STYLES: Record<string, string> = {
   completed: "bg-emerald-500/15 text-emerald-300",
   partial: "bg-amber-500/15 text-amber-300",
@@ -361,6 +368,22 @@ export default function ConversationsPage() {
                                   {conv.messages.length !== 1 ? "s" : ""}
                                 </span>
                               </div>
+
+                              {/* Why this failed */}
+                              {(conv.completion_status === "failed" || conv.completion_status === "abandoned") && (
+                                <div className="flex max-w-2xl mb-4 rounded-lg overflow-hidden bg-red-500/[0.08] border border-red-500/20">
+                                  <div className="w-1 shrink-0 bg-red-400" />
+                                  <div className="px-4 py-3">
+                                    <p className="text-xs font-semibold text-red-400 mb-1">Why this failed</p>
+                                    <p className="text-xs text-zinc-300 leading-relaxed">
+                                      {conv.intent && FAILURE_REASONS[conv.intent]
+                                        ? FAILURE_REASONS[conv.intent]
+                                        : "User abandoned after AI response did not match expectations."}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
                               <div className="flex flex-col gap-3 max-w-2xl">
                                 {conv.messages.map((msg, i) => (
                                   <div

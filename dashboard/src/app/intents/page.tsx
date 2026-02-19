@@ -49,6 +49,19 @@ const STATUS_BADGE: Record<string, string> = {
   failed:    "bg-red-500/15 text-red-300",
 };
 
+const RECOMMENDED_ACTIONS: Record<string, string> = {
+  scaffold_app:
+    "✅ Working well. Protect this — any model changes should be regression-tested against scaffold quality.",
+  add_feature:
+    "⚠️ Quality degrades as app complexity grows. Consider: limit scope per prompt, suggest users break features into smaller steps, add pre-check that validates existing code before modifying.",
+  fix_bug:
+    "🔴 High volume, low success. Root cause: AI patches symptoms not causes. Action: add architectural context to the prompt so AI understands the full codebase before fixing.",
+  connect_api:
+    "🔴 Fastest growing intent, worst success rate. Action: build pre-built integrations for top 5 APIs (Stripe, Auth0, SendGrid, Twilio, OpenAI) instead of relying on generic code generation.",
+  fix_break_loop:
+    "🚨 Critical. 88% of users who enter this pattern churn. Action: detect when a user is on their 3rd consecutive fix attempt and intervene — offer to reset to last working state or connect with support.",
+};
+
 const SUGGESTED_ACTIONS: Record<string, string> = {
   fix_break_loop:
     "Add a recovery flow for stuck conversations. Surface a 'start fresh' option after 3 failed attempts and offer human escalation when users loop more than twice.",
@@ -339,6 +352,21 @@ export default function IntentsPage() {
                   <div className="text-zinc-600 text-sm py-4">No breakdown data.</div>
                 )}
               </div>
+
+              {/* Recommended Action */}
+              {RECOMMENDED_ACTIONS[selected] && (
+                <div className="flex rounded-lg overflow-hidden bg-zinc-900 border border-white/[0.06]">
+                  <div className="w-1 shrink-0 bg-indigo-500" />
+                  <div className="px-4 py-3">
+                    <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1.5">
+                      Recommended Action
+                    </p>
+                    <p className="text-sm text-zinc-300 leading-relaxed">
+                      {RECOMMENDED_ACTIONS[selected]}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Recent failed conversations */}
               <div>

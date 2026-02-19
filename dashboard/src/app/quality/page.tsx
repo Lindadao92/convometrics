@@ -62,6 +62,14 @@ function scoreColor(s: number | null) {
   return "text-red-400";
 }
 
+// ── Hardcoded root causes (demo) ─────────────────────────────────────────────
+const ROOT_CAUSES: Record<string, string> = {
+  fix_break_loop:  "AI fixes one bug but introduces new bugs in adjacent code. Users retry 3+ times then give up.",
+  connect_api:     "AI hallucinates API endpoints and auth methods for non-Supabase services.",
+  make_responsive: "AI interprets 'fix mobile' as desktop layout changes, ignoring viewport.",
+  fix_bug:         "AI patches symptoms without understanding the underlying architecture, causing cascading breaks.",
+};
+
 // Custom scatter tooltip
 function ScatterTip({ payload }: { payload?: Array<{ payload: { intent: string; x: number; y: number; z: number } }> }) {
   if (!payload?.length) return null;
@@ -202,6 +210,14 @@ export default function QualityPage() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Root cause */}
+                    {ROOT_CAUSES[row.intent] && (
+                      <p className="text-xs italic text-zinc-400 mb-3">
+                        <span className="not-italic font-medium text-zinc-500">Root cause: </span>
+                        {ROOT_CAUSES[row.intent]}
+                      </p>
+                    )}
 
                     {/* Sample previews */}
                     {row.sampleFailed.length > 0 ? (
