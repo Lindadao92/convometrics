@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rows, error } = await sb
     .from("conversations")
-    .select("intent, quality_score, completion_status, abandon_point, created_at, user_id, messages, conversation_id, id, metadata");
+    .select("intent, quality_score, completion_status, created_at, user_id, messages, conversation_id, id, metadata");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -112,13 +112,24 @@ export async function GET(req: NextRequest) {
       if (s) completionBreakdown[s] = (completionBreakdown[s] || 0) + 1;
     }
 
-    const abandonedRows = intentRows.filter(
-      (r) => r.completion_status === "failed" || r.completion_status === "abandoned"
-    );
+    // Compute abandon_point from messages (index of last user message)
+    function lastUserMsgIndex(messages: { role: string }[]): number | null {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "user") return i;
+      }
+      return null;
+    }
+
+    const abandonedRows = intentRows
+      .filter((r) => r.completion_status === "failed" || r.completion_status === "abandoned")
+      .map((r) => ({
+        ...r,
+        abandon_point: lastUserMsgIndex(r.messages ?? []),
+      }));
 
     // Median abandon_point across abandoned/failed conversations
     const abandonPoints = abandonedRows
-      .map((r) => r.abandon_point as number | null)
+      .map((r) => r.abandon_point)
       .filter((ap): ap is number => ap !== null)
       .sort((a, b) => a - b);
     const typicalAbandonPoint = abandonPoints.length
@@ -133,7 +144,7 @@ export async function GET(req: NextRequest) {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
       if (representativeConv) {
         const msgs = representativeConv.messages as { role: string; content: string }[];
-        const precedingMsg = msgs[(representativeConv.abandon_point as number) - 1];
+        const precedingMsg = msgs[representativeConv.abandon_point! - 1];
         if (precedingMsg?.role === "assistant") {
           abandonmentAiResponse = precedingMsg.content;
         }
@@ -155,14 +166,18 @@ export async function GET(req: NextRequest) {
         messages: r.messages,
       }));
 
-    // Failure patterns from the worker (null when not yet computed)
-    const { data: fpRow } = await sb
-      .from("failure_patterns")
-      .select("patterns")
-      .eq("intent", selected)
-      .maybeSingle();
-    const failurePatterns: { label: string; pct: number; example: string }[] | null =
-      fpRow?.patterns ?? null;
+    // Failure patterns from the worker (null when table not yet created or not yet computed)
+    let failurePatterns: { label: string; pct: number; example: string }[] | null = null;
+    try {
+      const { data: fpRow } = await sb
+        .from("failure_patterns")
+        .select("patterns")
+        .eq("intent", selected)
+        .maybeSingle();
+      failurePatterns = fpRow?.patterns ?? null;
+    } catch {
+      // Table doesn't exist yet — worker hasn't been run
+    }
 
     detail = {
       intent: selected,
