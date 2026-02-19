@@ -1,0 +1,4 @@
+{
+  "name": "convometrics-landing",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
