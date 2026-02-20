@@ -1,28 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
-const MS_WEEK = 7 * 864e5;
-
-interface Message {
-  role: string;
-  content: string;
-}
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   const sb = getSupabaseServer();
+  const platform = req.nextUrl.searchParams.get("platform");
 
-  const { data: rows, error } = await sb
+  // Fetch lightweight analyzed rows (no messages)
+  let query = sb
     .from("conversations")
-    .select("intent, quality_score, completion_status, created_at, messages, user_id");
+    .select("id, intent, quality_score, completion_status, metadata, created_at")
+    .not("intent", "is", null)
+    .limit(100000);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (platform && platform !== "all") {
+    query = query.eq("metadata->>platform", platform);
   }
 
-  const now = Date.now();
-  const t7  = now - MS_WEEK;
+  const { data: rows, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Group by intent
   const byIntent: Record<string, {
@@ -30,39 +27,19 @@ export async function GET() {
     scores: number[];
     buckets: [number, number, number, number];
     statuses: Record<string, number>;
-    countThisWeek: number;
-    failedThisWeek: number;
-    recentFailed: Array<{
-      created_at: string;
-      quality_score: number | null;
-      completion_status: string | null;
-      messages: Message[];
-    }>;
+    sampleFailedIds: string[];
+    platforms: Record<string, number>;
   }> = {};
 
-  for (const row of rows) {
-    const intent = row.intent;
-    if (!intent) continue;
-
-    byIntent[intent] ??= {
-      count: 0,
-      scores: [],
-      buckets: [0, 0, 0, 0],
-      statuses: {},
-      countThisWeek: 0,
-      failedThisWeek: 0,
-      recentFailed: [],
-    };
+  for (const row of rows ?? []) {
+    const intent = row.intent!;
+    byIntent[intent] ??= { count: 0, scores: [], buckets: [0, 0, 0, 0], statuses: {}, sampleFailedIds: [], platforms: {} };
     const g = byIntent[intent];
     g.count++;
 
-    const ts = new Date(row.created_at).getTime();
-    if (ts >= t7) {
-      g.countThisWeek++;
-      if (row.completion_status === "failed" || row.completion_status === "abandoned") {
-        g.failedThisWeek++;
-      }
-    }
+    const meta = row.metadata as Record<string, unknown> | null;
+    const p = (meta?.platform as string) ?? "unknown";
+    g.platforms[p] = (g.platforms[p] || 0) + 1;
 
     if (row.quality_score !== null) {
       g.scores.push(row.quality_score);
@@ -75,13 +52,21 @@ export async function GET() {
     const s = row.completion_status;
     if (s) g.statuses[s] = (g.statuses[s] || 0) + 1;
 
-    if (s === "failed" || s === "abandoned") {
-      g.recentFailed.push({
-        created_at:        row.created_at,
-        quality_score:     row.quality_score,
-        completion_status: row.completion_status,
-        messages:          row.messages ?? [],
-      });
+    if ((s === "failed" || s === "abandoned") && g.sampleFailedIds.length < 3) {
+      g.sampleFailedIds.push(row.id);
+    }
+  }
+
+  // Fetch messages for sample failed conversations
+  const allSampleIds = Object.values(byIntent).flatMap((g) => g.sampleFailedIds);
+  let sampleMessages: Record<string, { role: string; content: string }[]> = {};
+  if (allSampleIds.length > 0) {
+    const { data: msgRows } = await sb
+      .from("conversations")
+      .select("id, messages")
+      .in("id", allSampleIds);
+    for (const r of msgRows ?? []) {
+      sampleMessages[r.id] = r.messages ?? [];
     }
   }
 
@@ -96,41 +81,20 @@ export async function GET() {
       const completionRate = g.count ? Math.round((completed    / g.count) * 100) : 0;
       const failureRate    = g.count ? Math.round(((failed + abandoned) / g.count) * 100) : 0;
 
-      // 3 most recent failed/abandoned — sorted desc
-      const sampleFailed = g.recentFailed
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 3)
-        .map((r) => {
-          const userMsg = r.messages.find((m) => m.role === "user");
-          return {
-            preview:           userMsg ? userMsg.content.slice(0, 110) : "",
-            quality_score:     r.quality_score,
-            completion_status: r.completion_status,
-            created_at:        r.created_at,
-          };
-        });
+      const sampleFailed = g.sampleFailedIds.map((id) => {
+        const msgs = sampleMessages[id] ?? [];
+        const userMsg = msgs.find((m) => m.role === "user");
+        return { preview: userMsg ? userMsg.content.slice(0, 120) : "", id };
+      });
 
-      return {
-        intent,
-        count: g.count,
-        countThisWeek: g.countThisWeek,
-        failedThisWeek: g.failedThisWeek,
-        avgScore,
-        completionRate,
-        failureRate,
-        buckets: g.buckets,
-        sampleFailed,
-      };
+      const topPlatform = Object.entries(g.platforms).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+      return { intent, count: g.count, avgScore, completionRate, failureRate, buckets: g.buckets, sampleFailed, topPlatform };
     })
     .sort((a, b) => b.count - a.count);
 
-  // Max bucket value for heatmap normalisation (kept for backward compat)
   let maxBucket = 1;
-  for (const i of intents) {
-    for (const b of i.buckets) {
-      if (b > maxBucket) maxBucket = b;
-    }
-  }
+  for (const i of intents) for (const b of i.buckets) if (b > maxBucket) maxBucket = b;
 
   return NextResponse.json({ intents, maxBucket });
 }

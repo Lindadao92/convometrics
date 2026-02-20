@@ -2,508 +2,345 @@
 
 import { Fragment, useEffect, useState, useCallback } from "react";
 
-interface Message {
-  role: string;
-  content: string;
-}
+// ─── Constants ────────────────────────────────────────────────────────────────
 
+const PLATFORM_COLORS: Record<string, string> = {
+  chatgpt: "#10b981", claude: "#f97316", gemini: "#3b82f6",
+  grok: "#ef4444", perplexity: "#a855f7",
+};
+const PLATFORM_LABELS: Record<string, string> = {
+  chatgpt: "ChatGPT", claude: "Claude", gemini: "Gemini",
+  grok: "Grok", perplexity: "Perplexity",
+};
+const ALL_PLATFORMS = ["chatgpt", "claude", "gemini", "grok", "perplexity"];
+
+const STATUS_COLORS: Record<string, string> = {
+  completed: "#34d399", failed: "#f87171", abandoned: "#fbbf24", in_progress: "#60a5fa",
+};
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Message { role: string; content: string; }
 interface Conversation {
-  id: string;
-  conversation_id: string;
-  user_id: string | null;
-  intent: string | null;
-  quality_score: number | null;
-  completion_status: string | null;
-  messages: Message[];
+  id: string; conversation_id: string; user_id: string; platform: string;
+  intent: string | null; quality_score: number | null;
+  completion_status: string | null; messages: Message[];
   created_at: string;
 }
+type SortField = "created_at" | "quality_score" | "intent" | "completion_status";
 
-type SortField =
-  | "created_at"
-  | "user_id"
-  | "intent"
-  | "quality_score"
-  | "completion_status";
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const FAILURE_REASONS: Record<string, string> = {
-  fix_bug:        "AI attempted to fix the reported error but introduced a new TypeError in an unrelated component.",
-  connect_api:    "AI generated a non-existent API endpoint (api.stripe.com/v3/charges) — correct endpoint is api.stripe.com/v1/charges.",
-  fix_break_loop: "User entered 4th consecutive fix attempt. Each AI response fixed the previous bug but broke something else.",
-  scaffold_app:   "App scaffold was incomplete — missing routing configuration and database connection.",
-};
-
-const STATUS_STYLES: Record<string, string> = {
-  completed: "bg-emerald-500/15 text-emerald-300",
-  partial: "bg-amber-500/15 text-amber-300",
-  abandoned: "bg-zinc-500/15 text-zinc-400",
-  failed: "bg-red-500/15 text-red-300",
-};
-
-const INTENT_COLORS = [
-  "bg-blue-500/15 text-blue-300",
-  "bg-violet-500/15 text-violet-300",
-  "bg-cyan-500/15 text-cyan-300",
-  "bg-pink-500/15 text-pink-300",
-  "bg-teal-500/15 text-teal-300",
-  "bg-orange-500/15 text-orange-300",
-  "bg-indigo-500/15 text-indigo-300",
-  "bg-rose-500/15 text-rose-300",
-  "bg-sky-500/15 text-sky-300",
-  "bg-fuchsia-500/15 text-fuchsia-300",
-];
-
-function intentColor(intent: string): string {
-  // Stable color based on string hash
-  let hash = 0;
-  for (let i = 0; i < intent.length; i++) {
-    hash = (hash * 31 + intent.charCodeAt(i)) | 0;
-  }
-  return INTENT_COLORS[Math.abs(hash) % INTENT_COLORS.length];
+function cap(s: string) { return s.replace(/_/g, " "); }
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function scoreColor(s: number | null): string {
-  if (s === null) return "text-zinc-600";
-  if (s > 75) return "text-emerald-400";
-  if (s >= 50) return "text-amber-400";
-  return "text-red-400";
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  }) +
-    ", " +
-    d.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-}
-
-function truncateUid(uid: string | null): string {
-  if (!uid) return "--";
-  return uid.length > 8 ? uid.slice(0, 8) : uid;
-}
-
-function firstUserPreview(msgs: Message[]): string {
-  const m = msgs.find((m) => m.role === "user");
-  if (!m) return "--";
-  return m.content.length > 100 ? m.content.slice(0, 100) + "..." : m.content;
-}
-
-export default function ConversationsPage() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Filters
-  const [intents, setIntents] = useState<string[]>([]);
-  const [filterIntent, setFilterIntent] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [minScore, setMinScore] = useState("");
-  const [maxScore, setMaxScore] = useState("");
-
-  // Sort
-  const [sortBy, setSortBy] = useState<SortField>("created_at");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-
-  // Expanded row
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", page.toString());
-      params.set("sort", sortBy);
-      params.set("order", sortOrder);
-      if (filterIntent) params.set("intent", filterIntent);
-      if (filterStatus) params.set("status", filterStatus);
-      if (minScore) params.set("min_score", minScore);
-      if (maxScore) params.set("max_score", maxScore);
-
-      const res = await fetch(`/api/conversations?${params}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error || `API returned ${res.status}`);
-        return;
-      }
-      const data = await res.json();
-      setConversations(data.conversations);
-      setTotal(data.total);
-      setPageSize(data.pageSize);
-      if (data.intents) setIntents(data.intents);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch");
-    } finally {
-      setLoading(false);
-    }
-  }, [page, sortBy, sortOrder, filterIntent, filterStatus, minScore, maxScore]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
-    } else {
-      setSortBy(field);
-      setSortOrder(field === "quality_score" ? "desc" : "asc");
-    }
-    setPage(0);
-  };
-
-  const applyFilters = () => {
-    setPage(0);
-    fetchData();
-  };
-
-  const clearFilters = () => {
-    setFilterIntent("");
-    setFilterStatus("");
-    setMinScore("");
-    setMaxScore("");
-    setPage(0);
-  };
-
-  const totalPages = Math.ceil(total / pageSize);
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortBy !== field) return <span className="text-zinc-700 ml-1">↕</span>;
-    return (
-      <span className="text-blue-400 ml-1">
-        {sortOrder === "asc" ? "↑" : "↓"}
-      </span>
-    );
-  };
-
+function PlatformBadge({ platform }: { platform: string }) {
+  const color = PLATFORM_COLORS[platform] ?? "#6b7280";
   return (
-    <div className="p-8 max-w-7xl">
-      <h1 className="text-2xl font-semibold text-white mb-1">Conversations</h1>
-      <p className="text-sm text-zinc-500 mb-6">
-        Browse and filter all tracked conversations
-      </p>
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+      style={{ color, backgroundColor: color + "20" }}
+    >
+      {PLATFORM_LABELS[platform] ?? platform}
+    </span>
+  );
+}
 
-      {/* Filters */}
-      <div className="rounded-xl border border-white/[0.06] bg-[#13141b] p-4 mb-6">
-        <div className="flex flex-wrap items-end gap-4">
-          <FilterSelect
-            label="Intent"
-            value={filterIntent}
-            onChange={(v) => {
-              setFilterIntent(v);
-              setPage(0);
-            }}
-            options={intents}
-          />
-          <FilterSelect
-            label="Completion Status"
-            value={filterStatus}
-            onChange={(v) => {
-              setFilterStatus(v);
-              setPage(0);
-            }}
-            options={["completed", "partial", "abandoned", "failed"]}
-          />
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-zinc-500">Quality Score</label>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number"
-                min={0}
-                max={100}
-                placeholder="0"
-                value={minScore}
-                onChange={(e) => setMinScore(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && applyFilters()}
-                className="w-16 bg-[#0f1117] border border-white/[0.06] rounded-md px-2 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50"
-              />
-              <span className="text-zinc-600 text-xs">–</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                placeholder="100"
-                value={maxScore}
-                onChange={(e) => setMaxScore(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && applyFilters()}
-                className="w-16 bg-[#0f1117] border border-white/[0.06] rounded-md px-2 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50"
-              />
-            </div>
-          </div>
-          {(filterIntent || filterStatus || minScore || maxScore) && (
-            <button
-              onClick={clearFilters}
-              className="text-xs text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-md border border-white/[0.06] hover:border-white/[0.12] transition-colors"
-            >
-              Clear all
-            </button>
-          )}
-          <div className="ml-auto text-xs text-zinc-500 self-end pb-1">
-            {total.toLocaleString()} result{total !== 1 ? "s" : ""}
-          </div>
-        </div>
-      </div>
+function StatusBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-zinc-600 text-xs">—</span>;
+  const color = STATUS_COLORS[status] ?? "#a1a1aa";
+  return (
+    <span
+      className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium capitalize"
+      style={{ color, backgroundColor: color + "20" }}
+    >
+      {status}
+    </span>
+  );
+}
 
-      {error && (
-        <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-lg p-3 mb-4">
-          {error}
-        </div>
-      )}
-
-      {/* Table */}
-      <div className="rounded-xl border border-white/[0.06] bg-[#13141b] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                <Th field="created_at" label="Date" onSort={handleSort}>
-                  <SortIcon field="created_at" />
-                </Th>
-                <Th field="user_id" label="User" onSort={handleSort}>
-                  <SortIcon field="user_id" />
-                </Th>
-                <Th field="intent" label="Intent" onSort={handleSort}>
-                  <SortIcon field="intent" />
-                </Th>
-                <Th field="quality_score" label="Quality" onSort={handleSort}>
-                  <SortIcon field="quality_score" />
-                </Th>
-                <Th
-                  field="completion_status"
-                  label="Status"
-                  onSort={handleSort}
-                >
-                  <SortIcon field="completion_status" />
-                </Th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                  Preview
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-16 text-zinc-600">
-                    Loading...
-                  </td>
-                </tr>
-              ) : conversations.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-16 text-zinc-600">
-                    No conversations found
-                  </td>
-                </tr>
-              ) : (
-                conversations.map((conv) => {
-                  const isExpanded = expandedId === conv.id;
-                  return (
-                    <Fragment key={conv.id}>
-                      <tr
-                        onClick={() =>
-                          setExpandedId(isExpanded ? null : conv.id)
-                        }
-                        className={`border-b border-white/[0.04] cursor-pointer transition-colors ${
-                          isExpanded
-                            ? "bg-white/[0.03]"
-                            : "hover:bg-white/[0.02]"
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-zinc-400 whitespace-nowrap text-xs">
-                          {formatDate(conv.created_at)}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-300 font-mono text-xs">
-                          {truncateUid(conv.user_id)}
-                        </td>
-                        <td className="px-4 py-3">
-                          {conv.intent ? (
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${intentColor(conv.intent)}`}
-                            >
-                              {conv.intent}
-                            </span>
-                          ) : (
-                            <span className="text-zinc-600 text-xs">--</span>
-                          )}
-                        </td>
-                        <td
-                          className={`px-4 py-3 font-semibold tabular-nums ${scoreColor(conv.quality_score)}`}
-                        >
-                          {conv.quality_score ?? "--"}
-                        </td>
-                        <td className="px-4 py-3">
-                          {conv.completion_status ? (
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[conv.completion_status] || "bg-zinc-500/15 text-zinc-400"}`}
-                            >
-                              {conv.completion_status}
-                            </span>
-                          ) : (
-                            <span className="text-zinc-600 text-xs">--</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-500 text-xs max-w-xs truncate">
-                          {firstUserPreview(conv.messages)}
-                        </td>
-                      </tr>
-
-                      {/* Expanded chat thread */}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={6} className="bg-[#0c0d12]">
-                            <div className="px-6 py-5">
-                              <div className="flex items-center gap-4 mb-4 text-xs text-zinc-500">
-                                <span className="font-mono">
-                                  {conv.conversation_id}
-                                </span>
-                                <span>
-                                  {conv.messages.length} message
-                                  {conv.messages.length !== 1 ? "s" : ""}
-                                </span>
-                              </div>
-
-                              {/* Why this failed */}
-                              {(conv.completion_status === "failed" || conv.completion_status === "abandoned") && (
-                                <div className="flex max-w-2xl mb-4 rounded-lg overflow-hidden bg-red-500/[0.08] border border-red-500/20">
-                                  <div className="w-1 shrink-0 bg-red-400" />
-                                  <div className="px-4 py-3">
-                                    <p className="text-xs font-semibold text-red-400 mb-1">Why this failed</p>
-                                    <p className="text-xs text-zinc-300 leading-relaxed">
-                                      {conv.intent && FAILURE_REASONS[conv.intent]
-                                        ? FAILURE_REASONS[conv.intent]
-                                        : "User abandoned after AI response did not match expectations."}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="flex flex-col gap-3 max-w-2xl">
-                                {conv.messages.map((msg, i) => (
-                                  <div
-                                    key={i}
-                                    className={`flex ${
-                                      msg.role === "user"
-                                        ? "justify-end"
-                                        : "justify-start"
-                                    }`}
-                                  >
-                                    <div
-                                      className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
-                                        msg.role === "user"
-                                          ? "bg-blue-600/20 text-blue-100 rounded-br-sm"
-                                          : "bg-white/[0.05] text-zinc-300 rounded-bl-sm"
-                                      }`}
-                                    >
-                                      <div
-                                        className={`text-xs font-medium mb-1 ${
-                                          msg.role === "user"
-                                            ? "text-blue-400"
-                                            : "text-zinc-500"
-                                        }`}
-                                      >
-                                        {msg.role}
-                                      </div>
-                                      <p className="whitespace-pre-wrap break-words">
-                                        {msg.content}
-                                      </p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="px-3 py-1.5 text-xs rounded-md border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            Previous
-          </button>
-          <span className="text-xs text-zinc-500">
-            Page {page + 1} of {totalPages}
-          </span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-            className="px-3 py-1.5 text-xs rounded-md border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            Next
-          </button>
-        </div>
-      )}
+function Bone({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-white/[0.04] ${className}`} />;
+}
+function LoadingSkeleton() {
+  return (
+    <div className="p-8 space-y-4">
+      <Bone className="h-7 w-40" />
+      <Bone className="h-12 rounded-xl" />
+      {Array.from({ length: 8 }).map((_, i) => <Bone key={i} className="h-12 rounded-xl" />)}
     </div>
   );
 }
 
-function Th({
-  field,
-  label,
-  onSort,
-  children,
-}: {
-  field: SortField;
-  label: string;
-  onSort: (f: SortField) => void;
-  children: React.ReactNode;
-}) {
+// ─── Sortable column header ───────────────────────────────────────────────────
+
+function SortTh({
+  field, label, sortBy, order, onSort,
+}: { field: SortField; label: string; sortBy: SortField; order: string; onSort: (f: SortField) => void }) {
+  const active = sortBy === field;
   return (
     <th
+      className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 cursor-pointer select-none hover:text-zinc-300 transition-colors"
       onClick={() => onSort(field)}
-      className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider cursor-pointer hover:text-zinc-300 select-none transition-colors"
     >
-      {label}
-      {children}
+      {label} {active ? (order === "asc" ? "↑" : "↓") : ""}
     </th>
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-}) {
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function Conversations() {
+  const [convos, setConvos]       = useState<Conversation[]>([]);
+  const [total, setTotal]         = useState(0);
+  const [page, setPage]           = useState(0);
+  const [intents, setIntents]     = useState<string[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Filters
+  const [filterIntent,   setFilterIntent]   = useState("");
+  const [filterStatus,   setFilterStatus]   = useState("");
+  const [filterPlatform, setFilterPlatform] = useState("");
+  const [filterMinScore, setFilterMinScore] = useState("");
+  const [filterMaxScore, setFilterMaxScore] = useState("");
+
+  // Sort
+  const [sortBy, setSortBy] = useState<SortField>("created_at");
+  const [order,  setOrder]  = useState<"asc" | "desc">("desc");
+
+  const pageSize = 25;
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      sort: sortBy,
+      order,
+    });
+    if (filterIntent)   params.set("intent",    filterIntent);
+    if (filterStatus)   params.set("status",    filterStatus);
+    if (filterPlatform) params.set("platform",  filterPlatform);
+    if (filterMinScore) params.set("min_score", filterMinScore);
+    if (filterMaxScore) params.set("max_score", filterMaxScore);
+
+    fetch(`/api/conversations?${params}`)
+      .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
+      .then((d) => {
+        setConvos(d.conversations ?? []);
+        setTotal(d.total ?? 0);
+        setIntents(d.intents ?? []);
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [page, sortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  function handleSort(field: SortField) {
+    if (sortBy === field) {
+      setOrder((o) => o === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setOrder("desc");
+    }
+    setPage(0);
+  }
+
+  function applyFilters() { setPage(0); fetchData(); }
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  if (loading && convos.length === 0) return <LoadingSkeleton />;
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-zinc-500">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-[#0f1117] border border-white/[0.06] rounded-md px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500/50 min-w-[160px]"
-      >
-        <option value="">All</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
+    <div className="p-8 max-w-7xl space-y-4">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-semibold text-white">Conversations</h1>
+        <p className="text-sm text-zinc-500 mt-0.5">
+          {total.toLocaleString()} total · page {page + 1} of {totalPages || 1}
+        </p>
+      </div>
+
+      {error && (
+        <div className="text-red-400 text-sm bg-red-400/10 border border-red-400/20 rounded-xl p-4">
+          {error}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        {/* Platform filter */}
+        <select
+          value={filterPlatform}
+          onChange={(e) => { setFilterPlatform(e.target.value); setPage(0); }}
+          className="bg-[#13141b] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20"
+        >
+          <option value="">All Platforms</option>
+          {ALL_PLATFORMS.map((p) => <option key={p} value={p}>{PLATFORM_LABELS[p]}</option>)}
+        </select>
+
+        {/* Intent filter */}
+        <select
+          value={filterIntent}
+          onChange={(e) => { setFilterIntent(e.target.value); setPage(0); }}
+          className="bg-[#13141b] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20"
+        >
+          <option value="">All Intents</option>
+          {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
+        </select>
+
+        {/* Status filter */}
+        <select
+          value={filterStatus}
+          onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+          className="bg-[#13141b] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20"
+        >
+          <option value="">All Statuses</option>
+          {["completed", "failed", "abandoned", "in_progress"].map((s) => (
+            <option key={s} value={s}>{cap(s)}</option>
+          ))}
+        </select>
+
+        {/* Quality range */}
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number" placeholder="Min score" value={filterMinScore}
+            onChange={(e) => setFilterMinScore(e.target.value)}
+            className="bg-[#13141b] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 w-24 focus:outline-none focus:border-white/20"
+          />
+          <span className="text-zinc-600 text-xs">—</span>
+          <input
+            type="number" placeholder="Max score" value={filterMaxScore}
+            onChange={(e) => setFilterMaxScore(e.target.value)}
+            className="bg-[#13141b] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 w-24 focus:outline-none focus:border-white/20"
+          />
+        </div>
+
+        <button
+          onClick={() => {
+            setFilterIntent(""); setFilterStatus(""); setFilterPlatform("");
+            setFilterMinScore(""); setFilterMaxScore(""); setPage(0);
+          }}
+          className="px-3 py-1.5 rounded-lg text-sm text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
+        {loading && (
+          <div className="flex items-center justify-center py-8 text-zinc-600 text-sm">Loading…</div>
+        )}
+        {!loading && (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/[0.06]">
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Platform</th>
+                <SortTh field="created_at"        label="Date"       sortBy={sortBy} order={order} onSort={handleSort} />
+                <SortTh field="intent"            label="Intent"     sortBy={sortBy} order={order} onSort={handleSort} />
+                <SortTh field="quality_score"     label="Quality"    sortBy={sortBy} order={order} onSort={handleSort} />
+                <SortTh field="completion_status" label="Status"     sortBy={sortBy} order={order} onSort={handleSort} />
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Preview</th>
+              </tr>
+            </thead>
+            <tbody>
+              {convos.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-zinc-600 text-sm">
+                    No conversations found
+                  </td>
+                </tr>
+              ) : (
+                convos.map((conv) => (
+                  <Fragment key={conv.id}>
+                    <tr
+                      onClick={() => setExpandedId(expandedId === conv.id ? null : conv.id)}
+                      className={`border-b border-white/[0.04] cursor-pointer transition-colors ${
+                        expandedId === conv.id ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
+                      }`}
+                    >
+                      <td className="px-4 py-3"><PlatformBadge platform={conv.platform} /></td>
+                      <td className="px-4 py-3 text-zinc-500 text-xs">{fmtDate(conv.created_at)}</td>
+                      <td className="px-4 py-3 text-zinc-300 capitalize">
+                        {conv.intent ? cap(conv.intent) : <span className="text-zinc-600 italic">Not analyzed</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {conv.quality_score !== null ? (
+                          <span className={`font-mono font-medium ${conv.quality_score >= 70 ? "text-emerald-400" : conv.quality_score >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                            {conv.quality_score}
+                          </span>
+                        ) : <span className="text-zinc-600">—</span>}
+                      </td>
+                      <td className="px-4 py-3"><StatusBadge status={conv.completion_status} /></td>
+                      <td className="px-4 py-3 text-zinc-600 text-xs truncate max-w-xs">
+                        {conv.messages?.[0]?.content?.slice(0, 80) ?? "—"}
+                      </td>
+                    </tr>
+
+                    {/* Expanded message thread */}
+                    {expandedId === conv.id && (
+                      <tr className="bg-[#0f101a]">
+                        <td colSpan={6} className="px-6 py-4">
+                          <div className="flex items-center gap-3 mb-3 text-xs text-zinc-600">
+                            <PlatformBadge platform={conv.platform} />
+                            <span>{conv.messages?.length ?? 0} messages</span>
+                            {conv.user_id && <span>User: {conv.user_id.slice(-12)}</span>}
+                          </div>
+                          <div className="space-y-2 max-h-80 overflow-y-auto">
+                            {(conv.messages ?? []).map((m, i) => (
+                              <div
+                                key={i}
+                                className={`rounded-lg px-3 py-2 text-xs max-w-[80%] ${
+                                  m.role === "user"
+                                    ? "bg-white/[0.06] text-zinc-300 ml-auto text-right"
+                                    : "bg-white/[0.03] text-zinc-400"
+                                }`}
+                              >
+                                <span className="font-medium text-zinc-500 mr-1.5">{m.role === "user" ? "User" : "AI"}</span>
+                                {m.content.slice(0, 400)}{m.content.length > 400 ? "…" : ""}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-zinc-600">
+          Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total.toLocaleString()}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="px-3 py-1.5 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Prev
+          </button>
+          <span className="text-xs text-zinc-600 px-2">{page + 1} / {totalPages || 1}</span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="px-3 py-1.5 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/[0.04] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            Next →
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
