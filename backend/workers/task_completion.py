@@ -4,12 +4,16 @@ Background worker that infers task completion status using GPT-4o-mini.
 Polls the conversations table for rows where completion_status IS NULL,
 sends the messages to OpenAI for analysis, and updates the completion_status column.
 
+Only processes conversations with 3+ messages (substantive exchanges).
+
 Usage:
     python -m workers.task_completion
+    python -m workers.task_completion --limit 1000
 
 Requires SUPABASE_URL, SUPABASE_KEY, and OPENAI_API_KEY in .env.
 """
 
+import argparse
 import json
 import logging
 import os
@@ -32,8 +36,10 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
 BATCH_SIZE = 10
-POLL_INTERVAL = 5  # seconds between polls when idle
-RATE_LIMIT_BACKOFF = 60  # seconds to wait on OpenAI rate limit
+MIN_MESSAGES = 3          # skip conversations that are too short to analyze
+FETCH_MULTIPLIER = 5      # fetch extra rows to compensate for filtering
+POLL_INTERVAL = 5         # seconds between polls when idle
+RATE_LIMIT_BACKOFF = 60   # seconds to wait on OpenAI rate limit
 
 VALID_STATUSES = {"completed", "partial", "abandoned", "failed"}
 
@@ -84,29 +90,25 @@ def find_abandon_point(messages: list[dict]) -> int | None:
     return None
 
 
-def fetch_unanalyzed(sb, limit: int) -> list[dict]:
-    """Fetch conversations where completion_status is NULL."""
+def fetch_unanalyzed(sb, limit: int, skip_ids: set[str]) -> list[dict]:
+    """Fetch conversations with 3+ messages where completion_status is NULL."""
     result = (
         sb.table("conversations")
         .select("id, messages")
         .is_("completion_status", "null")
-        .limit(limit)
+        .limit(limit * FETCH_MULTIPLIER)
         .execute()
     )
-    return result.data
-
-
-def fetch_missing_abandon_point(sb, limit: int) -> list[dict]:
-    """Fetch already-classified abandoned/failed rows that still need abandon_point set."""
-    result = (
-        sb.table("conversations")
-        .select("id, messages, completion_status")
-        .in_("completion_status", ["abandoned", "failed"])
-        .is_("abandon_point", "null")
-        .limit(limit)
-        .execute()
-    )
-    return result.data
+    qualifying = []
+    for row in result.data:
+        if row["id"] in skip_ids:
+            continue
+        msgs = row.get("messages") or []
+        if len(msgs) >= MIN_MESSAGES:
+            qualifying.append(row)
+        if len(qualifying) >= limit:
+            break
+    return qualifying
 
 
 def format_messages_for_prompt(messages: list[dict]) -> str:
@@ -147,13 +149,14 @@ def analyze_completion(client: OpenAI, messages: list[dict]) -> str | None:
         return None
 
 
-def process_batch(sb, openai_client: OpenAI, conversations: list[dict]) -> int:
+def process_batch(sb, openai_client: OpenAI, conversations: list[dict], skip_ids: set[str]) -> int:
     """Analyze and update a batch of conversations. Returns count of updated rows."""
     updated = 0
 
     for conv in conversations:
         conv_id = conv["id"]
         messages = conv["messages"]
+        skip_ids.add(conv_id)  # mark as attempted so we don't retry in this run
 
         try:
             status = analyze_completion(openai_client, messages)
@@ -163,67 +166,63 @@ def process_batch(sb, openai_client: OpenAI, conversations: list[dict]) -> int:
             try:
                 status = analyze_completion(openai_client, messages)
             except Exception:
-                logger.error("Retry failed for conversation %s, skipping", conv_id)
+                logger.error("Retry failed for %s, skipping", conv_id)
                 continue
         except Exception:
-            logger.exception("Failed to analyze conversation %s", conv_id)
+            logger.exception("Failed to analyze %s", conv_id)
             continue
 
         if status:
-            update: dict = {"completion_status": status}
-            if status in {"abandoned", "failed"}:
-                ap = find_abandon_point(messages)
-                if ap is not None:
-                    update["abandon_point"] = ap
-            sb.table("conversations").update(update).eq("id", conv_id).execute()
+            sb.table("conversations").update({"completion_status": status}).eq("id", conv_id).execute()
             updated += 1
-            logger.info("Analyzed %s → %s (abandon_point=%s)", conv_id, status, update.get("abandon_point"))
+            logger.info("Analyzed %s → %s", conv_id, status)
         else:
-            logger.warning("No status returned for conversation %s", conv_id)
+            logger.warning("No status returned for %s — skipping", conv_id)
 
     return updated
 
 
-def backfill_abandon_points(sb, conversations: list[dict]) -> int:
-    """Set abandon_point for already-classified conversations that are missing it."""
-    updated = 0
-    for conv in conversations:
-        ap = find_abandon_point(conv["messages"])
-        if ap is not None:
-            sb.table("conversations").update({"abandon_point": ap}).eq("id", conv["id"]).execute()
-            updated += 1
-            logger.info("Backfilled abandon_point=%d for %s", ap, conv["id"])
-    return updated
-
-
-def run():
-    """Main polling loop."""
+def run(limit: int | None = None):
+    """Main polling loop. Stops after `limit` rows processed if given."""
     sb = get_supabase()
     openai_client = get_openai()
 
-    logger.info("Task completion worker started (batch_size=%d, poll=%ds)", BATCH_SIZE, POLL_INTERVAL)
+    logger.info(
+        "Task completion started (batch_size=%d, min_messages=%d, limit=%s)",
+        BATCH_SIZE, MIN_MESSAGES, limit if limit is not None else "unlimited",
+    )
+
+    total_processed = 0
+    skip_ids: set[str] = set()
 
     while True:
         try:
-            conversations = fetch_unanalyzed(sb, BATCH_SIZE)
-            needs_ap = fetch_missing_abandon_point(sb, BATCH_SIZE)
+            remaining = (limit - total_processed) if limit is not None else BATCH_SIZE
+            if remaining <= 0:
+                logger.info("Reached limit of %d rows — done.", limit)
+                break
 
-            if not conversations and not needs_ap:
+            batch_size = min(BATCH_SIZE, remaining)
+            conversations = fetch_unanalyzed(sb, batch_size, skip_ids)
+
+            if not conversations:
+                if limit is not None:
+                    logger.info("No more qualifying conversations — done.")
+                    break
                 time.sleep(POLL_INTERVAL)
                 continue
 
-            if conversations:
-                logger.info("Processing batch of %d conversations", len(conversations))
-                updated = process_batch(sb, openai_client, conversations)
-                logger.info("Updated %d/%d conversations", updated, len(conversations))
-
-            if needs_ap:
-                logger.info("Backfilling abandon_point for %d conversations", len(needs_ap))
-                filled = backfill_abandon_points(sb, needs_ap)
-                logger.info("Backfilled %d/%d abandon_points", filled, len(needs_ap))
+            logger.info("Processing batch of %d conversations", len(conversations))
+            updated = process_batch(sb, openai_client, conversations, skip_ids)
+            total_processed += len(conversations)
+            logger.info(
+                "Classified %d/%d | total processed: %d%s",
+                updated, len(conversations), total_processed,
+                f"/{limit}" if limit is not None else "",
+            )
 
         except KeyboardInterrupt:
-            logger.info("Shutting down")
+            logger.info("Shutting down (processed %d rows)", total_processed)
             break
         except Exception:
             logger.exception("Error in poll loop, retrying in %ds", POLL_INTERVAL)
@@ -231,4 +230,7 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser(description="Infer task completion status using GPT-4o-mini")
+    parser.add_argument("--limit", type=int, default=None, help="Stop after processing this many rows")
+    args = parser.parse_args()
+    run(limit=args.limit)
