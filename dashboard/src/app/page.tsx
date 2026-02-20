@@ -35,6 +35,10 @@ interface SparkPoint {
 }
 
 interface ApiData {
+  progress: {
+    analyzed: number;
+    total: number;
+  };
   briefing: {
     successRateThisWeek: number;
     successRatePrevWeek: number;
@@ -595,7 +599,8 @@ export default function Overview() {
     );
   }
 
-  const { briefing, kpis } = data;
+  const { briefing, kpis, progress } = data;
+  const analyzedPct = progress.total > 0 ? Math.round((progress.analyzed / progress.total) * 100) : 0;
 
   return (
     <div className="p-8 max-w-7xl space-y-6">
@@ -604,6 +609,28 @@ export default function Overview() {
         <h1 className="text-2xl font-semibold text-white">Overview</h1>
         <p className="text-sm text-zinc-500 mt-0.5">AI performance summary · {todayStr()}</p>
       </div>
+
+      {/* analysis progress banner — hidden once fully analyzed */}
+      {analyzedPct < 100 && (
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] px-5 py-3.5 flex items-center gap-4">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-zinc-400">
+                Analyzing conversations&hellip;&nbsp;
+                <span className="text-white font-mono">{progress.analyzed.toLocaleString()}</span>
+                <span className="text-zinc-600"> / {progress.total.toLocaleString()} analyzed</span>
+              </span>
+              <span className="text-xs font-mono text-zinc-500">{analyzedPct}%</span>
+            </div>
+            <div className="h-1 rounded-full bg-white/[0.06]">
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all"
+                style={{ width: `${analyzedPct}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* briefing */}
       <BriefingCard />

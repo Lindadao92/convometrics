@@ -77,8 +77,12 @@ export async function GET() {
     ...r,
     _ts: new Date(r.created_at).getTime(),
   }));
-  const thisWeek = allTs.filter((r) => r._ts >= t7);
-  const lastWeek = allTs.filter((r) => r._ts >= t14 && r._ts < t7);
+
+  // Only count conversations that have been analyzed (workers have run on them)
+  const analyzedTs = allTs.filter((r) => r.completion_status !== null);
+
+  const thisWeek = analyzedTs.filter((r) => r._ts >= t7);
+  const lastWeek = analyzedTs.filter((r) => r._ts >= t14 && r._ts < t7);
 
   // ── Success rate ──────────────────────────────────────────────────────────
   const srThis = successRate(thisWeek);
@@ -139,7 +143,7 @@ export async function GET() {
 
   // ── Success rate sparkline (14 days) ─────────────────────────────────────
   const daily: Record<string, { c: number; t: number }> = {};
-  for (const r of allTs) {
+  for (const r of analyzedTs) {
     if (r._ts < t14) continue;
     const key = r.created_at.slice(0, 10);
     (daily[key] ??= { c: 0, t: 0 }).t++;
@@ -150,13 +154,13 @@ export async function GET() {
     .map(([date, { c, t }]) => ({ date: date.slice(5), rate: Math.round((c / t) * 100) }));
 
   // ── Revenue at risk ────────────────────────────────────────────────────────
-  const riskAll  = atRiskUserSet(allTs);
+  const riskAll  = atRiskUserSet(analyzedTs);
   const riskThis = atRiskUserSet(thisWeek);
   const riskLast = atRiskUserSet(lastWeek);
 
   // ── Top feature gap (highest-volume intent with <50% completion) ──────────
   const intentStats: Record<string, { completed: number; total: number }> = {};
-  for (const r of rows as Row[]) {
+  for (const r of analyzedTs) {
     if (!r.intent) continue;
     (intentStats[r.intent] ??= { completed: 0, total: 0 }).total++;
     if (r.completion_status === "completed") intentStats[r.intent].completed++;
@@ -178,7 +182,7 @@ export async function GET() {
     designer:  { completed: 0, total: 0, rate: 0 },
     developer: { completed: 0, total: 0, rate: 0 },
   };
-  for (const r of rows as Row[]) {
+  for (const r of analyzedTs) {
     const exp = r.metadata?.user_experience as SegKey | undefined;
     if (!exp || !segPerf[exp]) continue;
     segPerf[exp].total++;
@@ -190,6 +194,10 @@ export async function GET() {
   }
 
   return NextResponse.json({
+    progress: {
+      analyzed: analyzedTs.length,
+      total:    allTs.length,
+    },
     briefing: {
       successRateThisWeek: srThis,
       successRatePrevWeek: srLast,
@@ -209,8 +217,8 @@ export async function GET() {
         usersAtRisk:      riskAll.size,
         thisWeekUsers:    riskThis.size,
         lastWeekUsers:    riskLast.size,
-        failedSessions:   (rows as Row[]).filter((r) => r.completion_status === "failed").length,
-        abandonedSessions:(rows as Row[]).filter((r) => r.completion_status === "abandoned").length,
+        failedSessions:   analyzedTs.filter((r) => r.completion_status === "failed").length,
+        abandonedSessions:analyzedTs.filter((r) => r.completion_status === "abandoned").length,
       },
       topFeatureGap:  featureGaps[0] ?? null,
       allFeatureGaps: featureGaps,
