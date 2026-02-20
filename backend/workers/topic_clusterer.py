@@ -57,19 +57,30 @@ def get_openai():
 
 
 def fetch_label_counts(sb) -> dict[str, int]:
-    """Fetch all intent values and count occurrences in Python."""
-    result = (
-        sb.table("conversations")
-        .select("intent")
-        .not_.is_("intent", "null")
-        .limit(500000)
-        .execute()
-    )
+    """Fetch all intent values paginated and count occurrences in Python."""
     counts: dict[str, int] = {}
-    for row in result.data:
-        label = row.get("intent")
-        if label:
-            counts[label] = counts.get(label, 0) + 1
+    page_size = 10000
+    offset = 0
+
+    while True:
+        result = (
+            sb.table("conversations")
+            .select("intent")
+            .not_.is_("intent", "null")
+            .neq("intent", "__unclassifiable__")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = result.data or []
+        for row in rows:
+            label = row.get("intent")
+            if label:
+                counts[label] = counts.get(label, 0) + 1
+        if len(rows) < page_size:
+            break
+        offset += page_size
+        logger.info("Fetched %d intent rows so far...", offset)
+
     return {label: count for label, count in counts.items() if count >= MIN_LABEL_COUNT}
 
 
