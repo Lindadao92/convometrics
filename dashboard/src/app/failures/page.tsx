@@ -25,7 +25,8 @@ interface FailureRow {
 }
 interface LowQRow { intent: string; avgQuality: number; count: number; }
 interface FixRow  { intent: string; impactScore: number; avgQuality: number | null; failureRate: number; count: number; }
-interface ApiData { byFailure: FailureRow[]; lowQuality: LowQRow[]; fixFirst: FixRow[]; pending: number; }
+interface ClusterFailure { clusterName: string; failureTotal: number; total: number; failureRate: number; avgQuality: number | null; }
+interface ApiData { byFailure: FailureRow[]; lowQuality: LowQRow[]; fixFirst: FixRow[]; pending: number; clusterFailures?: ClusterFailure[]; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,42 @@ export default function FailureAnalysis() {
           ))}
         </select>
       </div>
+
+      {/* Failures by Topic Cluster */}
+      {(data.clusterFailures?.length ?? 0) > 0 && (
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+          <SectionHeader sub="Failure rate by topic cluster — run topic_clusterer to enable">
+            Failures by Topic Cluster
+          </SectionHeader>
+          <div className="space-y-3">
+            {data.clusterFailures!.map((cg) => (
+              <div key={cg.clusterName} className="flex items-center gap-4 py-2.5 border-b border-white/[0.04] last:border-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-zinc-200 truncate">{cg.clusterName}</p>
+                  <p className="text-xs text-zinc-600">{fmt(cg.total)} conversations</p>
+                </div>
+                <p className={`text-sm font-mono font-bold shrink-0 ${cg.failureRate >= 50 ? "text-red-400" : cg.failureRate >= 30 ? "text-amber-400" : "text-zinc-300"}`}>
+                  {cg.failureRate}% fail
+                </p>
+                {cg.avgQuality !== null && (
+                  <div className="w-16 shrink-0 space-y-1">
+                    <div className="h-1.5 rounded-full bg-white/[0.06]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${cg.avgQuality}%`,
+                          backgroundColor: cg.avgQuality >= 70 ? "#34d399" : cg.avgQuality >= 50 ? "#fbbf24" : "#f87171",
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-zinc-600 text-right">{cg.avgQuality}/100</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Empty state */}
       {!hasData && (

@@ -35,3 +35,21 @@ create table if not exists failure_patterns (
     patterns   jsonb        not null,  -- [{label, pct, example}, ...]
     updated_at timestamptz  not null default now()
 );
+
+-- Topic clustering tables (Pass 2 of intent pipeline)
+create table if not exists topic_clusters (
+  id               uuid        primary key default gen_random_uuid(),
+  cluster_name     text        unique not null,
+  topic_labels     text[]      not null default '{}',
+  conversation_count integer   not null default 0,
+  color            text,
+  updated_at       timestamptz not null default now()
+);
+
+alter table conversations
+  add column if not exists cluster_id uuid references topic_clusters(id);
+
+create index if not exists idx_conversations_cluster_id on conversations(cluster_id);
+
+-- Migrations for existing databases:
+-- alter table conversations add column if not exists cluster_id uuid references topic_clusters(id);

@@ -127,5 +127,36 @@ export async function GET(req: NextRequest) {
     examples: intentExamples[row.intent] ?? [],
   }));
 
-  return NextResponse.json({ byFailure: byFailureWithExamples, lowQuality, fixFirst, pending: pending ?? 0 });
+  // ── Cluster-level failure rollup ───────────────────────────────────────────
+  const { data: clusterRows } = await sb.from("topic_clusters").select("id, cluster_name, topic_labels");
+  const intentToCluster: Record<string, string> = {};
+  for (const cr of clusterRows ?? []) {
+    for (const label of (cr.topic_labels as string[]) ?? []) {
+      intentToCluster[label] = cr.cluster_name as string;
+    }
+  }
+
+  const byClusterMap: Record<string, { clusterName: string; failed: number; abandoned: number; total: number; scores: number[] }> = {};
+  for (const [intent, g] of Object.entries(byIntent)) {
+    const cName = intentToCluster[intent];
+    if (!cName) continue;
+    byClusterMap[cName] ??= { clusterName: cName, failed: 0, abandoned: 0, total: 0, scores: [] };
+    byClusterMap[cName].failed    += g.failed;
+    byClusterMap[cName].abandoned += g.abandoned;
+    byClusterMap[cName].total     += g.total;
+    byClusterMap[cName].scores.push(...g.scores);
+  }
+
+  const clusterFailures = Object.values(byClusterMap)
+    .filter((cg) => cg.failed + cg.abandoned > 0)
+    .map((cg) => ({
+      clusterName: cg.clusterName,
+      failureTotal: cg.failed + cg.abandoned,
+      total: cg.total,
+      failureRate: cg.total > 0 ? Math.round(((cg.failed + cg.abandoned) / cg.total) * 1000) / 10 : 0,
+      avgQuality: cg.scores.length ? Math.round(cg.scores.reduce((a, b) => a + b, 0) / cg.scores.length) : null,
+    }))
+    .sort((a, b) => b.failureTotal - a.failureTotal);
+
+  return NextResponse.json({ byFailure: byFailureWithExamples, lowQuality, fixFirst, pending: pending ?? 0, clusterFailures });
 }

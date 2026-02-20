@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie,
 } from "recharts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -26,7 +27,11 @@ interface PlatformData {
   failureRate: number | null; topIntent: string | null;
   statuses: Record<string, number>;
 }
-interface ApiData { platforms: PlatformData[]; pending: number; keyFindings: string[]; }
+interface ClusterShare { clusterName: string; count: number; pct: number; }
+interface ApiData {
+  platforms: PlatformData[]; pending: number; keyFindings: string[];
+  clusterAffinityByPlatform?: Record<string, ClusterShare[]>; clusterInsights?: string[];
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -97,7 +102,12 @@ export default function PlatformComparison() {
     );
   }
 
-  const { platforms, pending, keyFindings } = data;
+  const { platforms, pending, keyFindings, clusterAffinityByPlatform, clusterInsights } = data;
+  const CLUSTER_PALETTE = [
+    "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#3b82f6",
+    "#ec4899", "#14b8a6", "#f97316", "#8b5cf6", "#06b6d4",
+    "#84cc16", "#e11d48", "#0ea5e9", "#d97706", "#7c3aed",
+  ];
   const totalAnalyzed = platforms.reduce((s, p) => s + p.analyzed, 0);
   const chartData = platforms.map((p) => ({ name: PLATFORM_LABELS[p.platform] ?? p.platform, ...p }));
 
@@ -306,6 +316,67 @@ export default function PlatformComparison() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Cluster affinity per platform */}
+          <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">
+              What Each Platform Is Used For
+            </p>
+            {clusterInsights && clusterInsights.length > 0 && (
+              <ul className="mb-4 space-y-1">
+                {clusterInsights.map((ins, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-zinc-400">
+                    <span className="text-indigo-500 shrink-0 mt-0.5">→</span>
+                    {ins}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!clusterAffinityByPlatform || Object.keys(clusterAffinityByPlatform).length === 0 ? (
+              <p className="text-xs text-zinc-600">
+                Run <code className="bg-white/[0.06] text-zinc-300 px-1 rounded">python -m workers.topic_clusterer</code> to see topic distribution per platform.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mt-3">
+                {platforms.filter((p) => clusterAffinityByPlatform[p.platform]?.length > 0).map((p) => {
+                  const slices = (clusterAffinityByPlatform[p.platform] ?? []).slice(0, 8);
+                  const pieData = slices.map((s, i) => ({ ...s, fill: CLUSTER_PALETTE[i % CLUSTER_PALETTE.length] }));
+                  return (
+                    <div key={p.platform} className="flex flex-col items-center">
+                      <PlatformBadge platform={p.platform} />
+                      <PieChart width={130} height={120} className="mt-2">
+                        <Pie
+                          data={pieData}
+                          dataKey="count"
+                          nameKey="clusterName"
+                          innerRadius={35}
+                          outerRadius={55}
+                          strokeWidth={0}
+                        >
+                          {pieData.map((entry, i) => (
+                            <Cell key={i} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ background: "#1c1d28", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
+                          formatter={(v: number | undefined, name: string | undefined) => [`${v ?? 0} convos`, name ?? ""]}
+                        />
+                      </PieChart>
+                      <div className="mt-1 space-y-0.5 w-full">
+                        {pieData.slice(0, 3).map((s, i) => (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.fill }} />
+                            <span className="text-[10px] text-zinc-500 truncate">{s.clusterName}</span>
+                            <span className="text-[10px] text-zinc-600 ml-auto shrink-0">{s.pct}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {pending > 0 && (

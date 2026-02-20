@@ -138,9 +138,46 @@ export async function GET() {
     keyFindings.push(`${LABELS[deepest.platform]} conversations run deepest — ${deepest.avgTurns} turns on average, ${deepest.pct5Plus}% have 5+ exchanges.`);
   }
 
+  // ── Cluster affinity per platform ─────────────────────────────────────────
+  const { data: clusterRows } = await sb.from("topic_clusters").select("cluster_name, topic_labels");
+  const intentToCluster: Record<string, string> = {};
+  for (const cr of clusterRows ?? []) {
+    for (const label of (cr.topic_labels as string[]) ?? []) {
+      intentToCluster[label] = cr.cluster_name as string;
+    }
+  }
+
+  const clusterStats: Record<string, Record<string, number>> = {}; // platform → {clusterName: count}
+  for (const row of analyzedRows ?? []) {
+    const meta = row.metadata as Record<string, unknown> | null;
+    const p = (meta?.platform as string) ?? "unknown";
+    const cName = row.intent ? intentToCluster[row.intent] : null;
+    if (cName) {
+      clusterStats[p] ??= {};
+      clusterStats[p][cName] = (clusterStats[p][cName] ?? 0) + 1;
+    }
+  }
+
+  const clusterAffinityByPlatform: Record<string, { clusterName: string; count: number; pct: number }[]> = {};
+  for (const [p, counts] of Object.entries(clusterStats)) {
+    const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+    clusterAffinityByPlatform[p] = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([clusterName, count]) => ({ clusterName, count, pct: Math.round((count / total) * 1000) / 10 }));
+  }
+
+  // Auto-generate cluster insight text
+  const clusterInsights: string[] = [];
+  for (const p of PLATFORMS) {
+    const top = clusterAffinityByPlatform[p]?.[0];
+    if (top && top.pct > 25) {
+      clusterInsights.push(`${LABELS[p]} is most used for "${top.clusterName}" (${top.pct}% of its conversations).`);
+    }
+  }
+
   const grandTotal = platforms.reduce((s, p) => s + p.total, 0);
   const totalAnalyzed = platforms.reduce((s, p) => s + p.analyzed, 0);
   const pending = Math.max(0, grandTotal - totalAnalyzed);
 
-  return NextResponse.json({ platforms, pending, keyFindings });
+  return NextResponse.json({ platforms, pending, keyFindings, clusterAffinityByPlatform, clusterInsights });
 }

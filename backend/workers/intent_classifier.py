@@ -10,7 +10,6 @@ Usage:
 Requires SUPABASE_URL, SUPABASE_KEY, and OPENAI_API_KEY in .env.
 """
 
-import json
 import logging
 import os
 import time
@@ -35,39 +34,13 @@ BATCH_SIZE = 10
 POLL_INTERVAL = 5  # seconds between polls when idle
 RATE_LIMIT_BACKOFF = 60  # seconds to wait on OpenAI rate limit
 
-SYSTEM_PROMPT = """\
-You are a conversation intent classifier. Given a conversation between a user \
-and an assistant, classify the user's primary intent.
-
-Reply with ONLY a JSON object in this exact format:
-{"intent": "<category> > <subcategory>"}
-
-Taxonomy:
-- code_generation > write_function
-- code_generation > write_class
-- code_generation > write_test
-- code_generation > generate_boilerplate
-- debugging > fix_error
-- debugging > troubleshoot
-- debugging > review_code
-- understanding > explain_code
-- understanding > explain_concept
-- understanding > summarize
-- refactoring > improve_performance
-- refactoring > restructure
-- refactoring > simplify
-- configuration > setup_environment
-- configuration > install_dependency
-- configuration > configure_tool
-- data > query_data
-- data > transform_data
-- data > visualize_data
-- general > greeting
-- general > feedback
-- general > other
-
-Pick the single best match. If nothing fits well, use "general > other".\
-"""
+TOPIC_PROMPT = (
+    "Read this conversation and answer: What is the user trying to accomplish? "
+    "Respond with ONLY a short topic label (2-5 words, lowercase). "
+    "Examples: 'python web scraping', 'college essay writing', 'recipe suggestion', "
+    "'relationship advice', 'resume formatting'. "
+    "Be specific, not generic — say 'python web scraping' not 'coding help'."
+)
 
 
 def get_supabase():
@@ -101,27 +74,20 @@ def format_messages_for_prompt(messages: list[dict]) -> str:
 
 
 def classify_intent(client: OpenAI, messages: list[dict]) -> str | None:
-    """Send messages to GPT-4o-mini and extract the intent classification."""
+    """Send messages to GPT-4o-mini and return a short free-form topic label."""
     conversation_text = format_messages_for_prompt(messages)
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": conversation_text},
-        ],
+        messages=[{"role": "user", "content": f"{TOPIC_PROMPT}\n\nConversation:\n{conversation_text}"}],
         temperature=0,
-        max_tokens=100,
+        max_tokens=20,
     )
 
-    raw = response.choices[0].message.content.strip()
-
-    try:
-        parsed = json.loads(raw)
-        return parsed.get("intent")
-    except json.JSONDecodeError:
-        logger.warning("Failed to parse LLM response: %s", raw)
-        return raw if " > " in raw else None
+    raw = response.choices[0].message.content.strip().lower()
+    if not raw or len(raw) > 100:
+        return None
+    return raw
 
 
 def process_batch(sb, openai_client: OpenAI, conversations: list[dict]) -> int:
