@@ -17,3 +17,27 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  /* Hide navigation shell when printing */
+  aside, header, .print\:hidden {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .bg-\[\#13141b\], .bg-\[\#0a0b10\], .bg-\[\#0f101a\] {
+    background: #f9fafb !important;
+  }
+  .text-white { color: #111 !important; }
+  .text-zinc-300 { color: #333 !important; }
+  .text-zinc-400 { color: #555 !important; }
+  .text-zinc-500 { color: #777 !important; }
+  .text-zinc-600 { color: #888 !important; }
+  .border-white\/\[0\.07\] { border-color: #ddd !important; }
+  * { box-shadow: none !important; }
+}

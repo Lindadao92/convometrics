@@ -15,7 +15,8 @@ export async function GET() {
       sb.from("conversations").select("*", { count: "exact", head: true }).eq("metadata->>platform", p)
     ),
   ]);
-  if (totalCountResult.error) return NextResponse.json({ error: totalCountResult.error.message }, { status: 500 });
+  if (totalCountResult.error)
+    return NextResponse.json({ error: totalCountResult.error.message }, { status: 500 });
 
   const totalCount = totalCountResult.count ?? 0;
   const truePlatformTotals: Record<string, number> = {};
@@ -23,7 +24,7 @@ export async function GET() {
     truePlatformTotals[PLATFORMS[i]] = platformCountResults[i].count ?? 0;
   }
 
-  // Sample rows for aggregation — metadata only (PostgREST default cap applies)
+  // Sample rows for aggregation — metadata only
   const { data: allMeta, error: allErr } = await sb
     .from("conversations")
     .select("metadata")
@@ -41,7 +42,7 @@ export async function GET() {
   const all = allMeta ?? [];
   const analyzed = analyzedRows ?? [];
 
-  // ── Raw stats from ALL conversations ──────────────────────────────────────────
+  // ── Raw stats from ALL conversations ────────────────────────────────────────
   let totalMessages = 0;
   let turnsSum = 0, turnsCount = 0;
   const platformRaw: Record<string, { total: number; turnsSum: number; turnsCount: number }> = {};
@@ -62,11 +63,11 @@ export async function GET() {
       platformRaw[platform].turnsSum += turns;
       platformRaw[platform].turnsCount++;
 
-      if (turns === 1)       turnBuckets["1"]++;
-      else if (turns <= 3)   turnBuckets["2-3"]++;
-      else if (turns <= 6)   turnBuckets["4-6"]++;
-      else if (turns <= 10)  turnBuckets["7-10"]++;
-      else                   turnBuckets["10+"]++;
+      if (turns === 1)      turnBuckets["1"]++;
+      else if (turns <= 3)  turnBuckets["2-3"]++;
+      else if (turns <= 6)  turnBuckets["4-6"]++;
+      else if (turns <= 10) turnBuckets["7-10"]++;
+      else                  turnBuckets["10+"]++;
     }
   }
 
@@ -89,12 +90,14 @@ export async function GET() {
     { label: "10+",  count: turnBuckets["10+"] },
   ];
 
-  // ── Analyzed stats ────────────────────────────────────────────────────────────
-  let qualitySum = 0, qualityCount = 0, completedCount = 0;
+  // ── Analyzed stats ───────────────────────────────────────────────────────────
+  let qualitySum = 0, qualityCount = 0, completedCount = 0, failedCount = 0, abandonedCount = 0;
   const platformAnalyzed: Record<string, {
     analyzed: number; qualitySum: number; qualityCount: number; completed: number;
   }> = {};
-  const intentCounts: Record<string, { count: number; failCount: number }> = {};
+  const intentCounts: Record<string, { count: number; failCount: number; completeCount: number; qualitySum: number; qualityCount: number }> = {};
+  const statusCounts: Record<string, number> = {};
+  const qualityBuckets: Record<string, number> = { "0–20": 0, "21–40": 0, "41–60": 0, "61–80": 0, "81–100": 0 };
 
   for (const row of analyzed) {
     const meta = row.metadata as Record<string, unknown> | null;
@@ -103,20 +106,32 @@ export async function GET() {
     const g = platformAnalyzed[platform];
     g.analyzed++;
 
+    // Status tracking
+    const st = row.completion_status as string | null;
+    if (st) statusCounts[st] = (statusCounts[st] ?? 0) + 1;
     if (row.quality_score !== null) {
       qualitySum += row.quality_score;
       qualityCount++;
       g.qualitySum += row.quality_score;
       g.qualityCount++;
+      const q = row.quality_score;
+      if      (q <= 20) qualityBuckets["0–20"]++;
+      else if (q <= 40) qualityBuckets["21–40"]++;
+      else if (q <= 60) qualityBuckets["41–60"]++;
+      else if (q <= 80) qualityBuckets["61–80"]++;
+      else              qualityBuckets["81–100"]++;
     }
-    if (row.completion_status === "completed") { completedCount++; g.completed++; }
+    if (st === "completed") { completedCount++; g.completed++; }
+    if (st === "failed")    failedCount++;
+    if (st === "abandoned") abandonedCount++;
 
     if (row.intent) {
-      intentCounts[row.intent] ??= { count: 0, failCount: 0 };
-      intentCounts[row.intent].count++;
-      if (row.completion_status === "failed" || row.completion_status === "abandoned") {
-        intentCounts[row.intent].failCount++;
-      }
+      intentCounts[row.intent] ??= { count: 0, failCount: 0, completeCount: 0, qualitySum: 0, qualityCount: 0 };
+      const ic = intentCounts[row.intent];
+      ic.count++;
+      if (st === "failed" || st === "abandoned") ic.failCount++;
+      if (st === "completed") ic.completeCount++;
+      if (row.quality_score !== null) { ic.qualitySum += row.quality_score; ic.qualityCount++; }
     }
   }
 
@@ -132,15 +147,51 @@ export async function GET() {
     };
   });
 
-  // Top intents by volume + worst by failure rate
-  const intentArr = Object.entries(intentCounts).map(([intent, { count, failCount }]) => ({
-    intent, count, failRate: count > 0 ? Math.round((failCount / count) * 1000) / 10 : 0,
+  // Intent arrays for performance insights
+  const intentArr = Object.entries(intentCounts).map(([intent, g]) => ({
+    intent,
+    count: g.count,
+    failRate: g.count > 0 ? Math.round((g.failCount / g.count) * 1000) / 10 : 0,
+    avgQuality: g.qualityCount > 0 ? Math.round(g.qualitySum / g.qualityCount) : null,
+    completionRate: g.count > 0 ? Math.round((g.completeCount / g.count) * 1000) / 10 : 0,
   }));
-  const topIntents = [...intentArr].sort((a, b) => b.count - a.count).slice(0, 3);
-  const worstIntents = intentArr
-    .filter((x) => x.count >= 5)
-    .sort((a, b) => b.failRate - a.failRate)
-    .slice(0, 3);
+
+  // Top 3 highest quality (min 5 convos)
+  const topPerformingTopics = intentArr
+    .filter((x) => x.avgQuality !== null && x.count >= 5)
+    .sort((a, b) => (b.avgQuality ?? 0) - (a.avgQuality ?? 0))
+    .slice(0, 3)
+    .map(({ intent, avgQuality, count, completionRate }) => ({ intent, avgQuality: avgQuality!, count, completionRate }));
+
+  // Bottom 3 worst quality (min 5 convos)
+  const worstPerformingTopics = intentArr
+    .filter((x) => x.avgQuality !== null && x.count >= 5)
+    .sort((a, b) => (a.avgQuality ?? 100) - (b.avgQuality ?? 100))
+    .slice(0, 3)
+    .map(({ intent, avgQuality, count, failRate }) => ({ intent, avgQuality: avgQuality!, count, failRate }));
+
+  // Top topic by volume
+  const topTopic = intentArr.length > 0
+    ? [...intentArr].sort((a, b) => b.count - a.count)[0].intent
+    : null;
+
+  // Health score: avgQuality/100 × completionRate/100 × (1 - failureRate/100)
+  const overallFailureRate = analyzed.length > 0
+    ? (failedCount + abandonedCount) / analyzed.length
+    : null;
+  const overallCompletionRate = analyzed.length > 0 ? completedCount / analyzed.length : null;
+  const overallAvgQuality = qualityCount > 0 ? qualitySum / qualityCount : null;
+
+  const healthScore =
+    overallAvgQuality !== null && overallCompletionRate !== null && overallFailureRate !== null
+      ? Math.round((overallAvgQuality / 100) * overallCompletionRate * (1 - overallFailureRate) * 100)
+      : null;
+
+  // Status breakdown for completion funnel
+  const statusBreakdown = Object.entries(statusCounts).map(([status, count]) => ({ status, count }));
+
+  // Quality distribution histogram
+  const qualityDistribution = Object.entries(qualityBuckets).map(([label, count]) => ({ label, count }));
 
   // Recent 10 analyzed
   const recentAnalyzed = [...analyzed]
@@ -164,14 +215,19 @@ export async function GET() {
       analyzed: analyzed.length,
       avgQuality: qualityCount > 0 ? Math.round(qualitySum / qualityCount) : null,
       completionRate: analyzed.length > 0 ? Math.round((completedCount / analyzed.length) * 1000) / 10 : null,
+      failureRate: analyzed.length > 0 ? Math.round(((failedCount + abandonedCount) / analyzed.length) * 1000) / 10 : null,
       avgTurns: avgTurnsAll,
       totalMessages,
+      topTopic,
     },
+    healthScore,
     byPlatform,
     turnDistribution,
     avgTurnsByPlatform,
-    topIntents,
-    worstIntents,
+    qualityDistribution,
+    statusBreakdown,
+    topPerformingTopics,
+    worstPerformingTopics,
     recentAnalyzed,
   });
 }

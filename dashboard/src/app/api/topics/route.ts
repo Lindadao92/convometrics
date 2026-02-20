@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 interface TopicSummary {
   label: string; count: number; avgQuality: number | null;
-  failureRate: number; firstSeen: string | null; isEmerging: boolean;
+  failureRate: number; completionRate: number; avgTurns: number | null;
+  topPlatform: string | null; firstSeen: string | null; isEmerging: boolean;
 }
 interface PlatformBreakdown { platform: string; count: number; pct: number; }
 interface ClusterData {
@@ -22,7 +23,13 @@ interface EmergingTopic {
 interface UnclusteredIntent { label: string; count: number; avgQuality: number | null; failureRate: number; }
 interface TopicsApiResponse {
   clusters: ClusterData[]; emergingTopics: EmergingTopic[]; unclustered: UnclusteredIntent[];
-  hasClusterData: boolean; totalConversations: number;
+  hasClusterData: boolean; totalConversations: number; uniqueTopicsCount: number;
+  topicInsights: {
+    mostDiscussed: { name: string; count: number } | null;
+    biggestQualityGap: { label: string; count: number; avgQuality: number } | null;
+    fastestGrowing: { label: string; count: number; clusterName: string | null } | null;
+    platformSpecialization: { platform: string; clusterName: string }[];
+  };
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -70,7 +77,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiRespo
 
   // 3. Single-pass aggregation: build byIntent and byCluster simultaneously
   const byIntent: Record<string, {
-    count: number; scores: number[]; failed: number; abandoned: number;
+    count: number; scores: number[]; failed: number; abandoned: number; completed: number;
     turnsTotal: number; turnsCount: number; earliestMs: number | null;
     clusterId: string | null; platformCounts: Record<string, number>;
   }> = {};
@@ -90,12 +97,13 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiRespo
 
     // Per-intent tracking
     if (label) {
-      byIntent[label] ??= { count: 0, scores: [], failed: 0, abandoned: 0, turnsTotal: 0, turnsCount: 0, earliestMs: null, clusterId, platformCounts: {} };
+      byIntent[label] ??= { count: 0, scores: [], failed: 0, abandoned: 0, completed: 0, turnsTotal: 0, turnsCount: 0, earliestMs: null, clusterId, platformCounts: {} };
       const g = byIntent[label];
       g.count++;
       if (row.quality_score !== null) g.scores.push(row.quality_score as number);
       if (row.completion_status === "failed") g.failed++;
       if (row.completion_status === "abandoned") g.abandoned++;
+      if (row.completion_status === "completed") g.completed++;
       if (typeof turns === "number" && turns > 0) { g.turnsTotal += turns; g.turnsCount++; }
       if (createdMs !== null && (g.earliestMs === null || createdMs < g.earliestMs)) g.earliestMs = createdMs;
       g.platformCounts[p] = (g.platformCounts[p] ?? 0) + 1;
@@ -120,22 +128,20 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiRespo
     const totalP = Object.values(cg.platformCounts).reduce((a, b) => a + b, 0) || 1;
 
     // Topics inside this cluster
-    const topics: TopicSummary[] = (cr.topic_labels as string[] ?? [])
-      .map((label) => {
-        const ig = byIntent[label];
-        if (!ig) return null;
-        const isEmerging = ig.earliestMs !== null && ig.earliestMs >= fourteenDaysAgo;
-        return {
-          label,
-          count: ig.count,
-          avgQuality: ig.scores.length ? Math.round(ig.scores.reduce((a, b) => a + b, 0) / ig.scores.length) : null,
-          failureRate: ig.count > 0 ? Math.round(((ig.failed + ig.abandoned) / ig.count) * 1000) / 10 : 0,
-          firstSeen: ig.earliestMs ? new Date(ig.earliestMs).toISOString() : null,
-          isEmerging,
-        };
-      })
-      .filter((t): t is TopicSummary => t !== null)
-      .sort((a, b) => b.count - a.count);
+    const topics: TopicSummary[] = (cr.topic_labels as string[] ?? []).flatMap((label): TopicSummary[] => {
+      const ig = byIntent[label];
+      if (!ig) return [];
+      const isEmerging = ig.earliestMs !== null && ig.earliestMs >= fourteenDaysAgo;
+      const topPlatform = Object.entries(ig.platformCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      return [{
+        label, count: ig.count,
+        avgQuality: ig.scores.length ? Math.round(ig.scores.reduce((a, b) => a + b, 0) / ig.scores.length) : null,
+        failureRate: ig.count > 0 ? Math.round(((ig.failed + ig.abandoned) / ig.count) * 1000) / 10 : 0,
+        completionRate: ig.count > 0 ? Math.round((ig.completed / ig.count) * 1000) / 10 : 0,
+        avgTurns: ig.turnsCount > 0 ? Math.round((ig.turnsTotal / ig.turnsCount) * 10) / 10 : null,
+        topPlatform, firstSeen: ig.earliestMs ? new Date(ig.earliestMs).toISOString() : null, isEmerging,
+      }];
+    }).sort((a, b) => b.count - a.count);
 
     return {
       id: cr.id as string,
@@ -177,5 +183,43 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiRespo
     .sort((a, b) => b.count - a.count)
     .slice(0, 50);
 
-  return NextResponse.json({ clusters, emergingTopics, unclustered, hasClusterData, totalConversations });
+  // 7. Topic insights for the insights section
+  const allIntents = Object.entries(byIntent);
+  const mostDiscussed = clusters[0] ?? null;
+
+  // Biggest quality gap: high count but lowest quality
+  const qualityGapCandidate = allIntents
+    .filter(([, g]) => g.count >= 20 && g.scores.length > 0)
+    .map(([label, g]) => ({
+      label,
+      count: g.count,
+      avgQuality: Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length),
+    }))
+    .sort((a, b) => b.count - a.count)
+    .filter((x) => x.avgQuality < 50)[0] ?? null;
+
+  const fastestGrowing = emergingTopics[0] ?? null;
+
+  // Platform specialization: which platform dominates each cluster (only for top 5 clusters)
+  const platformSpecialization: { platform: string; clusterName: string }[] = [];
+  for (const cluster of clusters.slice(0, 5)) {
+    if (cluster.platformBreakdown.length > 0) {
+      const top = cluster.platformBreakdown[0];
+      if (top.pct > 30) {
+        platformSpecialization.push({ platform: top.platform, clusterName: cluster.clusterName });
+      }
+    }
+  }
+
+  const topicInsights = {
+    mostDiscussed: mostDiscussed ? { name: mostDiscussed.clusterName, count: mostDiscussed.conversationCount } : null,
+    biggestQualityGap: qualityGapCandidate,
+    fastestGrowing: fastestGrowing ? { label: fastestGrowing.label, count: fastestGrowing.count, clusterName: fastestGrowing.clusterName } : null,
+    platformSpecialization: platformSpecialization.slice(0, 3),
+  };
+
+  // Count unique topics
+  const uniqueTopicsCount = allIntents.length;
+
+  return NextResponse.json({ clusters, emergingTopics, unclustered, hasClusterData, totalConversations, topicInsights, uniqueTopicsCount });
 }
