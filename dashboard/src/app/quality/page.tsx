@@ -9,8 +9,8 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORM_COLORS: Record<string, string> = {
-  chatgpt: "#10b981", claude: "#f97316", gemini: "#3b82f6",
-  grok: "#ef4444", perplexity: "#a855f7",
+  chatgpt: "#10A37F", claude: "#D97706", gemini: "#4285F4",
+  grok: "#EF4444", perplexity: "#8B5CF6",
 };
 const PLATFORM_LABELS: Record<string, string> = {
   chatgpt: "ChatGPT", claude: "Claude", gemini: "Gemini",
@@ -103,10 +103,10 @@ export default function QualityIntent() {
 
   // Quadrant classification
   function quadrant(x: number, y: number) {
-    if (x >= 60 && y >= 50) return "working";   // green
-    if (x < 60  && y >= 50) return "ux";         // yellow — high completion, low quality
-    if (x >= 60 && y < 50)  return "fragile";    // blue — high quality, low completion
-    return "fix";                                  // red — low/low
+    if (x >= 60 && y >= 50) return "working";
+    if (x < 60  && y >= 50) return "ux";
+    if (x >= 60 && y < 50)  return "fragile";
+    return "fix";
   }
 
   // Priority list: lowest quality + highest volume
@@ -118,7 +118,7 @@ export default function QualityIntent() {
       return bScore - aScore;
     });
 
-  const quadrantLabel = {
+  const quadrantLabel: Record<string, { label: string; color: string; desc: string }> = {
     working: { label: "Working Well", color: "#34d399", desc: "High quality + high completion" },
     ux:      { label: "UX Problem",   color: "#fbbf24", desc: "Low quality but users push through" },
     fragile: { label: "Fragile",      color: "#60a5fa", desc: "High quality but users abandon" },
@@ -131,7 +131,7 @@ export default function QualityIntent() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-white">Quality × Intent</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Quality score vs completion rate — bubble size = conversation volume</p>
+          <p className="text-sm text-zinc-500 mt-0.5">Quality score vs completion rate — bubble size = conversation volume, color = top platform</p>
         </div>
         <select
           value={platform}
@@ -146,9 +146,12 @@ export default function QualityIntent() {
       </div>
 
       {analyzed.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center">
-          <p className="text-zinc-400 text-sm mb-1">No analyzed conversations yet.</p>
-          <p className="text-zinc-600 text-xs">Run AI workers to see quality insights.</p>
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center space-y-3">
+          <p className="text-zinc-300 font-medium">No analyzed conversations yet</p>
+          <p className="text-zinc-500 text-sm">Run AI workers to see quality vs completion breakdown by intent.</p>
+          <div className="bg-black/40 rounded-lg p-3 font-mono text-xs text-zinc-400 text-left max-w-sm mx-auto">
+            <p className="text-emerald-500">python -m scripts.test_workers</p>
+          </div>
         </div>
       ) : (
         <>
@@ -184,10 +187,8 @@ export default function QualityIntent() {
                 />
                 <ZAxis type="number" dataKey="z" range={[40, 800]} />
                 <Tooltip content={<ScatterTooltip />} />
-                {/* Quadrant dividers */}
                 <ReferenceLine x={60} stroke="#ffffff10" strokeDasharray="4 4" />
                 <ReferenceLine y={50} stroke="#ffffff10" strokeDasharray="4 4" />
-                {/* Quadrant labels */}
                 <ReferenceLine x={30} y={75} label={{ value: "Fix First", fill: "#f87171", fontSize: 10 }} stroke="none" />
                 <ReferenceLine x={80} y={75} label={{ value: "Working Well", fill: "#34d399", fontSize: 10 }} stroke="none" />
                 <ReferenceLine x={30} y={25} label={{ value: "UX Problem", fill: "#fbbf24", fontSize: 10 }} stroke="none" />
@@ -258,7 +259,8 @@ export default function QualityIntent() {
           {/* Sample failed conversations */}
           {data.intents.some((d) => d.sampleFailed.length > 0) && (
             <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-4">Failed Conversation Previews</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Failed Conversation Previews</p>
+              <p className="text-xs text-zinc-600 mb-4">First user message from low-quality conversations</p>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {data.intents
                   .filter((d) => d.sampleFailed.length > 0 && d.avgScore !== null && d.avgScore < 60)

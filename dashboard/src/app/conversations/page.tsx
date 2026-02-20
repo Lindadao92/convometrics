@@ -5,8 +5,8 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORM_COLORS: Record<string, string> = {
-  chatgpt: "#10b981", claude: "#f97316", gemini: "#3b82f6",
-  grok: "#ef4444", perplexity: "#a855f7",
+  chatgpt: "#10A37F", claude: "#D97706", gemini: "#4285F4",
+  grok: "#EF4444", perplexity: "#8B5CF6",
 };
 const PLATFORM_LABELS: Record<string, string> = {
   chatgpt: "ChatGPT", claude: "Claude", gemini: "Gemini",
@@ -25,7 +25,7 @@ interface Conversation {
   id: string; conversation_id: string; user_id: string; platform: string;
   intent: string | null; quality_score: number | null;
   completion_status: string | null; messages: Message[];
-  created_at: string;
+  created_at: string; turns: number | null; firstUserMessage: string;
 }
 type SortField = "created_at" | "quality_score" | "intent" | "completion_status";
 
@@ -93,12 +93,12 @@ function SortTh({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Conversations() {
-  const [convos, setConvos]       = useState<Conversation[]>([]);
-  const [total, setTotal]         = useState(0);
-  const [page, setPage]           = useState(0);
-  const [intents, setIntents]     = useState<string[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [convos, setConvos]         = useState<Conversation[]>([]);
+  const [total, setTotal]           = useState(0);
+  const [page, setPage]             = useState(0);
+  const [intents, setIntents]       = useState<string[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Filters
@@ -116,11 +116,7 @@ export default function Conversations() {
 
   const fetchData = useCallback(() => {
     setLoading(true);
-    const params = new URLSearchParams({
-      page: String(page),
-      sort: sortBy,
-      order,
-    });
+    const params = new URLSearchParams({ page: String(page), sort: sortBy, order });
     if (filterIntent)   params.set("intent",    filterIntent);
     if (filterStatus)   params.set("status",    filterStatus);
     if (filterPlatform) params.set("platform",  filterPlatform);
@@ -150,7 +146,15 @@ export default function Conversations() {
     setPage(0);
   }
 
-  function applyFilters() { setPage(0); fetchData(); }
+  function handleExportCSV() {
+    const params = new URLSearchParams({ format: "csv", sort: sortBy, order });
+    if (filterIntent)   params.set("intent",    filterIntent);
+    if (filterStatus)   params.set("status",    filterStatus);
+    if (filterPlatform) params.set("platform",  filterPlatform);
+    if (filterMinScore) params.set("min_score", filterMinScore);
+    if (filterMaxScore) params.set("max_score", filterMaxScore);
+    window.open(`/api/conversations?${params}`, "_blank");
+  }
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -159,11 +163,19 @@ export default function Conversations() {
   return (
     <div className="p-8 max-w-7xl space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Conversations</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">
-          {total.toLocaleString()} total · page {page + 1} of {totalPages || 1}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Conversations</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">
+            {total.toLocaleString()} total · page {page + 1} of {totalPages || 1}
+          </p>
+        </div>
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-zinc-400 border border-white/[0.08] hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-colors"
+        >
+          ↓ Export CSV
+        </button>
       </div>
 
       {error && (
@@ -174,7 +186,6 @@ export default function Conversations() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        {/* Platform filter */}
         <select
           value={filterPlatform}
           onChange={(e) => { setFilterPlatform(e.target.value); setPage(0); }}
@@ -184,7 +195,6 @@ export default function Conversations() {
           {ALL_PLATFORMS.map((p) => <option key={p} value={p}>{PLATFORM_LABELS[p]}</option>)}
         </select>
 
-        {/* Intent filter */}
         <select
           value={filterIntent}
           onChange={(e) => { setFilterIntent(e.target.value); setPage(0); }}
@@ -194,7 +204,6 @@ export default function Conversations() {
           {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
         </select>
 
-        {/* Status filter */}
         <select
           value={filterStatus}
           onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
@@ -206,7 +215,6 @@ export default function Conversations() {
           ))}
         </select>
 
-        {/* Quality range */}
         <div className="flex items-center gap-1.5">
           <input
             type="number" placeholder="Min score" value={filterMinScore}
@@ -242,17 +250,18 @@ export default function Conversations() {
             <thead>
               <tr className="border-b border-white/[0.06]">
                 <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Platform</th>
-                <SortTh field="created_at"        label="Date"       sortBy={sortBy} order={order} onSort={handleSort} />
-                <SortTh field="intent"            label="Intent"     sortBy={sortBy} order={order} onSort={handleSort} />
-                <SortTh field="quality_score"     label="Quality"    sortBy={sortBy} order={order} onSort={handleSort} />
-                <SortTh field="completion_status" label="Status"     sortBy={sortBy} order={order} onSort={handleSort} />
-                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Preview</th>
+                <SortTh field="created_at"        label="Date"    sortBy={sortBy} order={order} onSort={handleSort} />
+                <SortTh field="intent"            label="Intent"  sortBy={sortBy} order={order} onSort={handleSort} />
+                <SortTh field="quality_score"     label="Quality" sortBy={sortBy} order={order} onSort={handleSort} />
+                <SortTh field="completion_status" label="Status"  sortBy={sortBy} order={order} onSort={handleSort} />
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Turns</th>
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">First message</th>
               </tr>
             </thead>
             <tbody>
               {convos.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-zinc-600 text-sm">
+                  <td colSpan={7} className="text-center py-12 text-zinc-600 text-sm">
                     No conversations found
                   </td>
                 </tr>
@@ -278,32 +287,43 @@ export default function Conversations() {
                         ) : <span className="text-zinc-600">—</span>}
                       </td>
                       <td className="px-4 py-3"><StatusBadge status={conv.completion_status} /></td>
+                      <td className="px-4 py-3 text-zinc-500 font-mono text-xs">
+                        {conv.turns !== null ? conv.turns : <span className="text-zinc-700">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-zinc-600 text-xs truncate max-w-xs">
-                        {conv.messages?.[0]?.content?.slice(0, 80) ?? "—"}
+                        {conv.firstUserMessage || "—"}
                       </td>
                     </tr>
 
-                    {/* Expanded message thread */}
+                    {/* Expanded chat view */}
                     {expandedId === conv.id && (
                       <tr className="bg-[#0f101a]">
-                        <td colSpan={6} className="px-6 py-4">
-                          <div className="flex items-center gap-3 mb-3 text-xs text-zinc-600">
+                        <td colSpan={7} className="px-6 py-4">
+                          <div className="flex items-center gap-3 mb-4 text-xs text-zinc-600">
                             <PlatformBadge platform={conv.platform} />
                             <span>{conv.messages?.length ?? 0} messages</span>
+                            {conv.turns !== null && <span>{conv.turns} turns</span>}
                             {conv.user_id && <span>User: {conv.user_id.slice(-12)}</span>}
                           </div>
-                          <div className="space-y-2 max-h-80 overflow-y-auto">
+                          {/* Chat-style: user messages right, AI messages left */}
+                          <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
                             {(conv.messages ?? []).map((m, i) => (
                               <div
                                 key={i}
-                                className={`rounded-lg px-3 py-2 text-xs max-w-[80%] ${
-                                  m.role === "user"
-                                    ? "bg-white/[0.06] text-zinc-300 ml-auto text-right"
-                                    : "bg-white/[0.03] text-zinc-400"
-                                }`}
+                                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                               >
-                                <span className="font-medium text-zinc-500 mr-1.5">{m.role === "user" ? "User" : "AI"}</span>
-                                {m.content.slice(0, 400)}{m.content.length > 400 ? "…" : ""}
+                                <div
+                                  className={`rounded-2xl px-3.5 py-2.5 text-xs max-w-[75%] ${
+                                    m.role === "user"
+                                      ? "bg-indigo-600/30 text-zinc-200 rounded-br-sm"
+                                      : "bg-white/[0.05] text-zinc-400 rounded-bl-sm"
+                                  }`}
+                                >
+                                  <span className={`font-semibold mr-1.5 text-[10px] ${m.role === "user" ? "text-indigo-300" : "text-zinc-500"}`}>
+                                    {m.role === "user" ? "User" : "AI"}
+                                  </span>
+                                  {m.content.slice(0, 500)}{m.content.length > 500 ? "…" : ""}
+                                </div>
                               </div>
                             ))}
                           </div>

@@ -8,45 +8,84 @@ const PLATFORMS = ["chatgpt", "claude", "gemini", "grok", "perplexity"] as const
 export async function GET() {
   const sb = getSupabaseServer();
 
-  // Total conversation count
-  const { count: total, error: totalErr } = await sb
+  // All raw rows — metadata only (lightweight, ~150B/row)
+  const { data: allMeta, error: allErr } = await sb
     .from("conversations")
-    .select("*", { count: "exact", head: true });
-  if (totalErr) return NextResponse.json({ error: totalErr.message }, { status: 500 });
+    .select("metadata")
+    .limit(200000);
+  if (allErr) return NextResponse.json({ error: allErr.message }, { status: 500 });
 
-  // All analyzed rows — lightweight (no messages column)
-  const { data: rows, error } = await sb
+  // All analyzed rows — no messages column
+  const { data: analyzedRows, error: analyzedErr } = await sb
     .from("conversations")
     .select("id, intent, quality_score, completion_status, created_at, metadata")
     .not("intent", "is", null)
     .limit(100000);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (analyzedErr) return NextResponse.json({ error: analyzedErr.message }, { status: 500 });
 
-  const analyzed = rows ?? [];
+  const all = allMeta ?? [];
+  const analyzed = analyzedRows ?? [];
 
-  // Per-platform total counts (5 parallel count queries)
-  const platformTotals = await Promise.all(
-    PLATFORMS.map((p) =>
-      sb
-        .from("conversations")
-        .select("*", { count: "exact", head: true })
-        .eq("metadata->>platform", p)
-        .then((r) => ({ platform: p, count: r.count ?? 0 }))
-    )
-  );
-  const totalByPlatform = Object.fromEntries(platformTotals.map((x) => [x.platform, x.count]));
+  // ── Raw stats from ALL conversations ──────────────────────────────────────────
+  let totalMessages = 0;
+  let turnsSum = 0, turnsCount = 0;
+  const platformRaw: Record<string, { total: number; turnsSum: number; turnsCount: number }> = {};
+  const turnBuckets: Record<string, number> = { "1": 0, "2-3": 0, "4-6": 0, "7-10": 0, "10+": 0 };
 
-  // Aggregate stats from analyzed rows
-  let qualitySum = 0, qualityCount = 0, completedCount = 0, turnsSum = 0, turnsCount = 0;
-  const platformStats: Record<string, {
+  for (const row of all) {
+    const meta = row.metadata as Record<string, unknown> | null;
+    const platform = (meta?.platform as string) ?? "unknown";
+    const turns = meta?.turns_count as number | null;
+
+    platformRaw[platform] ??= { total: 0, turnsSum: 0, turnsCount: 0 };
+    platformRaw[platform].total++;
+
+    if (typeof turns === "number" && turns > 0) {
+      totalMessages += turns;
+      turnsSum += turns;
+      turnsCount++;
+      platformRaw[platform].turnsSum += turns;
+      platformRaw[platform].turnsCount++;
+
+      if (turns === 1)       turnBuckets["1"]++;
+      else if (turns <= 3)   turnBuckets["2-3"]++;
+      else if (turns <= 6)   turnBuckets["4-6"]++;
+      else if (turns <= 10)  turnBuckets["7-10"]++;
+      else                   turnBuckets["10+"]++;
+    }
+  }
+
+  const avgTurnsAll = turnsCount > 0 ? Math.round((turnsSum / turnsCount) * 10) / 10 : null;
+
+  const avgTurnsByPlatform = PLATFORMS.map((p) => {
+    const g = platformRaw[p];
+    return {
+      platform: p,
+      total: g?.total ?? 0,
+      avgTurns: g && g.turnsCount > 0 ? Math.round((g.turnsSum / g.turnsCount) * 10) / 10 : null,
+    };
+  });
+
+  const turnDistribution = [
+    { label: "1",    count: turnBuckets["1"] },
+    { label: "2–3",  count: turnBuckets["2-3"] },
+    { label: "4–6",  count: turnBuckets["4-6"] },
+    { label: "7–10", count: turnBuckets["7-10"] },
+    { label: "10+",  count: turnBuckets["10+"] },
+  ];
+
+  // ── Analyzed stats ────────────────────────────────────────────────────────────
+  let qualitySum = 0, qualityCount = 0, completedCount = 0;
+  const platformAnalyzed: Record<string, {
     analyzed: number; qualitySum: number; qualityCount: number; completed: number;
   }> = {};
+  const intentCounts: Record<string, { count: number; failCount: number }> = {};
 
   for (const row of analyzed) {
     const meta = row.metadata as Record<string, unknown> | null;
     const platform = (meta?.platform as string) ?? "unknown";
-    platformStats[platform] ??= { analyzed: 0, qualitySum: 0, qualityCount: 0, completed: 0 };
-    const g = platformStats[platform];
+    platformAnalyzed[platform] ??= { analyzed: 0, qualitySum: 0, qualityCount: 0, completed: 0 };
+    const g = platformAnalyzed[platform];
     g.analyzed++;
 
     if (row.quality_score !== null) {
@@ -55,29 +94,40 @@ export async function GET() {
       g.qualitySum += row.quality_score;
       g.qualityCount++;
     }
-    if (row.completion_status === "completed") {
-      completedCount++;
-      g.completed++;
-    }
-    const turns = meta?.turns_count as number | null;
-    if (typeof turns === "number" && turns > 0) {
-      turnsSum += turns;
-      turnsCount++;
+    if (row.completion_status === "completed") { completedCount++; g.completed++; }
+
+    if (row.intent) {
+      intentCounts[row.intent] ??= { count: 0, failCount: 0 };
+      intentCounts[row.intent].count++;
+      if (row.completion_status === "failed" || row.completion_status === "abandoned") {
+        intentCounts[row.intent].failCount++;
+      }
     }
   }
 
   const byPlatform = PLATFORMS.map((p) => {
-    const g = platformStats[p] ?? { analyzed: 0, qualitySum: 0, qualityCount: 0, completed: 0 };
+    const raw = platformRaw[p] ?? { total: 0, turnsSum: 0, turnsCount: 0 };
+    const ai = platformAnalyzed[p] ?? { analyzed: 0, qualitySum: 0, qualityCount: 0, completed: 0 };
     return {
       platform: p,
-      total: totalByPlatform[p] ?? 0,
-      analyzed: g.analyzed,
-      avgQuality: g.qualityCount > 0 ? Math.round(g.qualitySum / g.qualityCount) : null,
-      completionRate: g.analyzed > 0 ? Math.round((g.completed / g.analyzed) * 100) : null,
+      total: raw.total,
+      analyzed: ai.analyzed,
+      avgQuality: ai.qualityCount > 0 ? Math.round(ai.qualitySum / ai.qualityCount) : null,
+      completionRate: ai.analyzed > 0 ? Math.round((ai.completed / ai.analyzed) * 1000) / 10 : null,
     };
   });
 
-  // Recent 10 analyzed conversations
+  // Top intents by volume + worst by failure rate
+  const intentArr = Object.entries(intentCounts).map(([intent, { count, failCount }]) => ({
+    intent, count, failRate: count > 0 ? Math.round((failCount / count) * 1000) / 10 : 0,
+  }));
+  const topIntents = [...intentArr].sort((a, b) => b.count - a.count).slice(0, 3);
+  const worstIntents = intentArr
+    .filter((x) => x.count >= 5)
+    .sort((a, b) => b.failRate - a.failRate)
+    .slice(0, 3);
+
+  // Recent 10 analyzed
   const recentAnalyzed = [...analyzed]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 10)
@@ -95,13 +145,18 @@ export async function GET() {
 
   return NextResponse.json({
     stats: {
-      total: total ?? 0,
+      total: all.length,
       analyzed: analyzed.length,
       avgQuality: qualityCount > 0 ? Math.round(qualitySum / qualityCount) : null,
-      completionRate: analyzed.length > 0 ? Math.round((completedCount / analyzed.length) * 100) : null,
-      avgTurns: turnsCount > 0 ? Math.round((turnsSum / turnsCount) * 10) / 10 : null,
+      completionRate: analyzed.length > 0 ? Math.round((completedCount / analyzed.length) * 1000) / 10 : null,
+      avgTurns: avgTurnsAll,
+      totalMessages,
     },
     byPlatform,
+    turnDistribution,
+    avgTurnsByPlatform,
+    topIntents,
+    worstIntents,
     recentAnalyzed,
   });
 }

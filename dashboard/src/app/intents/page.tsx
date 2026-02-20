@@ -6,8 +6,8 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORM_COLORS: Record<string, string> = {
-  chatgpt: "#10b981", claude: "#f97316", gemini: "#3b82f6",
-  grok: "#ef4444", perplexity: "#a855f7",
+  chatgpt: "#10A37F", claude: "#D97706", gemini: "#4285F4",
+  grok: "#EF4444", perplexity: "#8B5CF6",
 };
 const PLATFORM_LABELS: Record<string, string> = {
   chatgpt: "ChatGPT", claude: "Claude", gemini: "Gemini",
@@ -109,6 +109,11 @@ export default function IntentAnalytics() {
   const { summary, detail } = data;
   const maxImpact = summary[0]?.impactScore ?? 1;
 
+  // Intent health summary
+  const good = summary.filter((s) => s.completionRate >= 60).length;
+  const attention = summary.filter((s) => s.completionRate >= 40 && s.completionRate < 60).length;
+  const critical = summary.filter((s) => s.completionRate < 40).length;
+
   return (
     <div className="p-8 max-w-7xl space-y-6">
       {/* Header */}
@@ -130,12 +135,40 @@ export default function IntentAnalytics() {
       </div>
 
       {summary.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center">
-          <p className="text-zinc-400 text-sm mb-1">No analyzed conversations yet.</p>
-          <p className="text-zinc-600 text-xs">Run AI workers to see intent analytics.</p>
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center space-y-3">
+          <p className="text-zinc-300 font-medium">No analyzed conversations yet</p>
+          <p className="text-zinc-500 text-sm">
+            Run AI workers to see which intents succeed and which struggle.
+          </p>
+          <div className="bg-black/40 rounded-lg p-3 font-mono text-xs text-zinc-400 text-left max-w-sm mx-auto">
+            <p className="text-zinc-600"># Start with a small sample (~$10 est.)</p>
+            <p className="text-emerald-500">python -m scripts.test_workers</p>
+          </div>
+          <p className="text-xs text-zinc-600">
+            This will analyze 1,000 conversations and unlock intent breakdown, failure patterns, quality scores, and more.
+          </p>
         </div>
       ) : (
         <>
+          {/* Health summary */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-500/70 mb-1">Healthy</p>
+              <p className="text-2xl font-bold text-emerald-400">{good}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">intents with 60%+ completion</p>
+            </div>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-500/70 mb-1">Needs Attention</p>
+              <p className="text-2xl font-bold text-amber-400">{attention}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">intents with 40–60% completion</p>
+            </div>
+            <div className="rounded-xl border border-red-500/20 bg-red-500/[0.04] px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-red-500/70 mb-1">Critical</p>
+              <p className="text-2xl font-bold text-red-400">{critical}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">intents with &lt;40% completion</p>
+            </div>
+          </div>
+
           {/* Summary banner */}
           <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-5 py-3.5">
             <p className="text-xs text-amber-400 font-semibold mb-1">Top struggling intents</p>
@@ -186,9 +219,20 @@ export default function IntentAnalytics() {
                       </td>
                       <td className="px-4 py-3">
                         {row.avgScore !== null ? (
-                          <span className={`font-mono ${row.avgScore >= 70 ? "text-emerald-400" : row.avgScore >= 50 ? "text-amber-400" : "text-red-400"}`}>
-                            {row.avgScore}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 rounded-full bg-white/[0.06]">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${row.avgScore}%`,
+                                  backgroundColor: row.avgScore >= 70 ? "#34d399" : row.avgScore >= 50 ? "#fbbf24" : "#f87171",
+                                }}
+                              />
+                            </div>
+                            <span className={`font-mono text-xs ${row.avgScore >= 70 ? "text-emerald-400" : row.avgScore >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                              {row.avgScore}
+                            </span>
+                          </div>
                         ) : <span className="text-zinc-600">—</span>}
                       </td>
                       <td className="px-4 py-3 w-40">

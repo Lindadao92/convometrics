@@ -8,8 +8,8 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORM_COLORS: Record<string, string> = {
-  chatgpt: "#10b981", claude: "#f97316", gemini: "#3b82f6",
-  grok: "#ef4444", perplexity: "#a855f7",
+  chatgpt: "#10A37F", claude: "#D97706", gemini: "#4285F4",
+  grok: "#EF4444", perplexity: "#8B5CF6",
 };
 const PLATFORM_LABELS: Record<string, string> = {
   chatgpt: "ChatGPT", claude: "Claude", gemini: "Gemini",
@@ -20,11 +20,13 @@ const PLATFORM_LABELS: Record<string, string> = {
 
 interface PlatformData {
   platform: string; total: number; analyzed: number;
+  avgTurns: number | null; medianTurns: number | null;
+  pct5Plus: number | null; longestTurns: number | null;
   avgQuality: number | null; completionRate: number | null;
-  topIntent: string | null; avgTurns: number | null;
+  failureRate: number | null; topIntent: string | null;
   statuses: Record<string, number>;
 }
-interface ApiData { platforms: PlatformData[]; pending: number; }
+interface ApiData { platforms: PlatformData[]; pending: number; keyFindings: string[]; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ function LoadingSkeleton() {
   return (
     <div className="p-8 max-w-7xl space-y-6">
       <Bone className="h-7 w-52" />
+      <Bone className="h-20 rounded-xl" />
       <Bone className="h-40 rounded-xl" />
       <div className="grid grid-cols-2 gap-6">
         <Bone className="h-64 rounded-xl" /><Bone className="h-64 rounded-xl" />
@@ -56,8 +59,6 @@ function LoadingSkeleton() {
     </div>
   );
 }
-
-// ─── Quality bar ──────────────────────────────────────────────────────────────
 
 function QBar({ score, color }: { score: number; color: string }) {
   return (
@@ -96,7 +97,7 @@ export default function PlatformComparison() {
     );
   }
 
-  const { platforms, pending } = data;
+  const { platforms, pending, keyFindings } = data;
   const totalAnalyzed = platforms.reduce((s, p) => s + p.analyzed, 0);
   const chartData = platforms.map((p) => ({ name: PLATFORM_LABELS[p.platform] ?? p.platform, ...p }));
 
@@ -108,24 +109,77 @@ export default function PlatformComparison() {
         <p className="text-sm text-zinc-500 mt-0.5">Which AI assistant handles conversations best?</p>
       </div>
 
-      {/* Empty state */}
-      {totalAnalyzed === 0 && (
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center">
-          <p className="text-zinc-400 text-sm mb-1">No analyzed conversations yet.</p>
-          <p className="text-zinc-600 text-xs">
-            Run AI workers to see insights. {fmt(pending)} conversations pending analysis.
-          </p>
+      {/* Key Findings — only when AI data available */}
+      {keyFindings.length > 0 && (
+        <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.04] p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-400 mb-3">Key Findings</p>
+          <ul className="space-y-2">
+            {keyFindings.map((f, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-indigo-500 mt-0.5 shrink-0">→</span>
+                {f}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
-      {totalAnalyzed > 0 && (
+      {/* ── Section 1: Raw Metrics (always visible) ────────────────────────────── */}
+      <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-white/[0.06]">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Raw Metrics — no AI workers needed</p>
+          <p className="text-xs text-zinc-600 mt-0.5">Directly from conversation metadata</p>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/[0.06]">
+              {["Platform", "Total Convos", "Avg Turns", "Median Turns", "5+ Turn %", "Longest"].map((h) => (
+                <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {platforms.map((p) => (
+              <tr key={p.platform} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                <td className="px-4 py-3.5"><PlatformBadge platform={p.platform} /></td>
+                <td className="px-4 py-3.5 text-zinc-300 font-mono tabular-nums">{fmt(p.total)}</td>
+                <td className="px-4 py-3.5 text-zinc-300 font-mono">{p.avgTurns !== null ? p.avgTurns : <span className="text-zinc-600">—</span>}</td>
+                <td className="px-4 py-3.5 text-zinc-400 font-mono">{p.medianTurns !== null ? p.medianTurns : <span className="text-zinc-600">—</span>}</td>
+                <td className="px-4 py-3.5">
+                  {p.pct5Plus !== null ? (
+                    <span className={`font-mono ${p.pct5Plus >= 40 ? "text-emerald-400" : p.pct5Plus >= 20 ? "text-amber-400" : "text-zinc-400"}`}>
+                      {p.pct5Plus}%
+                    </span>
+                  ) : <span className="text-zinc-600">—</span>}
+                </td>
+                <td className="px-4 py-3.5 text-zinc-500 font-mono">{p.longestTurns !== null ? p.longestTurns : <span className="text-zinc-600">—</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Section 2: AI-Analyzed Metrics (conditional) ──────────────────────── */}
+      {totalAnalyzed === 0 ? (
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center">
+          <p className="text-zinc-400 text-sm mb-1">No AI-analyzed conversations yet.</p>
+          <p className="text-zinc-600 text-xs">
+            Run <code className="bg-white/[0.06] text-zinc-300 px-1 rounded">python -m scripts.test_workers</code> to unlock quality scores, completion rates, and failure analysis.{" "}
+            {fmt(pending)} conversations pending.
+          </p>
+        </div>
+      ) : (
         <>
-          {/* Comparison table */}
+          {/* AI-analyzed comparison table */}
           <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-white/[0.06]">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">AI-Analyzed Metrics</p>
+              <p className="text-xs text-zinc-600 mt-0.5">Based on {fmt(totalAnalyzed)} analyzed conversations</p>
+            </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.06]">
-                  {["Platform", "Total Convos", "Analyzed", "Avg Quality", "Completion Rate", "Top Intent", "Avg Turns"].map((h) => (
+                  {["Platform", "Analyzed", "Avg Quality", "Completion Rate", "Failure Rate", "Top Intent"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{h}</th>
                   ))}
                 </tr>
@@ -134,7 +188,6 @@ export default function PlatformComparison() {
                 {platforms.map((p) => (
                   <tr key={p.platform} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                     <td className="px-4 py-3.5"><PlatformBadge platform={p.platform} /></td>
-                    <td className="px-4 py-3.5 text-zinc-300 font-mono tabular-nums">{fmt(p.total)}</td>
                     <td className="px-4 py-3.5 text-zinc-300 font-mono tabular-nums">
                       {fmt(p.analyzed)}
                       <span className="text-zinc-600 ml-1 text-xs">
@@ -153,15 +206,17 @@ export default function PlatformComparison() {
                         <span className={`font-mono font-medium ${p.completionRate >= 60 ? "text-emerald-400" : p.completionRate >= 40 ? "text-amber-400" : "text-red-400"}`}>
                           {p.completionRate}%
                         </span>
-                      ) : (
-                        <span className="text-zinc-600 text-xs">—</span>
-                      )}
+                      ) : <span className="text-zinc-600 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {p.failureRate !== null ? (
+                        <span className={`font-mono font-medium ${p.failureRate >= 40 ? "text-red-400" : p.failureRate >= 20 ? "text-amber-400" : "text-emerald-400"}`}>
+                          {p.failureRate}%
+                        </span>
+                      ) : <span className="text-zinc-600 text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3.5 text-zinc-400 capitalize text-xs">
                       {p.topIntent ? cap(p.topIntent) : <span className="text-zinc-600">—</span>}
-                    </td>
-                    <td className="px-4 py-3.5 text-zinc-300 font-mono">
-                      {p.avgTurns !== null ? p.avgTurns : <span className="text-zinc-600">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -173,9 +228,10 @@ export default function PlatformComparison() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Avg Quality Score */}
             <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">
                 Avg Quality Score by Platform
               </p>
+              <p className="text-xs text-zinc-600 mb-4">Higher is better — score out of 100</p>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chartData.filter((d) => d.avgQuality !== null)} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -195,9 +251,10 @@ export default function PlatformComparison() {
 
             {/* Completion Rate */}
             <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">
                 Completion Rate by Platform
               </p>
+              <p className="text-xs text-zinc-600 mb-4">% of conversations where user got what they needed</p>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chartData.filter((d) => d.completionRate !== null)} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -224,15 +281,11 @@ export default function PlatformComparison() {
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               {platforms.filter((p) => p.analyzed > 0).map((p) => {
                 const total = Object.values(p.statuses).reduce((s, n) => s + n, 0) || 1;
-                const completed  = p.statuses["completed"]   ?? 0;
-                const failed     = p.statuses["failed"]      ?? 0;
-                const abandoned  = p.statuses["abandoned"]   ?? 0;
-                const inProgress = p.statuses["in_progress"] ?? 0;
                 const bars = [
-                  { label: "completed",   n: completed,  color: "#34d399" },
-                  { label: "failed",      n: failed,     color: "#f87171" },
-                  { label: "abandoned",   n: abandoned,  color: "#fbbf24" },
-                  { label: "in progress", n: inProgress, color: "#60a5fa" },
+                  { label: "completed",   n: p.statuses["completed"]   ?? 0, color: "#34d399" },
+                  { label: "failed",      n: p.statuses["failed"]      ?? 0, color: "#f87171" },
+                  { label: "abandoned",   n: p.statuses["abandoned"]   ?? 0, color: "#fbbf24" },
+                  { label: "in progress", n: p.statuses["in_progress"] ?? 0, color: "#60a5fa" },
                 ];
                 return (
                   <div key={p.platform}>
@@ -243,7 +296,9 @@ export default function PlatformComparison() {
                           <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
                             <div className="h-full rounded-full" style={{ width: `${(b.n / total) * 100}%`, backgroundColor: b.color }} />
                           </div>
-                          <span className="text-[10px] text-zinc-500 w-14 text-right">{Math.round((b.n / total) * 100)}%</span>
+                          <span className="text-[10px] text-zinc-500 w-16 text-right">
+                            {Math.round((b.n / total) * 1000) / 10}%
+                          </span>
                         </div>
                       ))}
                     </div>

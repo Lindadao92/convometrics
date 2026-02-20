@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       abandonedCount: g.abandoned,
       failureTotal: g.failed + g.abandoned,
       total: g.total,
-      failureRate: g.total > 0 ? Math.round(((g.failed + g.abandoned) / g.total) * 100) : 0,
+      failureRate: g.total > 0 ? Math.round(((g.failed + g.abandoned) / g.total) * 1000) / 10 : 0,
       avgQuality: g.scores.length ? Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length) : null,
       topPlatform: Object.entries(g.platformCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     }))
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
         intent,
         impactScore,
         avgQuality: g.scores.length ? Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length) : null,
-        failureRate: Math.round(failRate * 100),
+        failureRate: Math.round(failRate * 1000) / 10,
         count: g.total,
       };
     })
@@ -89,5 +89,43 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.impactScore - a.impactScore)
     .slice(0, 10);
 
-  return NextResponse.json({ byFailure, lowQuality, fixFirst, pending: pending ?? 0 });
+  // ── Example conversations for top 5 failing intents ───────────────────────────
+  const topFailingIntents = byFailure.slice(0, 5).map((x) => x.intent);
+  const intentExamples: Record<string, { preview: string; platform: string }[]> = {};
+
+  if (topFailingIntents.length > 0) {
+    let exQuery = sb
+      .from("conversations")
+      .select("id, intent, messages, metadata")
+      .in("intent", topFailingIntents)
+      .in("completion_status", ["failed", "abandoned"])
+      .limit(75);
+
+    if (platform && platform !== "all") {
+      exQuery = exQuery.eq("metadata->>platform", platform);
+    }
+
+    const { data: failedConvs } = await exQuery;
+
+    for (const conv of failedConvs ?? []) {
+      const intent = conv.intent!;
+      intentExamples[intent] ??= [];
+      if (intentExamples[intent].length >= 3) continue;
+      const messages = conv.messages as { role: string; content: string }[] | null;
+      const firstUser = messages?.find((m) => m.role === "user")?.content ?? "";
+      if (!firstUser) continue;
+      const meta = conv.metadata as Record<string, unknown> | null;
+      intentExamples[intent].push({
+        preview: firstUser.slice(0, 220),
+        platform: (meta?.platform as string) ?? "unknown",
+      });
+    }
+  }
+
+  const byFailureWithExamples = byFailure.map((row) => ({
+    ...row,
+    examples: intentExamples[row.intent] ?? [],
+  }));
+
+  return NextResponse.json({ byFailure: byFailureWithExamples, lowQuality, fixFirst, pending: pending ?? 0 });
 }
