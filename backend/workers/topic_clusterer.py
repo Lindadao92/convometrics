@@ -57,9 +57,9 @@ def get_openai():
 
 
 def fetch_label_counts(sb) -> dict[str, int]:
-    """Fetch all intent values paginated and count occurrences in Python."""
+    """Fetch all non-null intent values paginated (small pages to avoid timeouts)."""
     counts: dict[str, int] = {}
-    page_size = 10000
+    page_size = 1000
     offset = 0
 
     while True:
@@ -67,14 +67,14 @@ def fetch_label_counts(sb) -> dict[str, int]:
             sb.table("conversations")
             .select("intent")
             .not_.is_("intent", "null")
-            .neq("intent", "__unclassifiable__")
             .range(offset, offset + page_size - 1)
             .execute()
         )
         rows = result.data or []
         for row in rows:
             label = row.get("intent")
-            if label:
+            # Filter sentinels in Python to keep the query simple
+            if label and label != "__unclassifiable__":
                 counts[label] = counts.get(label, 0) + 1
         if len(rows) < page_size:
             break
