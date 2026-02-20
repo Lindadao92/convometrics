@@ -25,8 +25,10 @@ export async function GET(req: NextRequest) {
   if (intent)   query = query.eq("intent", intent);
   if (status)   query = query.eq("completion_status", status);
   if (platform && platform !== "all") query = query.eq("metadata->>platform", platform);
-  if (minScore) query = query.gte("quality_score", parseInt(minScore, 10));
-  if (maxScore) query = query.lte("quality_score", parseInt(maxScore, 10));
+  const minScoreNum = minScore ? parseInt(minScore, 10) : NaN;
+  const maxScoreNum = maxScore ? parseInt(maxScore, 10) : NaN;
+  if (!isNaN(minScoreNum)) query = query.gte("quality_score", minScoreNum);
+  if (!isNaN(maxScoreNum)) query = query.lte("quality_score", maxScoreNum);
 
   // CSV export — fetch up to 5000 rows, no pagination
   if (format === "csv") {

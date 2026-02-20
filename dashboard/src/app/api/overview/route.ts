@@ -8,7 +8,22 @@ const PLATFORMS = ["chatgpt", "claude", "gemini", "grok", "perplexity"] as const
 export async function GET() {
   const sb = getSupabaseServer();
 
-  // All raw rows — metadata only (lightweight, ~150B/row)
+  // True counts via parallel HEAD requests (no rows fetched)
+  const [totalCountResult, ...platformCountResults] = await Promise.all([
+    sb.from("conversations").select("*", { count: "exact", head: true }),
+    ...PLATFORMS.map((p) =>
+      sb.from("conversations").select("*", { count: "exact", head: true }).eq("metadata->>platform", p)
+    ),
+  ]);
+  if (totalCountResult.error) return NextResponse.json({ error: totalCountResult.error.message }, { status: 500 });
+
+  const totalCount = totalCountResult.count ?? 0;
+  const truePlatformTotals: Record<string, number> = {};
+  for (let i = 0; i < PLATFORMS.length; i++) {
+    truePlatformTotals[PLATFORMS[i]] = platformCountResults[i].count ?? 0;
+  }
+
+  // Sample rows for aggregation — metadata only (PostgREST default cap applies)
   const { data: allMeta, error: allErr } = await sb
     .from("conversations")
     .select("metadata")
@@ -110,7 +125,7 @@ export async function GET() {
     const ai = platformAnalyzed[p] ?? { analyzed: 0, qualitySum: 0, qualityCount: 0, completed: 0 };
     return {
       platform: p,
-      total: raw.total,
+      total: truePlatformTotals[p] ?? raw.total,
       analyzed: ai.analyzed,
       avgQuality: ai.qualityCount > 0 ? Math.round(ai.qualitySum / ai.qualityCount) : null,
       completionRate: ai.analyzed > 0 ? Math.round((ai.completed / ai.analyzed) * 1000) / 10 : null,
@@ -145,7 +160,7 @@ export async function GET() {
 
   return NextResponse.json({
     stats: {
-      total: all.length,
+      total: totalCount,
       analyzed: analyzed.length,
       avgQuality: qualityCount > 0 ? Math.round(qualitySum / qualityCount) : null,
       completionRate: analyzed.length > 0 ? Math.round((completedCount / analyzed.length) * 1000) / 10 : null,

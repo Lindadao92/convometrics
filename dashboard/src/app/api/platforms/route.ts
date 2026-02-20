@@ -18,7 +18,20 @@ function median(arr: number[]): number | null {
 export async function GET() {
   const sb = getSupabaseServer();
 
-  // All raw rows — metadata only
+  // True per-platform total counts — parallel HEAD requests (no rows fetched)
+  const platformCountResults = await Promise.all(
+    PLATFORMS.map((p) =>
+      sb.from("conversations")
+        .select("*", { count: "exact", head: true })
+        .eq("metadata->>platform", p)
+    )
+  );
+  const truePlatformTotals: Record<string, number> = {};
+  for (let i = 0; i < PLATFORMS.length; i++) {
+    truePlatformTotals[PLATFORMS[i]] = platformCountResults[i].count ?? 0;
+  }
+
+  // Sample rows for turn aggregation — metadata only (PostgREST default cap applies)
   const { data: allMeta, error: allErr } = await sb
     .from("conversations")
     .select("metadata")
@@ -68,6 +81,9 @@ export async function GET() {
     const raw = rawStats[p] ?? { total: 0, turns: [] };
     const ai = aiStats[p] ?? { analyzed: 0, qualityScores: [], statuses: {}, intentCounts: {} };
 
+    // Use the accurate count from HEAD request, fall back to sample count
+    const trueTotal = truePlatformTotals[p] ?? raw.total;
+
     const avgTurns = raw.turns.length > 0
       ? Math.round(raw.turns.reduce((a, b) => a + b, 0) / raw.turns.length * 10) / 10
       : null;
@@ -89,7 +105,7 @@ export async function GET() {
 
     return {
       platform: p,
-      total: raw.total,
+      total: trueTotal,
       analyzed: ai.analyzed,
       avgTurns,
       medianTurns,
