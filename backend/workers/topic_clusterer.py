@@ -115,10 +115,13 @@ def call_llm_with_retry(client: OpenAI, labels: dict[str, int]) -> dict[str, lis
     raise RuntimeError("All LLM retry attempts exhausted")
 
 
-def clear_cluster_assignments(sb) -> None:
-    """Remove cluster_id from all conversations."""
-    sb.table("conversations").update({"cluster_id": None}).gte("created_at", "2000-01-01").execute()
-    logger.info("Cleared all cluster assignments")
+def clear_cluster_assignments(sb, all_labels: list[str]) -> None:
+    """Remove cluster_id from conversations in batches by intent label."""
+    chunk_size = 200
+    for i in range(0, len(all_labels), chunk_size):
+        chunk = all_labels[i:i + chunk_size]
+        sb.table("conversations").update({"cluster_id": None}).in_("intent", chunk).execute()
+    logger.info("Cleared cluster assignments for %d intent labels", len(all_labels))
 
 
 def upsert_clusters(sb, categories: dict[str, list[str]]) -> dict[str, str]:
@@ -202,7 +205,7 @@ def run():
     if dropped:
         logger.warning("%d labels not assigned to any cluster: %s", len(dropped), list(dropped)[:10])
 
-    clear_cluster_assignments(sb)
+    clear_cluster_assignments(sb, list(label_counts.keys()))
     delete_stale_clusters(sb, list(categories.keys()))
 
     cluster_ids = upsert_clusters(sb, categories)
