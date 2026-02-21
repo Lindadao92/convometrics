@@ -5,6 +5,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { StatCard } from '@/components/StatCard';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -83,15 +85,8 @@ function HealthGauge({ score }: { score: number | null }) {
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] px-4 py-3.5">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">{label}</p>
-      <p className="text-2xl font-bold text-white tabular-nums">{value}</p>
-      {sub && <p className="text-xs text-zinc-500 mt-1">{sub}</p>}
-    </div>
-  );
-}
+import { StatCard } from '@/components/StatCard';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
 
 function Bone({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded bg-white/[0.04] ${className}`} />;
