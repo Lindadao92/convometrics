@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  MOCK_CONVERSATIONS, SIGNALS, SATISFACTION_META,
+  SIGNALS, SATISFACTION_META,
   InferredSatisfaction, SatisfactionSignal, MockConversation,
 } from "@/lib/mockQualityData";
+import { getSegmentConversations } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
@@ -16,22 +17,25 @@ const FRUSTRATION_SIGNALS = new Set<SatisfactionSignal>([
 ]);
 
 export async function GET(req: NextRequest) {
-  const sp    = req.nextUrl.searchParams;
-  const intent = sp.get("intent") ?? "";
-  const model  = sp.get("model")  ?? "";
-  const days   = Math.min(90, Math.max(7, parseInt(sp.get("days") ?? "30", 10)));
+  const sp     = req.nextUrl.searchParams;
+  const intent  = sp.get("intent")  ?? "";
+  const model   = sp.get("model")   ?? "";
+  const segment = sp.get("segment") ?? "ai_assistant";
+  const days    = Math.min(90, Math.max(7, parseInt(sp.get("days") ?? "30", 10)));
 
   const now      = Date.now();
   const cutoffMs = now - days * 86400000;
 
+  const ALL_CONVOS = getSegmentConversations(segment);
+
   // ── Filter ───────────────────────────────────────────────────────────────
-  let convos: MockConversation[] = MOCK_CONVERSATIONS.filter(
+  let convos: MockConversation[] = ALL_CONVOS.filter(
     c => new Date(c.timestamp).getTime() >= cutoffMs,
   );
   if (intent) convos = convos.filter(c => c.intent === intent);
   if (model)  convos = convos.filter(c => c.model_version === model);
 
-  const intents = [...new Set(MOCK_CONVERSATIONS.map(c => c.intent))].sort();
+  const intents = [...new Set(ALL_CONVOS.map(c => c.intent))].sort();
   const total   = convos.length;
 
   if (total === 0) {

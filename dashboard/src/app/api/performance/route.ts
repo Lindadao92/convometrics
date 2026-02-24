@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { computeMockPerformanceStats } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
 const PLATFORMS = ["chatgpt", "claude", "gemini", "grok", "perplexity"] as const;
 
 export async function GET(req: NextRequest) {
+  const segment = req.nextUrl.searchParams.get("segment") ?? "";
+
+  // Demo mode: return mock performance data
+  if (segment) {
+    return NextResponse.json(computeMockPerformanceStats(segment));
+  }
+
   const sb = getSupabaseServer();
   const platform = req.nextUrl.searchParams.get("platform");
 

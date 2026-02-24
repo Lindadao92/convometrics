@@ -6,6 +6,7 @@ import {
   PieChart, Pie, LineChart, Line, CartesianGrid, ScatterChart, Scatter, ZAxis,
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { useDemoMode } from "@/lib/demo-mode-context";
 import { DIMENSIONS, DimensionKey, dimColor } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -388,6 +389,7 @@ function FixPrioritiesTab({ data }: { data: PerformanceData }) {
 // ─── Tab 4: Quality Dimensions ────────────────────────────────────────────────
 
 function QualityDimensionsTab() {
+  const { segment } = useDemoMode();
   const [filterIntent, setFilterIntent] = useState("");
   const [filterModel, setFilterModel]   = useState("");
   const [filterDays, setFilterDays]     = useState("30");
@@ -399,11 +401,12 @@ function QualityDimensionsTab() {
     const params = new URLSearchParams({ days: filterDays });
     if (filterIntent) params.set("intent", filterIntent);
     if (filterModel)  params.set("model",  filterModel);
+    if (segment)      params.set("segment", segment);
     fetch(`/api/quality-scores?${params}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => setQData(d))
       .finally(() => setLoading(false));
-  }, [filterIntent, filterModel, filterDays]);
+  }, [filterIntent, filterModel, filterDays, segment]);
 
   const intents = qData?.intents ?? [];
   const models  = qData?.models  ?? ["v2.0", "v2.1"];
@@ -594,6 +597,7 @@ interface SatisfactionData {
 }
 
 function SatisfactionTab() {
+  const { segment } = useDemoMode();
   const [filterIntent, setFilterIntent] = useState("");
   const [filterModel,  setFilterModel]  = useState("");
   const [filterDays,   setFilterDays]   = useState("30");
@@ -605,11 +609,12 @@ function SatisfactionTab() {
     const params = new URLSearchParams({ days: filterDays });
     if (filterIntent) params.set("intent", filterIntent);
     if (filterModel)  params.set("model",  filterModel);
+    if (segment)      params.set("segment", segment);
     fetch(`/api/satisfaction?${params}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => setSatData(d))
       .finally(() => setLoading(false));
-  }, [filterIntent, filterModel, filterDays]);
+  }, [filterIntent, filterModel, filterDays, segment]);
 
   const intents = satData?.intents ?? [];
   const models  = satData?.models  ?? ["v2.0", "v2.1"];
@@ -766,6 +771,7 @@ type Tab = "quality" | "completion" | "fixes" | "dimensions" | "satisfaction";
 
 export default function Performance() {
   const { selectedPlatform, profile } = useProductProfile();
+  const { segment } = useDemoMode();
   const [data, setData] = useState<PerformanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -775,13 +781,16 @@ export default function Performance() {
 
   useEffect(() => {
     setLoading(true);
-    const url = `/api/performance${selectedPlatform !== "all" ? `?platform=${selectedPlatform}` : ""}`;
+    const params = new URLSearchParams();
+    if (segment) params.set("segment", segment);
+    else if (selectedPlatform !== "all") params.set("platform", selectedPlatform);
+    const url = `/api/performance${params.toString() ? `?${params}` : ""}`;
     fetch(url)
       .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [selectedPlatform]);
+  }, [selectedPlatform, segment]);
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {

@@ -6,6 +6,7 @@ import {
   LineChart, Line, CartesianGrid,
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { useDemoMode } from "@/lib/demo-mode-context";
 import { StatCard } from "@/components/StatCard";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import { DIMENSIONS, SIGNALS, SATISFACTION_META, InferredSatisfaction, dimColor } from "@/lib/mockQualityData";
@@ -51,6 +52,13 @@ interface TopFailureItem {
   thisWeek: number; lastWeek: number; delta: number; isAlert: boolean;
 }
 interface FailureTaxonomyData { topThisWeek: TopFailureItem[]; }
+
+interface SegmentMeta {
+  keyInsight: string;
+  briefing: string[];
+  name: string;
+  emoji: string;
+}
 
 interface ModelComparisonSummary {
   modelA: string; modelB: string;
@@ -386,6 +394,31 @@ function SatisfactionSection({ sat }: { sat: SatisfactionData }) {
   );
 }
 
+// ─── Segment Insight Card ─────────────────────────────────────────────────────
+
+function SegmentInsightCard({ meta }: { meta: SegmentMeta }) {
+  return (
+    <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.06] p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-lg">{meta.emoji}</span>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-400/80">
+          {meta.name} · Key Insight
+        </p>
+      </div>
+      <p className="text-sm font-semibold text-indigo-100 mb-4 leading-snug">{meta.keyInsight}</p>
+      <div className="border-t border-indigo-500/15 pt-3 space-y-1.5">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-2">This period</p>
+        {meta.briefing.map((line, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="text-indigo-400/60 mt-0.5 shrink-0">·</span>
+            <p className="text-xs text-zinc-400 leading-relaxed">{line}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Top Failures Card ────────────────────────────────────────────────────────
 
 function TopFailuresCard({ failures }: { failures: TopFailureItem[] }) {
@@ -475,11 +508,13 @@ function ModelComparisonWidget({ compare }: { compare: ModelComparisonSummary })
 
 export default function Overview() {
   const { profile, editableName, editableDescription, setEditableName, setEditableDescription } = useProductProfile();
+  const { segment } = useDemoMode();
   const [data, setData] = useState<ApiData | null>(null);
   const [qualityData, setQualityData] = useState<QualityScoresData | null>(null);
   const [satData, setSatData] = useState<SatisfactionData | null>(null);
   const [failureData, setFailureData] = useState<FailureTaxonomyData | null>(null);
   const [compareData, setCompareData] = useState<ModelComparisonSummary | null>(null);
+  const [segmentMeta, setSegmentMeta] = useState<SegmentMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -491,11 +526,13 @@ export default function Overview() {
   const descRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    const seg = segment;
+    const sp = seg ? `&segment=${seg}` : "";
     Promise.all([
-      fetch("/api/overview").then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))),
-      fetch("/api/quality-scores").then((r) => r.ok ? r.json() : null),
-      fetch("/api/satisfaction").then((r) => r.ok ? r.json() : null),
-      fetch("/api/failure-taxonomy?days=14").then((r) => r.ok ? r.json() : null),
+      fetch(`/api/overview${seg ? `?segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))),
+      fetch(`/api/quality-scores?days=30${sp}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/satisfaction?days=30${sp}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/failure-taxonomy?days=14${sp}`).then((r) => r.ok ? r.json() : null),
       fetch("/api/model-comparison").then((r) => r.ok ? r.json() : null),
     ])
       .then(([overview, quality, satisfaction, failures, compare]) => {
@@ -504,6 +541,7 @@ export default function Overview() {
         setSatData(satisfaction);
         setFailureData(failures);
         setCompareData(compare);
+        setSegmentMeta(overview?.segmentMeta ?? null);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -511,7 +549,7 @@ export default function Overview() {
     const seen = localStorage.getItem("convometrics_about_seen");
     if (seen) setCollapsed(true);
     else localStorage.setItem("convometrics_about_seen", "1");
-  }, []);
+  }, [segment]);
 
   useEffect(() => { setDraftName(editableName); }, [editableName]);
   useEffect(() => { setDraftDesc(editableDescription); }, [editableDescription]);
@@ -681,6 +719,9 @@ export default function Overview() {
 
       {/* ── Satisfaction Section ─────────────────────────────────────────────── */}
       {satData && <SatisfactionSection sat={satData} />}
+
+      {/* ── Segment Insight ─────────────────────────────────────────────────── */}
+      {segmentMeta && <SegmentInsightCard meta={segmentMeta} />}
 
       {/* ── Top Failures + Model Comparison ─────────────────────────────────── */}
       {(failureData?.topThisWeek.length || compareData) && (

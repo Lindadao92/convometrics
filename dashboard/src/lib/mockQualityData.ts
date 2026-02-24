@@ -44,7 +44,13 @@ export const FAILURE_TYPES = [
   { key: "hallucination",       icon: "💭", label: "Hallucination",        description: "AI generated factually incorrect claims",                    color: "#ef4444" },
   { key: "tone_break",          icon: "🎭", label: "Tone Break",           description: "AI's tone inappropriate for context",                        color: "#ec4899" },
   { key: "refusal_failure",     icon: "🚫", label: "Refusal Failure",      description: "AI refused legitimate request or failed to refuse bad one",  color: "#f97316" },
-  { key: "abandonment_trigger", icon: "🚪", label: "Abandonment Trigger",  description: "Specific turn where user disengaged",                        color: "#6b7280" },
+  { key: "abandonment_trigger",    icon: "🚪", label: "Abandonment Trigger",   description: "Specific turn where user disengaged",                                        color: "#6b7280" },
+  // ── Segment-specific failure types ─────────────────────────────────────────
+  { key: "escalation_needed",      icon: "📞", label: "Escalation Needed",      description: "Issue required human agent but AI failed to escalate",                      color: "#06b6d4" },
+  { key: "giving_answer_directly", icon: "📖", label: "Gave Answer Directly",   description: "AI answered directly instead of guiding the learner to discover",           color: "#f59e0b" },
+  { key: "too_advanced",           icon: "📈", label: "Too Advanced",           description: "Explanation was above the learner's current level",                          color: "#8b5cf6" },
+  { key: "too_simple",             icon: "📉", label: "Too Simple",             description: "Response was too basic for the learner's actual level",                      color: "#06b6d4" },
+  { key: "wrong_explanation",      icon: "❌", label: "Wrong Explanation",      description: "AI provided an incorrect conceptual or factual explanation",                 color: "#ef4444" },
 ] as const;
 
 export type FailureType = typeof FAILURE_TYPES[number]["key"];
@@ -116,6 +122,41 @@ const FAILURE_DETAILS: Record<FailureType, string[]> = {
     "User left after AI's response exceeded 800 tokens without substance",
     "User disengaged when AI asked for clarification a third time",
   ],
+  escalation_needed: [
+    "Customer needed a human agent but AI kept trying to resolve autonomously",
+    "AI failed to recognize high-frustration signals that warranted escalation",
+    "Billing dispute required manual intervention but AI deflected three times",
+    "User explicitly asked for a supervisor but AI continued self-service flow",
+    "Complex account issue exceeded AI's resolution scope without escalation",
+  ],
+  giving_answer_directly: [
+    "AI gave the full solution without walking through the reasoning process",
+    "Student asked for help with a problem; AI solved it outright instead of guiding",
+    "AI provided the answer before the student had a chance to attempt independently",
+    "Learning opportunity missed — AI bypassed the scaffolding process entirely",
+    "AI answered the homework question directly instead of prompting thinking",
+  ],
+  too_advanced: [
+    "AI used calculus notation to explain a concept to a middle school student",
+    "Explanation assumed prior knowledge the student hadn't indicated having",
+    "Vocabulary and abstraction level far exceeded the learner's stated level",
+    "AI jumped to advanced edge cases before establishing fundamentals",
+    "Response required background knowledge not yet introduced in the curriculum",
+  ],
+  too_simple: [
+    "AI over-explained a basic concept to an advanced learner",
+    "Student indicated mastery but AI kept re-explaining prerequisites",
+    "Response was condescending in its simplicity for a university-level question",
+    "AI treated an expert-level query as a beginner question throughout",
+    "Explanation was three levels below what the question actually required",
+  ],
+  wrong_explanation: [
+    "AI gave an incorrect definition of a core programming concept",
+    "Mnemonic device provided was inaccurate and would reinforce wrong understanding",
+    "AI explained a historical event with key facts reversed",
+    "Mathematical proof contained a logical error in the third step",
+    "Scientific explanation contradicted established textbook content",
+  ],
 };
 
 // ─── Quality Score Types ───────────────────────────────────────────────────────
@@ -152,7 +193,7 @@ const INTENTS = [
 
 // ─── Seeded RNG (xorshift32) ──────────────────────────────────────────────────
 
-function makeRng(seed: number) {
+export function makeRng(seed: number) {
   let s = ((seed ^ 0x9e3779b9) >>> 0) || 1;
   return (): number => {
     s ^= s << 13;
@@ -162,7 +203,7 @@ function makeRng(seed: number) {
   };
 }
 
-function ri(rng: () => number, lo: number, hi: number): number {
+export function ri(rng: () => number, lo: number, hi: number): number {
   return Math.round(lo + rng() * (hi - lo));
 }
 

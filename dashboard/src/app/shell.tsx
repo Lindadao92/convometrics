@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
 import { ProductProfileProvider, useProductProfile } from "@/lib/product-profile-context";
+import { DemoModeProvider, useDemoMode, DEMO_SEGMENT_META, DEMO_SEGMENTS, DemoSegment } from "@/lib/demo-mode-context";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ const NAV = [
 function ShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { profile, selectedPlatform, setSelectedPlatform } = useProductProfile();
+  const { segment, setSegment } = useDemoMode();
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0b10]">
@@ -97,8 +99,31 @@ function ShellInner({ children }: { children: ReactNode }) {
           Convometrics
         </a>
 
-        {/* Center spacer + platform filter */}
-        <div className="flex-1 flex items-center justify-center">
+        {/* Center: Demo mode segment picker */}
+        <div className="flex-1 flex items-center justify-center gap-4">
+          {/* Segment pill toggle */}
+          <div className="flex items-center gap-1 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.07] p-0.5">
+            {DEMO_SEGMENTS.map((seg) => {
+              const m = DEMO_SEGMENT_META[seg];
+              const active = segment === seg;
+              return (
+                <button
+                  key={seg}
+                  onClick={() => setSegment(seg as DemoSegment)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    active
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <span>{m.emoji}</span>
+                  <span className="hidden sm:inline">{m.short}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Platform filter (multi-platform only) */}
           {profile?.isMultiPlatform && (
             <div className="flex items-center gap-2">
               <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -170,8 +195,10 @@ function ShellInner({ children }: { children: ReactNode }) {
 
 export default function Shell({ children }: { children: ReactNode }) {
   return (
-    <ProductProfileProvider>
-      <ShellInner>{children}</ShellInner>
-    </ProductProfileProvider>
+    <DemoModeProvider>
+      <ProductProfileProvider>
+        <ShellInner>{children}</ShellInner>
+      </ProductProfileProvider>
+    </DemoModeProvider>
   );
 }

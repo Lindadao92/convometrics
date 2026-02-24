@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MOCK_CONVERSATIONS, FAILURE_TYPES, FailureType } from "@/lib/mockQualityData";
+import { FailureType } from "@/lib/mockQualityData";
+import { getSegmentConversations, getSegmentFailureTypes } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,13 @@ function cap(s: string) { return s.replace(/_/g, " "); }
 const WEEK_LABELS = ["4w ago", "3w ago", "Last week", "This week"];
 
 export async function GET(req: NextRequest) {
-  const sp    = req.nextUrl.searchParams;
-  const intent = sp.get("intent") ?? "";
-  const days   = Math.min(90, Math.max(7, parseInt(sp.get("days") ?? "30", 10)));
+  const sp      = req.nextUrl.searchParams;
+  const intent  = sp.get("intent")  ?? "";
+  const segment = sp.get("segment") ?? "ai_assistant";
+  const days    = Math.min(90, Math.max(7, parseInt(sp.get("days") ?? "30", 10)));
+
+  const FAILURE_TYPES = getSegmentFailureTypes(segment);
+  const MOCK_CONVERSATIONS = getSegmentConversations(segment);
 
   const now      = Date.now();
   const cutoffMs = now - days * 86400000;

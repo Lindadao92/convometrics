@@ -1,11 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { computeMockOverviewStats } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
 const PLATFORMS = ["chatgpt", "claude", "gemini", "grok", "perplexity"] as const;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const segment = req.nextUrl.searchParams.get("segment") ?? "";
+
+  // Demo mode: return mock segment data
+  if (segment) {
+    return NextResponse.json(computeMockOverviewStats(segment));
+  }
+
   const sb = getSupabaseServer();
 
   // True counts via parallel HEAD requests (no rows fetched)

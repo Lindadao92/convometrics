@@ -6,6 +6,7 @@ import {
   LineChart, Line, CartesianGrid,
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { useDemoMode } from "@/lib/demo-mode-context";
 import { FAILURE_TYPES } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -141,6 +142,7 @@ type SortKey = "count" | "avgQuality" | "completionRate" | "failureRate" | "avgT
 
 export default function Topics() {
   const { selectedPlatform, profile } = useProductProfile();
+  const { segment } = useDemoMode();
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,21 +162,25 @@ export default function Topics() {
   useEffect(() => {
     setLoading(true);
     setSelectedCluster(null);
-    const url = `/api/topics${effectivePlatform !== "all" ? `?platform=${effectivePlatform}` : ""}`;
+    const params = new URLSearchParams();
+    if (segment) params.set("segment", segment);
+    else if (effectivePlatform !== "all") params.set("platform", effectivePlatform);
+    const url = `/api/topics${params.toString() ? `?${params}` : ""}`;
     fetch(url)
       .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [effectivePlatform]);
+  }, [effectivePlatform, segment]);
 
   useEffect(() => {
     setFailureLoading(true);
-    fetch("/api/failure-taxonomy?days=30")
+    const sp = segment ? `&segment=${segment}` : "";
+    fetch(`/api/failure-taxonomy?days=30${sp}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => setFailureData(d))
       .finally(() => setFailureLoading(false));
-  }, []);
+  }, [segment]);
 
   // Flat list of all topic rows for the breakdown table
   const allTopicRows = useMemo(() => {

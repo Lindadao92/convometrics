@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState, useCallback } from "react";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { useDemoMode } from "@/lib/demo-mode-context";
 import {
   DIMENSIONS, DimensionKey, QualityScores, computeDimensionsFromScore, dimColor,
   SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
@@ -411,6 +412,7 @@ function ConversationDrawer({
 
 export default function Conversations() {
   const { selectedPlatform, profile } = useProductProfile();
+  const { segment } = useDemoMode();
 
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [total, setTotal] = useState(0);
@@ -465,12 +467,16 @@ export default function Conversations() {
   const fetchData = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), sort: serverSortBy, order });
-    if (filterIntent)   params.set("intent",    filterIntent);
-    if (filterStatus)   params.set("status",    filterStatus);
-    const effectivePlatform = filterPlatform || (selectedPlatform !== "all" ? selectedPlatform : "");
-    if (effectivePlatform) params.set("platform", effectivePlatform);
-    if (filterMinScore) params.set("min_score", filterMinScore);
-    if (filterMaxScore) params.set("max_score", filterMaxScore);
+    if (segment) {
+      params.set("segment", segment);
+    } else {
+      if (filterIntent)   params.set("intent",    filterIntent);
+      if (filterStatus)   params.set("status",    filterStatus);
+      const effectivePlatform = filterPlatform || (selectedPlatform !== "all" ? selectedPlatform : "");
+      if (effectivePlatform) params.set("platform", effectivePlatform);
+      if (filterMinScore) params.set("min_score", filterMinScore);
+      if (filterMaxScore) params.set("max_score", filterMaxScore);
+    }
 
     fetch(`/api/conversations?${params}`)
       .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
@@ -481,7 +487,7 @@ export default function Conversations() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform]);
+  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

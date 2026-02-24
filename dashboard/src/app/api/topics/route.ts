@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { computeMockTopicsStats } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,13 @@ interface TopicsApiResponse {
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiResponse | { error: string }>> {
+  const segment = req.nextUrl.searchParams.get("segment") ?? "";
+
+  // Demo mode: return mock topic stats
+  if (segment) {
+    return NextResponse.json(computeMockTopicsStats(segment) as unknown as TopicsApiResponse);
+  }
+
   const sb = getSupabaseServer();
   const platform = req.nextUrl.searchParams.get("platform");
 

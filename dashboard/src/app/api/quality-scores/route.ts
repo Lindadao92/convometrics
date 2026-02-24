@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MOCK_CONVERSATIONS, DIMENSIONS, DimensionKey, MockConversation } from "@/lib/mockQualityData";
+import { DIMENSIONS, DimensionKey, MockConversation } from "@/lib/mockQualityData";
+import { getSegmentConversations } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
@@ -12,19 +13,22 @@ function cap(s: string) { return s.replace(/_/g, " "); }
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
-  const intent = sp.get("intent") ?? "";
-  const model  = sp.get("model")  ?? "";
-  const days   = Math.min(90, Math.max(7, parseInt(sp.get("days") ?? "30", 10)));
+  const intent  = sp.get("intent")  ?? "";
+  const model   = sp.get("model")   ?? "";
+  const segment = sp.get("segment") ?? "ai_assistant";
+  const days    = Math.min(90, Math.max(7, parseInt(sp.get("days") ?? "30", 10)));
 
   const now      = Date.now();
   const cutoffMs = now - days * 86400000;
 
+  const ALL_CONVOS = getSegmentConversations(segment);
+
   // ── Filter conversations ──────────────────────────────────────────────────
-  let convos = MOCK_CONVERSATIONS.filter(c => new Date(c.timestamp).getTime() >= cutoffMs);
+  let convos = ALL_CONVOS.filter(c => new Date(c.timestamp).getTime() >= cutoffMs);
   if (intent) convos = convos.filter(c => c.intent === intent);
   if (model)  convos = convos.filter(c => c.model_version === model);
 
-  const intents = [...new Set(MOCK_CONVERSATIONS.map(c => c.intent))].sort();
+  const intents = [...new Set(ALL_CONVOS.map(c => c.intent))].sort();
 
   if (convos.length === 0) {
     return NextResponse.json({

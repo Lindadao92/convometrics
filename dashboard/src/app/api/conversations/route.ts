@@ -1,12 +1,96 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { getSegmentConversations } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const sb = getSupabaseServer();
-  const params = req.nextUrl.searchParams;
+function cap(s: string) { return s.replace(/_/g, " "); }
 
+const MOCK_FIRST_MESSAGES: Record<string, string> = {
+  // AI Assistant
+  research_question: "Can you help me research the latest developments in quantum computing?",
+  code_help: "I'm trying to write a function that parses JSON and handles nested arrays...",
+  writing_task: "Help me write a compelling introduction for my blog post about remote work.",
+  analysis: "Can you analyze the pros and cons of this product strategy document?",
+  brainstorming: "I need creative ideas for a marketing campaign targeting Gen Z.",
+  debug_error: "I'm getting a TypeError: Cannot read properties of undefined in my React app.",
+  explain_concept: "Can you explain how transformer models work in simple terms?",
+  connect_api: "How do I authenticate with the Stripe API using OAuth?",
+  data_analysis: "I have a CSV with 10,000 sales records. How should I approach segmenting it?",
+  summarization: "Please summarize this 20-page research paper on climate change adaptation.",
+  // AI Companion
+  emotional_support: "I've been feeling really overwhelmed lately and don't know who to talk to.",
+  roleplay: "Let's continue our story. You're a wise mentor and I'm the young hero.",
+  casual_chat: "Hey! How's your day going? I just wanted to chat.",
+  advice_seeking: "I'm thinking about changing careers — I'm a teacher but want to try tech.",
+  creative_storytelling: "Help me write the next chapter of my fantasy novel.",
+  venting: "I'm so frustrated with my manager. They keep taking credit for my work.",
+  companionship: "I moved to a new city last month and it's been really lonely.",
+  humor: "Tell me a joke that will actually make me laugh — no dad jokes!",
+  philosophical_discussion: "Do you think free will actually exists, or is it an illusion?",
+  // AI Support
+  billing_issue: "I was charged twice for my subscription this month. Order #84729.",
+  technical_problem: "My account dashboard shows all zeros even though I have active campaigns.",
+  feature_request: "Is there any way to schedule reports to send automatically every Monday?",
+  account_access: "I can't log in — it says my password is wrong but I just reset it.",
+  complaint: "This is the third time I've contacted support about the same issue. Unacceptable.",
+  return_request: "I received the wrong item. I ordered the blue version but got red.",
+  shipping_status: "My order was supposed to arrive 3 days ago. Can you check the status?",
+  upgrade_inquiry: "What's the difference between the Pro and Business plans?",
+  cancellation: "I'd like to cancel my subscription. It's just not the right fit right now.",
+  // AI Tutor
+  concept_explanation: "I don't understand why recursion works. Can you explain it differently?",
+  practice_problem: "Can you give me a practice problem for quadratic equations?",
+  homework_help: "I need help with question 4 from tonight's calculus homework.",
+  exam_prep: "I have a chemistry exam on Monday covering thermodynamics and equilibrium.",
+  language_practice: "Je voudrais pratiquer mon français. Peux-tu m'aider?",
+  step_by_step_walkthrough: "Walk me through how to solve this proof step by step.",
+  quiz_review: "Quiz me on the causes of World War I.",
+  study_planning: "I have 3 weeks before my LSAT. Help me create a study plan.",
+};
+
+export async function GET(req: NextRequest) {
+  const params    = req.nextUrl.searchParams;
+  const segment   = params.get("segment") ?? "";
+
+  // Demo mode: return mock conversations
+  if (segment) {
+    const allConvos = getSegmentConversations(segment);
+    const intent    = params.get("intent")    ?? "";
+    const minScore  = params.get("min_score") ?? "";
+    const maxScore  = params.get("max_score") ?? "";
+    const page      = parseInt(params.get("page") || "0", 10);
+    const limit     = 25;
+
+    let filtered = [...allConvos];
+    if (intent) filtered = filtered.filter(c => c.intent === intent);
+    const minNum = minScore ? parseInt(minScore, 10) : NaN;
+    const maxNum = maxScore ? parseInt(maxScore, 10) : NaN;
+    if (!isNaN(minNum)) filtered = filtered.filter(c => c.scores.overall >= minNum);
+    if (!isNaN(maxNum)) filtered = filtered.filter(c => c.scores.overall <= maxNum);
+
+    const total = filtered.length;
+    const paginated = filtered.slice(page * limit, (page + 1) * limit);
+    const intents = [...new Set(allConvos.map(c => c.intent))].sort();
+
+    const conversations = paginated.map(c => ({
+      id: c.id,
+      conversation_id: c.id,
+      user_id: c.user_id,
+      platform: "demo",
+      intent: c.intent,
+      quality_score: c.scores.overall,
+      completion_status: c.inferred_satisfaction === "abandoned" ? "abandoned" : "completed",
+      messages: [],
+      created_at: c.timestamp,
+      turns: Math.floor(Math.random() * 8) + 2,
+      firstUserMessage: MOCK_FIRST_MESSAGES[c.intent] ?? `User asked about ${cap(c.intent).toLowerCase()}.`,
+    }));
+
+    return NextResponse.json({ conversations, total, page, pageSize: limit, intents });
+  }
+
+  const sb = getSupabaseServer();
   const intent    = params.get("intent");
   const status    = params.get("status");
   const platform  = params.get("platform");
