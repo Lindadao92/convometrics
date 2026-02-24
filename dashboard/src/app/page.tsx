@@ -8,7 +8,7 @@ import {
 import { useProductProfile } from "@/lib/product-profile-context";
 import { StatCard } from "@/components/StatCard";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
-import { DIMENSIONS, DimensionKey, dimColor } from "@/lib/mockQualityData";
+import { DIMENSIONS, SIGNALS, SATISFACTION_META, InferredSatisfaction, dimColor } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,6 +43,19 @@ interface QualityScoresData {
   scoreDelta: number | null;
   dimensions: { key: string; label: string; weight: number; color: string; score: number | null }[];
   trendData: Record<string, string | number | null>[];
+  total: number;
+}
+
+interface SatDistItem {
+  key: InferredSatisfaction;
+  label: string;
+  color: string;
+  count: number;
+  pct: number;
+}
+interface SatisfactionData {
+  distribution: SatDistItem[];
+  topFrustrationSignals: { key: string; label: string; emoji: string; color: string; count: number }[];
   total: number;
 }
 
@@ -246,12 +259,128 @@ function QualityTrend({ trendData }: { trendData: Record<string, string | number
   );
 }
 
+// ─── Satisfaction Section ──────────────────────────────────────────────────────
+
+function SatisfactionSection({ sat }: { sat: SatisfactionData }) {
+  const { distribution, topFrustrationSignals, total } = sat;
+  const satisfiedItem  = distribution.find(d => d.key === "satisfied");
+  const frustratedItem = distribution.find(d => d.key === "frustrated");
+  const abandonedItem  = distribution.find(d => d.key === "abandoned");
+  const negPct = ((frustratedItem?.count ?? 0) + (abandonedItem?.count ?? 0)) / Math.max(total, 1) * 100;
+
+  // Build donut data
+  const donutData = distribution.map(d => ({ name: d.label, value: d.count, fill: d.color }));
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">
+            Inferred Satisfaction
+          </p>
+          <p className="text-xs text-zinc-600">
+            Estimated from behavioral signals — no surveys or explicit feedback required
+          </p>
+        </div>
+        <span className="text-[10px] font-mono text-zinc-600">{fmt(total)} conversations</span>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Donut + legend */}
+        <div className="flex items-center gap-5">
+          <ResponsiveContainer width={130} height={130}>
+            <PieChart>
+              <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                innerRadius={38} outerRadius={58} strokeWidth={0}>
+                {donutData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+              </Pie>
+              <Tooltip {...TOOLTIP_STYLE}
+                formatter={(v: number | undefined, name: string | undefined) => [
+                  `${v ?? 0} (${total > 0 ? Math.round(((v ?? 0) / total) * 100) : 0}%)`, name ?? "",
+                ]} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-2">
+            {distribution.map(d => (
+              <div key={d.key} className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                <span className="text-xs text-zinc-300 w-20">{d.label}</span>
+                <span className="text-xs font-mono text-zinc-400">{d.pct}%</span>
+                <span className="text-[10px] font-mono text-zinc-600">({fmt(d.count)})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 97% callout */}
+        <div className="flex flex-col gap-3">
+          <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/[0.08] p-4 flex-1">
+            <p className="text-5xl font-black text-indigo-300 leading-none">97%</p>
+            <p className="text-sm font-semibold text-indigo-200 mt-1.5">of conversations analyzed</p>
+            <p className="text-xs text-indigo-400/60 mt-0.5">via behavioral signal inference</p>
+            <div className="mt-3 pt-3 border-t border-indigo-500/20 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-zinc-500">3%</span>
+              <span className="text-xs text-zinc-600">explicit feedback (industry avg)</span>
+            </div>
+          </div>
+          {negPct > 0 && (
+            <div className="rounded-lg border border-red-500/10 bg-red-500/[0.05] px-3 py-2 flex items-center justify-between">
+              <span className="text-xs text-zinc-400">Negative experience rate</span>
+              <span className="text-sm font-bold font-mono text-red-400">{Math.round(negPct)}%</span>
+            </div>
+          )}
+        </div>
+
+        {/* Top frustration signals */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-3">
+            Top frustration signals
+          </p>
+          {topFrustrationSignals.length === 0 ? (
+            <p className="text-xs text-zinc-700">No frustration signals detected</p>
+          ) : (
+            <div className="space-y-2.5">
+              {topFrustrationSignals.map(sig => {
+                const maxCount = topFrustrationSignals[0].count;
+                const pct = maxCount > 0 ? (sig.count / maxCount) * 100 : 0;
+                return (
+                  <div key={sig.key}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs text-zinc-300">
+                        {sig.emoji} {sig.label}
+                      </span>
+                      <span className="text-xs font-mono text-zinc-500">{fmt(sig.count)}</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-white/[0.05]">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: sig.color + "aa" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {satisfiedItem && (
+            <div className="mt-4 pt-3 border-t border-white/[0.05]">
+              <p className="text-[10px] text-zinc-600">
+                <span className="text-emerald-400 font-semibold">{satisfiedItem.pct}%</span> of users are satisfied ·{" "}
+                opportunity to improve the other <span className="text-amber-400 font-semibold">{Math.round(100 - satisfiedItem.pct)}%</span>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Overview() {
   const { profile, editableName, editableDescription, setEditableName, setEditableDescription } = useProductProfile();
   const [data, setData] = useState<ApiData | null>(null);
   const [qualityData, setQualityData] = useState<QualityScoresData | null>(null);
+  const [satData, setSatData] = useState<SatisfactionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -266,10 +395,12 @@ export default function Overview() {
     Promise.all([
       fetch("/api/overview").then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))),
       fetch("/api/quality-scores").then((r) => r.ok ? r.json() : null),
+      fetch("/api/satisfaction").then((r) => r.ok ? r.json() : null),
     ])
-      .then(([overview, quality]) => {
+      .then(([overview, quality, satisfaction]) => {
         setData(overview);
         setQualityData(quality);
+        setSatData(satisfaction);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -445,16 +576,8 @@ export default function Overview() {
         </>
       )}
 
-      {qualityData === null && !loading && (
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5 flex items-center gap-3">
-          {/* Loading bones for quality section */}
-          <div className="flex-1 space-y-3">
-            <Bone className="h-4 w-40" />
-            <Bone className="h-2 w-full" />
-            <Bone className="h-2 w-4/5" />
-          </div>
-        </div>
-      )}
+      {/* ── Satisfaction Section ─────────────────────────────────────────────── */}
+      {satData && <SatisfactionSection sat={satData} />}
 
       {/* ── What's Working / What's Not ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

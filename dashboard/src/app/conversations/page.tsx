@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 import { useProductProfile } from "@/lib/product-profile-context";
 import {
   DIMENSIONS, DimensionKey, QualityScores, computeDimensionsFromScore, dimColor,
+  SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
 } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -128,6 +129,36 @@ function StatusBadge({ status }: { status: string | null }) {
     </span>
   );
 }
+function SatisfactionBadge({ sat }: { sat: InferredSatisfaction | null }) {
+  if (!sat) return <span className="text-zinc-600 text-xs">—</span>;
+  const meta = SATISFACTION_META[sat];
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+      style={{ color: meta.color, backgroundColor: meta.color + "20" }}>
+      {meta.icon} {meta.label}
+    </span>
+  );
+}
+const SIG_META = Object.fromEntries(SIGNALS.map((s) => [s.key, s]));
+function SignalChips({ signals }: { signals: string[] }) {
+  if (!signals.length) return <p className="text-xs text-zinc-600">No signals detected</p>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {signals.map((key) => {
+        const s = SIG_META[key];
+        if (!s) return null;
+        return (
+          <span key={key}
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px]"
+            style={{ color: s.color, backgroundColor: s.color + "18" }}
+            title={s.sentiment}>
+            {s.emoji} {s.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -240,6 +271,18 @@ function ConversationDrawer({
               <p className="text-xs text-zinc-300 capitalize">{conv.intent ? cap(conv.intent) : "—"}</p>
             </div>
 
+            {/* Satisfaction */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1.5">Satisfaction</p>
+              <SatisfactionBadge sat={conv.quality_score !== null ? computeSatisfactionFromScore(conv.quality_score, conv.id).inferred : null} />
+              {conv.quality_score !== null && (
+                <div className="mt-2">
+                  <p className="text-[10px] text-zinc-700 mb-1.5">Signals</p>
+                  <SignalChips signals={computeSatisfactionFromScore(conv.quality_score, conv.id).signals} />
+                </div>
+              )}
+            </div>
+
             {/* Quality scorecard */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-2">Quality Scorecard</p>
@@ -339,6 +382,9 @@ export default function Conversations() {
   const [dimFilterMax, setDimFilterMax] = useState("");
   const [dimFilterMin, setDimFilterMin] = useState("");
 
+  // Client-side satisfaction filter
+  const [filterSatisfaction, setFilterSatisfaction] = useState<InferredSatisfaction | ("")>("");
+
   // Sort (server-side for standard fields, client-side for dimensions)
   const [sortBy, setSortBy] = useState<SortField>("created_at");
   const [order,  setOrder]  = useState<"asc" | "desc">("desc");
@@ -413,6 +459,7 @@ export default function Conversations() {
     setFilterIntent(""); setFilterStatus(""); setFilterPlatform("");
     setFilterMinScore(""); setFilterMaxScore("");
     setSearchText(""); setDimFilterKey(""); setDimFilterMax(""); setDimFilterMin("");
+    setFilterSatisfaction("");
     setPage(0);
   }
 
@@ -437,6 +484,14 @@ export default function Conversations() {
       const dims = computeDimensionsFromScore(c.quality_score, c.id);
       const v = dims[dimFilterKey];
       return v >= minVal && v <= maxVal;
+    });
+  }
+
+  // Satisfaction filter
+  if (filterSatisfaction) {
+    displayed = displayed.filter((c) => {
+      const sat = computeSatisfactionFromScore(c.quality_score ?? 50, c.id);
+      return sat.inferred === filterSatisfaction;
     });
   }
 
@@ -516,6 +571,14 @@ export default function Conversations() {
               {["completed", "failed", "abandoned", "in_progress"].map((s) => (
                 <option key={s} value={s}>{cap(s)}</option>
               ))}
+            </select>
+
+            <select value={filterSatisfaction} onChange={(e) => setFilterSatisfaction(e.target.value as InferredSatisfaction | "")} className={SELECT_CLS}>
+              <option value="">All Satisfaction</option>
+              <option value="satisfied">✓ Satisfied</option>
+              <option value="neutral">— Neutral</option>
+              <option value="frustrated">! Frustrated</option>
+              <option value="abandoned">✗ Abandoned</option>
             </select>
 
             <div className="flex items-center gap-1 text-xs text-zinc-600">
@@ -604,6 +667,9 @@ export default function Conversations() {
                     Dimensions
                     <span className="ml-1 text-zinc-700" title="7 quality dimensions: H R A C S N F">·7</span>
                   </th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">
+                    Satisfaction
+                  </th>
                   <SortTh field="completion_status" label="Status"  sortBy={sortBy} order={order} onSort={handleSort} />
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Turns</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">First message</th>
@@ -613,7 +679,7 @@ export default function Conversations() {
               <tbody>
                 {displayed.length === 0 ? (
                   <tr>
-                    <td colSpan={isMultiPlatform ? 9 : 8} className="text-center py-12 text-zinc-600 text-sm">
+                    <td colSpan={isMultiPlatform ? 10 : 9} className="text-center py-12 text-zinc-600 text-sm">
                       No conversations found matching your filters
                     </td>
                   </tr>
@@ -644,6 +710,9 @@ export default function Conversations() {
                           </td>
                           <td className="px-4 py-3">
                             <MiniDots dims={dims} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <SatisfactionBadge sat={conv.quality_score !== null ? computeSatisfactionFromScore(conv.quality_score, conv.id).inferred : null} />
                           </td>
                           <td className="px-4 py-3"><StatusBadge status={conv.completion_status} /></td>
                           <td className="px-4 py-3 text-zinc-500 font-mono text-xs">

@@ -12,7 +12,30 @@ export const DIMENSIONS = [
 
 export type DimensionKey = "helpfulness" | "relevance" | "accuracy" | "coherence" | "satisfaction" | "naturalness" | "safety";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Satisfaction Signal Metadata ─────────────────────────────────────────────
+
+export const SIGNALS = [
+  { key: "rephrasing",         label: "Rephrasing",         emoji: "🔄", sentiment: "frustration",      color: "#f59e0b" },
+  { key: "gratitude",          label: "Gratitude",           emoji: "🙏", sentiment: "satisfaction",     color: "#22c55e" },
+  { key: "abandonment",        label: "Abandonment",         emoji: "🚪", sentiment: "failure",          color: "#ef4444" },
+  { key: "quick_followup",     label: "Quick follow-up",     emoji: "⚡", sentiment: "engagement",       color: "#6366f1" },
+  { key: "message_shortening", label: "Message shortening",  emoji: "📉", sentiment: "losing interest",  color: "#f97316" },
+  { key: "escalation_request", label: "Escalation request",  emoji: "🆘", sentiment: "failure",          color: "#ef4444" },
+  { key: "retry_pattern",      label: "Retry pattern",       emoji: "🔁", sentiment: "high frustration", color: "#dc2626" },
+  { key: "deepening",          label: "Deepening",           emoji: "🔍", sentiment: "high engagement",  color: "#06b6d4" },
+] as const;
+
+export type SatisfactionSignal = typeof SIGNALS[number]["key"];
+export type InferredSatisfaction = "satisfied" | "neutral" | "frustrated" | "abandoned";
+
+export const SATISFACTION_META: Record<InferredSatisfaction, { label: string; color: string; icon: string }> = {
+  satisfied:  { label: "Satisfied",  color: "#22c55e", icon: "✓" },
+  neutral:    { label: "Neutral",    color: "#71717a", icon: "—" },
+  frustrated: { label: "Frustrated", color: "#f59e0b", icon: "!" },
+  abandoned:  { label: "Abandoned",  color: "#ef4444", icon: "✗" },
+};
+
+// ─── Quality Score Types ───────────────────────────────────────────────────────
 
 export interface QualityScores {
   helpfulness:  number;
@@ -26,12 +49,14 @@ export interface QualityScores {
 }
 
 export interface MockConversation {
-  id:            string;
-  timestamp:     string;
-  intent:        string;
-  user_id:       string;
-  model_version: "v2.0" | "v2.1";
-  scores:        QualityScores;
+  id:                    string;
+  timestamp:             string;
+  intent:                string;
+  user_id:               string;
+  model_version:         "v2.0" | "v2.1";
+  scores:                QualityScores;
+  satisfaction_signals:  SatisfactionSignal[];
+  inferred_satisfaction: InferredSatisfaction;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,50 +96,107 @@ function computeOverall(s: Omit<QualityScores, "overall">): number {
   );
 }
 
+// ─── Satisfaction Inference ───────────────────────────────────────────────────
+
+function inferSatisfaction(signals: SatisfactionSignal[]): InferredSatisfaction {
+  const has = (k: SatisfactionSignal) => signals.includes(k);
+  if (has("abandonment")) return "abandoned";
+  if (has("escalation_request") || has("retry_pattern")) return "frustrated";
+  if (has("rephrasing") && !has("gratitude") && !has("deepening") && !has("quick_followup")) return "frustrated";
+  if (has("gratitude") || has("deepening") || has("quick_followup")) return "satisfied";
+  if (has("message_shortening")) return "neutral";
+  return "neutral";
+}
+
 // ─── Generator ────────────────────────────────────────────────────────────────
 
+type SignalRule = { key: SatisfactionSignal; prob: number };
+
 type ProfileDef = {
-  count: number;
-  gen: (r: () => number) => Omit<QualityScores, "overall">;
+  count:   number;
+  gen:     (r: () => number) => Omit<QualityScores, "overall">;
+  signals: SignalRule[];
 };
 
 const PROFILES: ProfileDef[] = [
-  // ① High quality — all dims 70–95, overall 75–90
-  { count: 200, gen: (r) => ({
-    helpfulness:  ri(r, 70, 95), relevance:    ri(r, 70, 95), accuracy:     ri(r, 72, 95),
-    naturalness:  ri(r, 65, 95), safety:       ri(r, 80, 100), coherence:    ri(r, 70, 95),
-    satisfaction: ri(r, 70, 95),
-  }) },
-  // ② Partial failures — helpfulness 30–50, others 60–80
-  { count: 120, gen: (r) => ({
-    helpfulness:  ri(r, 30, 50), relevance:    ri(r, 60, 80), accuracy:     ri(r, 60, 80),
-    naturalness:  ri(r, 60, 80), safety:       ri(r, 70, 95), coherence:    ri(r, 60, 80),
-    satisfaction: ri(r, 35, 55),
-  }) },
+  // ① High quality — all dims 70–95
+  { count: 200,
+    gen: (r) => ({
+      helpfulness: ri(r, 70, 95), relevance: ri(r, 70, 95), accuracy: ri(r, 72, 95),
+      naturalness: ri(r, 65, 95), safety: ri(r, 80, 100),   coherence: ri(r, 70, 95),
+      satisfaction: ri(r, 70, 95),
+    }),
+    signals: [
+      { key: "gratitude",      prob: 0.80 },
+      { key: "quick_followup", prob: 0.40 },
+      { key: "deepening",      prob: 0.50 },
+    ],
+  },
+  // ② Partial failures — helpfulness 30–50
+  { count: 120,
+    gen: (r) => ({
+      helpfulness: ri(r, 30, 50), relevance: ri(r, 60, 80), accuracy: ri(r, 60, 80),
+      naturalness: ri(r, 60, 80), safety: ri(r, 70, 95),   coherence: ri(r, 60, 80),
+      satisfaction: ri(r, 35, 55),
+    }),
+    signals: [
+      { key: "message_shortening", prob: 0.25 },
+      { key: "rephrasing",         prob: 0.20 },
+    ],
+  },
   // ③ Hard failures — relevance + accuracy 15–40
-  { count: 80, gen: (r) => ({
-    helpfulness:  ri(r, 20, 50), relevance:    ri(r, 15, 40), accuracy:     ri(r, 15, 40),
-    naturalness:  ri(r, 50, 75), safety:       ri(r, 65, 90), coherence:    ri(r, 40, 65),
-    satisfaction: ri(r, 20, 45),
-  }) },
-  // ④ Coherence failures — coherence 20–40, others mixed
-  { count: 60, gen: (r) => ({
-    helpfulness:  ri(r, 45, 70), relevance:    ri(r, 55, 75), accuracy:     ri(r, 50, 70),
-    naturalness:  ri(r, 50, 75), safety:       ri(r, 70, 95), coherence:    ri(r, 20, 40),
-    satisfaction: ri(r, 40, 65),
-  }) },
+  { count: 80,
+    gen: (r) => ({
+      helpfulness: ri(r, 20, 50), relevance: ri(r, 15, 40), accuracy: ri(r, 15, 40),
+      naturalness: ri(r, 50, 75), safety: ri(r, 65, 90),   coherence: ri(r, 40, 65),
+      satisfaction: ri(r, 20, 45),
+    }),
+    signals: [
+      { key: "abandonment",        prob: 0.60 },
+      { key: "retry_pattern",      prob: 0.45 },
+      { key: "rephrasing",         prob: 0.35 },
+      { key: "escalation_request", prob: 0.15 },
+    ],
+  },
+  // ④ Coherence failures — coherence 20–40
+  { count: 60,
+    gen: (r) => ({
+      helpfulness: ri(r, 45, 70), relevance: ri(r, 55, 75), accuracy: ri(r, 50, 70),
+      naturalness: ri(r, 50, 75), safety: ri(r, 70, 95),   coherence: ri(r, 20, 40),
+      satisfaction: ri(r, 40, 65),
+    }),
+    signals: [
+      { key: "rephrasing",         prob: 0.50 },
+      { key: "message_shortening", prob: 0.30 },
+      { key: "retry_pattern",      prob: 0.20 },
+    ],
+  },
   // ⑤ Safety flags — safety < 40
-  { count: 30, gen: (r) => ({
-    helpfulness:  ri(r, 50, 80), relevance:    ri(r, 55, 80), accuracy:     ri(r, 50, 75),
-    naturalness:  ri(r, 50, 80), safety:       ri(r, 10, 38), coherence:    ri(r, 55, 75),
-    satisfaction: ri(r, 30, 60),
-  }) },
+  { count: 30,
+    gen: (r) => ({
+      helpfulness: ri(r, 50, 80), relevance: ri(r, 55, 80), accuracy: ri(r, 50, 75),
+      naturalness: ri(r, 50, 80), safety: ri(r, 10, 38),   coherence: ri(r, 55, 75),
+      satisfaction: ri(r, 30, 60),
+    }),
+    signals: [
+      { key: "escalation_request", prob: 0.25 },
+      { key: "rephrasing",         prob: 0.20 },
+      { key: "abandonment",        prob: 0.15 },
+    ],
+  },
   // ⑥ Perfect — all dims 90+
-  { count: 10, gen: (r) => ({
-    helpfulness:  ri(r, 91, 100), relevance:    ri(r, 91, 100), accuracy:     ri(r, 90, 100),
-    naturalness:  ri(r, 90, 100), safety:       ri(r, 95, 100), coherence:    ri(r, 90, 100),
-    satisfaction: ri(r, 90, 100),
-  }) },
+  { count: 10,
+    gen: (r) => ({
+      helpfulness: ri(r, 91, 100), relevance: ri(r, 91, 100), accuracy: ri(r, 90, 100),
+      naturalness: ri(r, 90, 100), safety: ri(r, 95, 100),    coherence: ri(r, 90, 100),
+      satisfaction: ri(r, 90, 100),
+    }),
+    signals: [
+      { key: "gratitude",      prob: 0.95 },
+      { key: "quick_followup", prob: 0.60 },
+      { key: "deepening",      prob: 0.70 },
+    ],
+  },
 ];
 
 function buildConversations(): MockConversation[] {
@@ -127,31 +209,40 @@ function buildConversations(): MockConversation[] {
       const rng = makeRng(idx * 31337 + 9001);
       const dims = p.gen(rng);
       const overall = computeOverall(dims);
-      // Spread across last 29 days (a few convos land exactly on today)
       const msAgo = rng() * 29 * 86400000;
       const ts = new Date(now - msAgo);
+      const intent        = INTENTS[Math.floor(rng() * INTENTS.length)];
+      const user_id       = `user-${String(Math.floor(rng() * 150)).padStart(3, "0")}`;
+      const model_version = rng() > 0.48 ? "v2.1" : "v2.0" as "v2.0" | "v2.1";
+
+      // Signal generation (after all existing rng calls — does not alter above values)
+      const signals: SatisfactionSignal[] = [];
+      for (const rule of p.signals) {
+        if (rng() < rule.prob) signals.push(rule.key);
+      }
+      const inferred_satisfaction = inferSatisfaction(signals);
 
       convos.push({
-        id:            `mock-${String(idx).padStart(4, "0")}`,
-        timestamp:     ts.toISOString(),
-        intent:        INTENTS[Math.floor(rng() * INTENTS.length)],
-        user_id:       `user-${String(Math.floor(rng() * 150)).padStart(3, "0")}`,
-        model_version: rng() > 0.48 ? "v2.1" : "v2.0",
-        scores:        { ...dims, overall },
+        id:                    `mock-${String(idx).padStart(4, "0")}`,
+        timestamp:             ts.toISOString(),
+        intent,
+        user_id,
+        model_version,
+        scores:                { ...dims, overall },
+        satisfaction_signals:  signals,
+        inferred_satisfaction,
       });
       idx++;
     }
   }
 
-  // Sort newest first
   convos.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   return convos;
 }
 
 export const MOCK_CONVERSATIONS: MockConversation[] = buildConversations();
 
-// ─── Utility: derive dimension scores from a real quality_score + id ──────────
-// Used client-side to attach consistent fake dimensions to Supabase conversations.
+// ─── Utility: derive dimensions from a real quality_score + id ────────────────
 
 function hashStr(s: string): number {
   let h = 0x811c9dc5 >>> 0;
@@ -178,7 +269,39 @@ export function computeDimensionsFromScore(qualityScore: number, convId: string)
   return { helpfulness, relevance, accuracy, naturalness, safety, coherence, satisfaction, overall: qualityScore };
 }
 
-// ─── Helper: score → colour ───────────────────────────────────────────────────
+// ─── Utility: derive satisfaction from a real quality_score + id ──────────────
+
+export function computeSatisfactionFromScore(
+  qualityScore: number,
+  convId: string,
+): { signals: SatisfactionSignal[]; inferred: InferredSatisfaction } {
+  const rng    = makeRng(hashStr(convId) ^ 0xf00ba7);
+  const isHigh = qualityScore >= 70;
+  const isMid  = qualityScore >= 40 && qualityScore < 70;
+  const isLow  = qualityScore < 40;
+  const signals: SatisfactionSignal[] = [];
+
+  if (isHigh) {
+    if (rng() < 0.75) signals.push("gratitude");
+    if (rng() < 0.40) signals.push("quick_followup");
+    if (rng() < 0.45) signals.push("deepening");
+  }
+  if (isMid) {
+    if (rng() < 0.22) signals.push("rephrasing");
+    if (rng() < 0.18) signals.push("message_shortening");
+    if (rng() < 0.08) signals.push("gratitude");
+  }
+  if (isLow) {
+    if (rng() < 0.55) signals.push("abandonment");
+    if (rng() < 0.40) signals.push("retry_pattern");
+    if (rng() < 0.32) signals.push("rephrasing");
+    if (rng() < 0.12) signals.push("escalation_request");
+  }
+
+  return { signals, inferred: inferSatisfaction(signals) };
+}
+
+// ─── Helper: dimension score → colour ────────────────────────────────────────
 export function dimColor(score: number | null): string {
   if (score === null) return "#3f3f46";
   if (score > 70) return "#22c55e";

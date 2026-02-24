@@ -581,9 +581,188 @@ function QualityDimensionsTab() {
   );
 }
 
+// ─── Tab 5: Satisfaction ──────────────────────────────────────────────────────
+
+interface SatisfactionData {
+  distribution: { key: string; label: string; color: string; icon: string; count: number; pct: number }[];
+  topFrustrationSignals: { key: string; label: string; emoji: string; color: string; count: number }[];
+  dailyTrend: { date: string; satisfied: number | null; frustrated: number | null; neutral: number | null; abandoned: number | null }[];
+  byIntent: { intent: string; label: string; satisfiedPct: number; neutralPct: number; frustratedPct: number; abandonedPct: number; negativePct: number; count: number }[];
+  intents: string[];
+  models: string[];
+  total: number;
+}
+
+function SatisfactionTab() {
+  const [filterIntent, setFilterIntent] = useState("");
+  const [filterModel,  setFilterModel]  = useState("");
+  const [filterDays,   setFilterDays]   = useState("30");
+  const [satData, setSatData] = useState<SatisfactionData | null>(null);
+  const [loading,  setLoading]  = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ days: filterDays });
+    if (filterIntent) params.set("intent", filterIntent);
+    if (filterModel)  params.set("model",  filterModel);
+    fetch(`/api/satisfaction?${params}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setSatData(d))
+      .finally(() => setLoading(false));
+  }, [filterIntent, filterModel, filterDays]);
+
+  const intents = satData?.intents ?? [];
+  const models  = satData?.models  ?? ["v2.0", "v2.1"];
+
+  const SELECT_CLS = "bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20";
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-4 flex flex-wrap gap-3 items-center">
+        <p className="text-xs text-zinc-500 font-medium mr-1">Filter:</p>
+
+        <select value={filterIntent} onChange={(e) => setFilterIntent(e.target.value)} className={SELECT_CLS}>
+          <option value="">All Intent Categories</option>
+          {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
+        </select>
+
+        <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)} className={SELECT_CLS}>
+          <option value="">All Model Versions</option>
+          {models.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+
+        <select value={filterDays} onChange={(e) => setFilterDays(e.target.value)} className={SELECT_CLS}>
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="60">Last 60 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+
+        {(filterIntent || filterModel || filterDays !== "30") && (
+          <button
+            onClick={() => { setFilterIntent(""); setFilterModel(""); setFilterDays("30"); }}
+            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1.5"
+          >
+            Reset filters
+          </button>
+        )}
+        {satData && (
+          <span className="ml-auto text-[10px] text-zinc-600">{fmt(satData.total)} conversations</span>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          <Bone className="h-72 rounded-xl" />
+          <Bone className="h-64 rounded-xl" />
+        </div>
+      ) : !satData || satData.total === 0 ? (
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center">
+          <p className="text-zinc-500 text-sm">No data for selected filters</p>
+        </div>
+      ) : (
+        <>
+          {/* Satisfaction Over Time */}
+          <ChartCard
+            title="Satisfaction Over Time"
+            subtitle="Daily % of satisfied vs frustrated conversations — frustrated line includes abandoned"
+          >
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={satData.dailyTrend} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: "#71717a", fontSize: 10 }}
+                  axisLine={false} tickLine={false}
+                  interval={Math.max(0, Math.floor(satData.dailyTrend.length / 8) - 1)}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  tick={{ fill: "#71717a", fontSize: 10 }}
+                  axisLine={false} tickLine={false}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <Tooltip
+                  {...TOOLTIP_STYLE}
+                  formatter={(v: unknown, name: unknown) => [
+                    v != null ? `${v}%` : "—",
+                    name === "satisfied" ? "Satisfied" : name === "frustrated" ? "Frustrated (incl. abandoned)" : "Neutral",
+                  ]}
+                />
+                <Line type="monotone" dataKey="satisfied"  stroke="#22c55e" strokeWidth={2}   dot={false} connectNulls name="satisfied" />
+                <Line type="monotone" dataKey="frustrated" stroke="#ef4444" strokeWidth={2}   dot={false} connectNulls name="frustrated" />
+                <Line type="monotone" dataKey="neutral"    stroke="#71717a" strokeWidth={1.5} dot={false} connectNulls name="neutral" strokeDasharray="4 4" />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="flex gap-5 mt-3 pt-3 border-t border-white/[0.05]">
+              <div className="flex items-center gap-1.5">
+                <span className="w-5 h-0.5 inline-block" style={{ backgroundColor: "#22c55e" }} />
+                <span className="text-[10px] text-zinc-500">Satisfied</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-5 h-0.5 inline-block" style={{ backgroundColor: "#ef4444" }} />
+                <span className="text-[10px] text-zinc-500">Frustrated (incl. abandoned)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-5 h-0.5 inline-block border-t border-dashed" style={{ borderColor: "#71717a" }} />
+                <span className="text-[10px] text-zinc-500">Neutral</span>
+              </div>
+            </div>
+          </ChartCard>
+
+          {/* Satisfaction by Intent */}
+          <ChartCard
+            title="Satisfaction by Intent"
+            subtitle="Stacked 100% bar — intents sorted by highest frustration rate first"
+          >
+            <ResponsiveContainer width="100%" height={Math.max(220, satData.byIntent.slice(0, 10).length * 34)}>
+              <BarChart
+                data={satData.byIntent.slice(0, 10).map((d) => ({ ...d, label: d.label.slice(0, 28) }))}
+                layout="vertical"
+                margin={{ left: 0, right: 60, top: 0, bottom: 0 }}
+              >
+                <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                <YAxis type="category" dataKey="label" width={180} tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  {...TOOLTIP_STYLE}
+                  formatter={(v: unknown, name: unknown) => [
+                    `${v}%`,
+                    name === "satisfiedPct"  ? "Satisfied"  :
+                    name === "neutralPct"    ? "Neutral"    :
+                    name === "frustratedPct" ? "Frustrated" : "Abandoned",
+                  ]}
+                />
+                <Bar dataKey="satisfiedPct"  stackId="a" fill="#22c55e" fillOpacity={0.80} maxBarSize={22} />
+                <Bar dataKey="neutralPct"    stackId="a" fill="#71717a" fillOpacity={0.60} maxBarSize={22} />
+                <Bar dataKey="frustratedPct" stackId="a" fill="#f59e0b" fillOpacity={0.85} maxBarSize={22} />
+                <Bar dataKey="abandonedPct"  stackId="a" fill="#ef4444" fillOpacity={0.85} maxBarSize={22} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-white/[0.05]">
+              {[
+                { color: "#22c55e", label: "Satisfied" },
+                { color: "#71717a", label: "Neutral" },
+                { color: "#f59e0b", label: "Frustrated" },
+                { color: "#ef4444", label: "Abandoned" },
+              ].map(({ color, label }) => (
+                <div key={label} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] text-zinc-500">{label}</span>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = "quality" | "completion" | "fixes" | "dimensions";
+type Tab = "quality" | "completion" | "fixes" | "dimensions" | "satisfaction";
 
 export default function Performance() {
   const { selectedPlatform, profile } = useProductProfile();
@@ -626,11 +805,12 @@ export default function Performance() {
 
   const hasData = data.total > 0;
 
-  const TABS: { id: Tab; label: string }[] = [
-    { id: "quality",    label: "Quality Overview" },
-    { id: "completion", label: "Completion Analysis" },
-    { id: "fixes",      label: "Fix Priorities" },
-    { id: "dimensions", label: "Quality Dimensions" },
+  const TABS: { id: Tab; label: string; badge?: string }[] = [
+    { id: "quality",      label: "Quality Overview" },
+    { id: "completion",   label: "Completion Analysis" },
+    { id: "fixes",        label: "Fix Priorities" },
+    { id: "dimensions",   label: "Quality Dimensions", badge: "New" },
+    { id: "satisfaction", label: "Satisfaction",        badge: "New" },
   ];
 
   return (
@@ -680,7 +860,7 @@ export default function Performance() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/[0.06] pb-0">
-        {TABS.map(({ id, label }) => (
+        {TABS.map(({ id, label, badge }) => (
           <button key={id} onClick={() => setActiveTab(id)}
             className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
               activeTab === id
@@ -688,18 +868,19 @@ export default function Performance() {
                 : "text-zinc-500 hover:text-zinc-300"
             }`}>
             {label}
-            {id === "dimensions" && (
-              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">New</span>
+            {badge && (
+              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">{badge}</span>
             )}
           </button>
         ))}
       </div>
 
       <div>
-        {activeTab === "quality"     && hasData && <QualityTab data={data} isMultiPlatform={isMultiPlatform} />}
-        {activeTab === "completion"  && hasData && <CompletionTab data={data} isMultiPlatform={isMultiPlatform} />}
-        {activeTab === "fixes"       && hasData && <FixPrioritiesTab data={data} />}
-        {activeTab === "dimensions"  && <QualityDimensionsTab />}
+        {activeTab === "quality"      && hasData && <QualityTab data={data} isMultiPlatform={isMultiPlatform} />}
+        {activeTab === "completion"   && hasData && <CompletionTab data={data} isMultiPlatform={isMultiPlatform} />}
+        {activeTab === "fixes"        && hasData && <FixPrioritiesTab data={data} />}
+        {activeTab === "dimensions"   && <QualityDimensionsTab />}
+        {activeTab === "satisfaction" && <SatisfactionTab />}
       </div>
     </div>
   );
