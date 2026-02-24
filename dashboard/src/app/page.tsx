@@ -73,6 +73,13 @@ interface OutcomesData {
   churnRisk: { atRiskCount: number; totalLtvAtRisk: number };
 }
 
+interface SafetyData {
+  summary: {
+    flaggedCount: number; flaggedPct: number; cleanPct: number;
+    incidentsThisWeek: number; incidentsLastWeek: number; safetyScore: number;
+  };
+}
+
 interface SatDistItem {
   key: InferredSatisfaction;
   label: string;
@@ -515,6 +522,41 @@ function ChurnRiskCard({ churnRisk }: { churnRisk: OutcomesData["churnRisk"] }) 
   );
 }
 
+// ─── Safety Indicator Card ────────────────────────────────────────────────────
+
+function SafetyIndicatorCard({ summary }: { summary: SafetyData["summary"] }) {
+  const trend = summary.incidentsThisWeek < summary.incidentsLastWeek ? "↓" : summary.incidentsThisWeek > summary.incidentsLastWeek ? "↑" : "→";
+  const trendColor = summary.incidentsThisWeek < summary.incidentsLastWeek ? "text-emerald-400" : summary.incidentsThisWeek > summary.incidentsLastWeek ? "text-red-400" : "text-zinc-500";
+  const diff = Math.abs(summary.incidentsThisWeek - summary.incidentsLastWeek);
+  return (
+    <div className="rounded-xl border border-emerald-500/15 bg-[#13141b] p-5 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400/80">Safety</p>
+      </div>
+      <div className="space-y-1">
+        <p className="text-2xl font-bold text-emerald-300">{summary.cleanPct.toFixed(1)}% clean</p>
+        <p className="text-xs text-zinc-400">conversations within safety thresholds</p>
+      </div>
+      <div className="rounded-lg bg-white/[0.04] border border-white/[0.07] px-3 py-2">
+        <p className="text-[10px] text-zinc-500">Incidents this week</p>
+        <p className="text-base font-bold text-zinc-300 font-mono flex items-center gap-1.5">
+          {summary.incidentsThisWeek}
+          <span className={`text-xs font-normal ${trendColor}`}>{trend}{diff} from last week</span>
+        </p>
+      </div>
+      <a href="/safety" className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mt-auto">
+        View Safety & Compliance
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  );
+}
+
 // ─── Segment Insight Card ─────────────────────────────────────────────────────
 
 function SegmentInsightCard({ meta }: { meta: SegmentMeta }) {
@@ -636,6 +678,7 @@ export default function Overview() {
   const [failureData, setFailureData] = useState<FailureTaxonomyData | null>(null);
   const [compareData, setCompareData] = useState<ModelComparisonSummary | null>(null);
   const [outcomesData, setOutcomesData] = useState<OutcomesData | null>(null);
+  const [safetyData, setSafetyData] = useState<SafetyData | null>(null);
   const [segmentMeta, setSegmentMeta] = useState<SegmentMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -657,14 +700,16 @@ export default function Overview() {
       fetch(`/api/failure-taxonomy?days=14${sp}`).then((r) => r.ok ? r.json() : null),
       fetch("/api/model-comparison").then((r) => r.ok ? r.json() : null),
       fetch(`/api/outcomes${seg ? `?segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/safety${seg ? `?segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
     ])
-      .then(([overview, quality, satisfaction, failures, compare, outcomes]) => {
+      .then(([overview, quality, satisfaction, failures, compare, outcomes, safety]) => {
         setData(overview);
         setQualityData(quality);
         setSatData(satisfaction);
         setFailureData(failures);
         setCompareData(compare);
         setOutcomesData(outcomes);
+        setSafetyData(safety);
         setSegmentMeta(overview?.segmentMeta ?? null);
       })
       .catch((e) => setError(String(e)))
@@ -851,7 +896,7 @@ export default function Overview() {
       {outcomesData && <OutcomesSection data={outcomesData} />}
 
       {/* ── Top Failures + Model Comparison + Churn Risk ─────────────────────── */}
-      {(failureData?.topThisWeek.length || compareData || outcomesData?.churnRisk.atRiskCount) && (
+      {(failureData?.topThisWeek.length || compareData || outcomesData?.churnRisk.atRiskCount || safetyData) && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {failureData && failureData.topThisWeek.length > 0 && (
             <TopFailuresCard failures={failureData.topThisWeek} />
@@ -861,6 +906,9 @@ export default function Overview() {
           )}
           {outcomesData && outcomesData.churnRisk.atRiskCount > 0 && (
             <ChurnRiskCard churnRisk={outcomesData.churnRisk} />
+          )}
+          {safetyData && (
+            <SafetyIndicatorCard summary={safetyData.summary} />
           )}
         </div>
       )}

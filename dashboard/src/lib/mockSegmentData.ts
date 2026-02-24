@@ -822,3 +822,126 @@ export function computeMockOutcomesData(segment: string) {
     churnRisk: { atRiskCount, totalLtvAtRisk },
   };
 }
+
+// ─── Safety helpers ────────────────────────────────────────────────────────────
+
+export function getConversationSafetyScore(convId: string, _overall: number): number {
+  const hash = convId.split("").reduce((acc, ch, i) => acc ^ (ch.charCodeAt(0) << (i % 8)), 0x5A3D);
+  const rng = makeRng(Math.abs(hash) * 1237 + 5678);
+  const roll = rng();
+  if (roll < 0.02) return Math.round(5 + rng() * 35);   // 2% flagged: 5–40
+  if (roll < 0.10) return Math.round(40 + rng() * 40);  // 8% borderline: 40–80
+  return Math.round(80 + rng() * 20);                    // 90% clean: 80–100
+}
+
+const INCIDENT_TYPES = [
+  "harmful_content", "bias_detected", "inappropriate_tone", "pii_exposure", "policy_violation",
+] as const;
+type IncidentType = typeof INCIDENT_TYPES[number];
+
+const INCIDENT_TYPE_META: Record<IncidentType, { label: string; description: string }> = {
+  harmful_content:    { label: "Harmful Content",    description: "AI generated potentially harmful information" },
+  bias_detected:      { label: "Bias Detected",      description: "Response quality differed by user demographic" },
+  inappropriate_tone: { label: "Inappropriate Tone", description: "Tone was inappropriate for sensitive context" },
+  pii_exposure:       { label: "PII Exposure",       description: "AI disclosed or requested unnecessary personal info" },
+  policy_violation:   { label: "Policy Violation",   description: "AI response violated configured content policies" },
+};
+
+function getIncidentType(convId: string): IncidentType {
+  const hash = convId.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return INCIDENT_TYPES[hash % INCIDENT_TYPES.length];
+}
+
+function getReviewStatus(convId: string): "needs_review" | "reviewed_confirmed" | "reviewed_false_positive" {
+  const hash = convId.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0) * 31;
+  const roll = hash % 10;
+  if (roll < 4) return "needs_review";
+  if (roll < 7) return "reviewed_confirmed";
+  return "reviewed_false_positive";
+}
+
+export function computeMockSafetyData(segment: string) {
+  const convos = getSegmentConversations(segment);
+
+  // Compute safety scores for all conversations
+  const withSafety = convos.map((c) => ({
+    ...c,
+    safetyScore: getConversationSafetyScore(c.id, c.scores.overall),
+  }));
+
+  const flagged   = withSafety.filter((c) => c.safetyScore < 40);
+  const borderline = withSafety.filter((c) => c.safetyScore >= 40 && c.safetyScore < 80);
+  const clean     = withSafety.filter((c) => c.safetyScore >= 80);
+  const total     = withSafety.length;
+
+  // Summary
+  const summary = {
+    totalConversations: total,
+    flaggedCount: flagged.length,
+    flaggedPct: Math.round((flagged.length / total) * 1000) / 10,
+    borderlineCount: borderline.length,
+    borderlinePct: Math.round((borderline.length / total) * 1000) / 10,
+    cleanCount: clean.length,
+    cleanPct: Math.round((clean.length / total) * 1000) / 10,
+    safetyScore: Math.round(clean.length / total * 100),
+    incidentsThisWeek: Math.max(1, Math.round(flagged.length * 0.6)),
+    incidentsLastWeek: Math.max(1, Math.round(flagged.length * 0.72)),
+  };
+
+  // Incident trend (last 30 days — scripted for good story arc)
+  const incidentTrend = Array.from({ length: 30 }, (_, i) => {
+    const base = summary.incidentsThisWeek;
+    const noise = (i * 7919 + 3) % 3;
+    const dayIncidents = Math.max(0, Math.round(base * (1 + (29 - i) * 0.05) - 1 + noise - 1));
+    const d = new Date();
+    d.setDate(d.getDate() - (29 - i));
+    return { date: d.toISOString().slice(0, 10), incidents: dayIncidents };
+  });
+
+  // Safety score distribution (histogram buckets)
+  const buckets = [
+    { label: "0–20",  min: 0,  max: 20 },
+    { label: "20–40", min: 20, max: 40 },
+    { label: "40–60", min: 40, max: 60 },
+    { label: "60–80", min: 60, max: 80 },
+    { label: "80–100", min: 80, max: 101 },
+  ];
+  const safetyDistribution = buckets.map((b) => ({
+    label: b.label,
+    count: withSafety.filter((c) => c.safetyScore >= b.min && c.safetyScore < b.max).length,
+  }));
+
+  // Incident types breakdown
+  const typeCounts: Record<IncidentType, number> = {
+    harmful_content: 0, bias_detected: 0, inappropriate_tone: 0, pii_exposure: 0, policy_violation: 0,
+  };
+  for (const c of flagged) {
+    typeCounts[getIncidentType(c.id)]++;
+  }
+  const incidentTypes = INCIDENT_TYPES.map((t) => ({
+    type: t,
+    label: INCIDENT_TYPE_META[t].label,
+    description: INCIDENT_TYPE_META[t].description,
+    count: typeCounts[t],
+    trend: typeCounts[t] > 2 ? "up" : typeCounts[t] === 0 ? "stable" : "down",
+  })).sort((a, b) => b.count - a.count);
+
+  // Flagged queue (sorted by severity = lowest safety score first)
+  const flaggedQueue = flagged
+    .sort((a, b) => a.safetyScore - b.safetyScore)
+    .slice(0, 20)
+    .map((c) => ({
+      id: c.id,
+      userId: c.user_id,
+      intent: c.intent,
+      safetyScore: c.safetyScore,
+      qualityScore: c.scores.overall,
+      incidentType: getIncidentType(c.id),
+      incidentLabel: INCIDENT_TYPE_META[getIncidentType(c.id)].label,
+      reviewStatus: getReviewStatus(c.id),
+      timestamp: c.timestamp,
+      severity: c.safetyScore < 20 ? "high" : c.safetyScore < 30 ? "medium" : "low",
+    }));
+
+  return { summary, incidentTrend, safetyDistribution, incidentTypes, flaggedQueue };
+}

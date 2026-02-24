@@ -8,6 +8,7 @@ import {
   SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
   FAILURE_TYPES, FailureType, FailureTag, computeFailuresFromScore,
 } from "@/lib/mockQualityData";
+import { getConversationSafetyScore } from "@/lib/mockSegmentData";
 
 const FAILURE_TYPE_MAP = Object.fromEntries(FAILURE_TYPES.map((f) => [f.key, f]));
 
@@ -36,7 +37,7 @@ interface Conversation {
   intent: string | null; quality_score: number | null;
   completion_status: string | null; messages: Message[];
   created_at: string; turns: number | null; firstUserMessage: string;
-  churnRisk?: boolean; ltv?: number; outcome?: string | null;
+  churnRisk?: boolean; ltv?: number; outcome?: string | null; safetyScore?: number;
 }
 type ServerSortField = "created_at" | "quality_score" | "intent" | "completion_status";
 type SortField = ServerSortField | DimensionKey;
@@ -441,7 +442,10 @@ export default function Conversations() {
   const [filterSatisfaction, setFilterSatisfaction] = useState<InferredSatisfaction | ("")>("");
 
   // Client-side failure type filter
-  const [filterFailureType, setFilterFailureType] = useState<FailureType | "">("");
+  const [filterFailureType, setFilterFailureType] = useState<FailureType | "">("") ;
+
+  // Client-side safety filter
+  const [filterSafety, setFilterSafety] = useState<"" | "clean" | "borderline" | "flagged">("");
 
   // Sort (server-side for standard fields, client-side for dimensions)
   const [sortBy, setSortBy] = useState<SortField>("created_at");
@@ -523,6 +527,7 @@ export default function Conversations() {
     setSearchText(""); setDimFilterKey(""); setDimFilterMax(""); setDimFilterMin("");
     setFilterSatisfaction("");
     setFilterFailureType("");
+    setFilterSafety("");
     setPage(0);
   }
 
@@ -563,6 +568,16 @@ export default function Conversations() {
     displayed = displayed.filter((c) => {
       const tags = computeFailuresFromScore(c.quality_score ?? 50, c.id);
       return tags.some((t) => t.type === filterFailureType);
+    });
+  }
+
+  // Safety filter
+  if (filterSafety) {
+    displayed = displayed.filter((c) => {
+      const ss = getConversationSafetyScore(c.id, c.quality_score ?? 70);
+      if (filterSafety === "flagged")    return ss < 40;
+      if (filterSafety === "borderline") return ss >= 40 && ss < 80;
+      return ss >= 80;
     });
   }
 
@@ -659,6 +674,13 @@ export default function Conversations() {
               ))}
             </select>
 
+            <select value={filterSafety} onChange={(e) => setFilterSafety(e.target.value as "" | "clean" | "borderline" | "flagged")} className={SELECT_CLS}>
+              <option value="">All Safety</option>
+              <option value="clean">🟢 Clean (&gt;80)</option>
+              <option value="borderline">🟡 Borderline (40–80)</option>
+              <option value="flagged">🔴 Flagged (&lt;40)</option>
+            </select>
+
             <div className="flex items-center gap-1 text-xs text-zinc-600">
               <span>Quality</span>
               <input type="number" placeholder="0" value={filterMinScore}
@@ -753,6 +775,7 @@ export default function Conversations() {
                   </th>
                   <SortTh field="completion_status" label="Status"  sortBy={sortBy} order={order} onSort={handleSort} />
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">Risk</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">Safety</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Turns</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">First message</th>
                   <th className="px-4 py-3 w-8" />
@@ -761,7 +784,7 @@ export default function Conversations() {
               <tbody>
                 {displayed.length === 0 ? (
                   <tr>
-                    <td colSpan={isMultiPlatform ? 12 : 11} className="text-center py-12 text-zinc-600 text-sm">
+                    <td colSpan={isMultiPlatform ? 13 : 12} className="text-center py-12 text-zinc-600 text-sm">
                       No conversations found matching your filters
                     </td>
                   </tr>
@@ -804,6 +827,28 @@ export default function Conversations() {
                             {conv.churnRisk
                               ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20 whitespace-nowrap">⚡ Churn Risk</span>
                               : <span className="text-zinc-700 text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const ss = getConversationSafetyScore(conv.id, conv.quality_score ?? 70);
+                              if (ss < 40) return (
+                                <span title={`Safety: ${ss}`} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                  {ss}
+                                </span>
+                              );
+                              if (ss < 80) return (
+                                <span title={`Safety: ${ss}`} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                  {ss}
+                                </span>
+                              );
+                              return (
+                                <span title={`Safety: ${ss}`} className="text-zinc-700 text-xs">
+                                  <svg className="w-3.5 h-3.5 text-emerald-700 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-3 text-zinc-500 font-mono text-xs">
                             {conv.turns !== null ? conv.turns : <span className="text-zinc-700">—</span>}
