@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Treemap, ResponsiveContainer } from "recharts";
+import {
+  Treemap, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
+  LineChart, Line, CartesianGrid,
+} from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { FAILURE_TYPES } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -48,6 +52,23 @@ interface ApiData {
   uniqueTopicsCount: number;
   topicInsights: TopicInsights;
 }
+
+// ─── Failure Taxonomy Types ───────────────────────────────────────────────────
+
+interface FailureFreqItem { key: string; label: string; icon: string; color: string; count: number; pct: number; }
+interface FailureExample  { convId: string; intent: string; turn: number; detail: string; }
+interface FailureTaxonomyData {
+  frequencyData: FailureFreqItem[];
+  weeklyTrend:   Record<string, number | string>[];
+  intentCrossTab: { intent: string; label: string; total: number; [key: string]: number | string }[];
+  examples:       Record<string, FailureExample[]>;
+  totalFailed:    number;
+  totalConversations: number;
+}
+
+const TOOLTIP_STYLE = {
+  contentStyle: { background: "#1c1d28", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 12 },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -129,6 +150,11 @@ export default function Topics() {
   const [tableSearch, setTableSearch] = useState("");
   const [localPlatform, setLocalPlatform] = useState("all");
 
+  // Failure taxonomy
+  const [failureData, setFailureData] = useState<FailureTaxonomyData | null>(null);
+  const [failureLoading, setFailureLoading] = useState(true);
+  const [expandedFailure, setExpandedFailure] = useState<string | null>(null);
+
   const effectivePlatform = selectedPlatform !== "all" ? selectedPlatform : localPlatform;
 
   useEffect(() => {
@@ -141,6 +167,14 @@ export default function Topics() {
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
   }, [effectivePlatform]);
+
+  useEffect(() => {
+    setFailureLoading(true);
+    fetch("/api/failure-taxonomy?days=30")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setFailureData(d))
+      .finally(() => setFailureLoading(false));
+  }, []);
 
   // Flat list of all topic rows for the breakdown table
   const allTopicRows = useMemo(() => {
@@ -483,6 +517,170 @@ export default function Topics() {
           </div>
         </div>
       )}
+
+      {/* ── Section 4: Failure Analysis ──────────────────────────────────────── */}
+      <div className="space-y-4">
+        <div className="px-1">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Failure Analysis</p>
+          <p className="text-xs text-zinc-600 mt-0.5">Systematic classification of AI failure patterns across all conversations</p>
+        </div>
+
+        {failureLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="animate-pulse rounded-xl bg-white/[0.04] h-48" />)}
+          </div>
+        ) : !failureData || failureData.totalFailed === 0 ? (
+          <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-8 text-center">
+            <p className="text-zinc-600 text-sm">No failure data available — conversations with quality score &lt; 65 will appear here</p>
+          </div>
+        ) : (
+          <>
+            {/* 4a: Failure Type Frequency + Expandable Examples */}
+            <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Failure Type Frequency</p>
+              <p className="text-xs text-zinc-600 mb-1">
+                {fmt(failureData.totalFailed)} failed conversations · click a row to see examples
+              </p>
+
+              <div className="space-y-1 mt-4">
+                {failureData.frequencyData.map((ft) => {
+                  const isExpanded = expandedFailure === ft.key;
+                  const barWidth = failureData.frequencyData[0]?.count > 0
+                    ? (ft.count / failureData.frequencyData[0].count) * 100
+                    : 0;
+                  return (
+                    <div key={ft.key}>
+                      <button
+                        onClick={() => setExpandedFailure(isExpanded ? null : ft.key)}
+                        className="w-full flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03] transition-colors group text-left"
+                      >
+                        <span className="text-base w-6 text-center shrink-0">{ft.icon}</span>
+                        <span className="text-sm text-zinc-300 w-40 shrink-0">{ft.label}</span>
+                        <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: ft.color }} />
+                        </div>
+                        <span className="text-xs font-mono text-zinc-400 w-12 text-right shrink-0">{fmt(ft.count)}</span>
+                        <span className="text-[10px] text-zinc-600 w-10 text-right shrink-0">{ft.pct}%</span>
+                        <svg className={`w-3 h-3 text-zinc-600 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="ml-9 mt-1 mb-2 space-y-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-2">Example conversations</p>
+                          {(failureData.examples[ft.key] ?? []).length === 0 ? (
+                            <p className="text-xs text-zinc-600">No examples available</p>
+                          ) : (
+                            (failureData.examples[ft.key] ?? []).map((ex, i) => (
+                              <div key={i} className="rounded-lg p-3 bg-white/[0.02] border border-white/[0.05]">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-[9px] font-mono text-zinc-600">{ex.convId}</span>
+                                  <span className="text-[10px] text-zinc-500 capitalize bg-white/[0.04] px-1.5 py-0.5 rounded">{cap(ex.intent)}</span>
+                                  <span className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold"
+                                    style={{ color: ft.color, backgroundColor: ft.color + "15" }}>
+                                    Turn {ex.turn}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-zinc-400 leading-relaxed">
+                                  <span className="mr-1.5">{ft.icon}</span>{ex.detail}
+                                </p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4b: Failure Trends (4 weeks) */}
+            <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Failure Trends</p>
+              <p className="text-xs text-zinc-600 mb-4">Weekly failure count per type — is your hallucination rate improving?</p>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={failureData.weeklyTrend} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="week" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    {...TOOLTIP_STYLE}
+                    formatter={(v: unknown, name: unknown) => [
+                      String(v),
+                      FAILURE_TYPES.find((f) => f.key === String(name))?.label ?? String(name),
+                    ]}
+                  />
+                  {FAILURE_TYPES.map((ft) => (
+                    <Line key={ft.key} type="monotone" dataKey={ft.key} stroke={ft.color}
+                      strokeWidth={1.5} dot={false} connectNulls name={ft.key} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-white/[0.05]">
+                {FAILURE_TYPES.map((ft) => (
+                  <div key={ft.key} className="flex items-center gap-1.5">
+                    <span className="text-[10px]">{ft.icon}</span>
+                    <span className="text-[10px] text-zinc-500">{ft.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 4c: Intent × Failure Type Heatmap */}
+            <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Intent × Failure Heatmap</p>
+              <p className="text-xs text-zinc-600 mb-4">Which intents produce which failures most often — darker = higher rate</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-600 w-44">Intent</th>
+                      {FAILURE_TYPES.map((ft) => (
+                        <th key={ft.key} className="px-2 py-2 text-center text-[10px] font-semibold text-zinc-500 whitespace-nowrap" title={ft.label}>
+                          <span className="block text-base leading-none mb-0.5">{ft.icon}</span>
+                          <span className="text-[9px] text-zinc-600">{ft.label.slice(0, 6)}</span>
+                        </th>
+                      ))}
+                      <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {failureData.intentCrossTab.map((row) => {
+                      const maxInRow = Math.max(1, ...FAILURE_TYPES.map((ft) => (row[ft.key] as number) ?? 0));
+                      return (
+                        <tr key={row.intent} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                          <td className="px-3 py-2.5 text-zinc-300 capitalize font-medium truncate max-w-[11rem]">{cap(row.intent)}</td>
+                          {FAILURE_TYPES.map((ft) => {
+                            const count = (row[ft.key] as number) ?? 0;
+                            const opacity = count > 0 ? 0.12 + (count / maxInRow) * 0.55 : 0;
+                            return (
+                              <td key={ft.key} className="px-2 py-2.5 text-center">
+                                {count > 0 ? (
+                                  <span
+                                    className="inline-flex items-center justify-center w-8 h-6 rounded text-[10px] font-mono font-semibold"
+                                    style={{ backgroundColor: ft.color + Math.round(opacity * 255).toString(16).padStart(2, "0"), color: ft.color }}
+                                  >
+                                    {count}
+                                  </span>
+                                ) : (
+                                  <span className="text-zinc-800 text-[10px]">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2.5 text-right text-zinc-500 font-mono text-[10px]">{row.total}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Unclustered intents fallback */}
       {(!data.hasClusterData || data.unclustered.length > 0) && (

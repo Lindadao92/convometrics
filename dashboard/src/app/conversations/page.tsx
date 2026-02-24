@@ -5,7 +5,10 @@ import { useProductProfile } from "@/lib/product-profile-context";
 import {
   DIMENSIONS, DimensionKey, QualityScores, computeDimensionsFromScore, dimColor,
   SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
+  FAILURE_TYPES, FailureType, FailureTag, computeFailuresFromScore,
 } from "@/lib/mockQualityData";
+
+const FAILURE_TYPE_MAP = Object.fromEntries(FAILURE_TYPES.map((f) => [f.key, f]));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -160,6 +163,25 @@ function SignalChips({ signals }: { signals: string[] }) {
   );
 }
 
+function FailureTags({ tags }: { tags: FailureTag[] }) {
+  if (!tags.length) return <span className="text-zinc-700 text-xs">—</span>;
+  return (
+    <div className="flex flex-wrap gap-0.5">
+      {tags.map((tag, i) => {
+        const ft = FAILURE_TYPE_MAP[tag.type];
+        return (
+          <span key={i}
+            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium cursor-default"
+            style={{ color: ft.color, backgroundColor: ft.color + "15" }}
+            title={`Turn ${tag.turn}: ${tag.detail}`}>
+            {ft.icon} {ft.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function Bone({ className = "" }: { className?: string }) {
@@ -269,6 +291,36 @@ function ConversationDrawer({
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1">Intent</p>
               <p className="text-xs text-zinc-300 capitalize">{conv.intent ? cap(conv.intent) : "—"}</p>
+            </div>
+
+            {/* Detected Failures */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1.5">Detected Failures</p>
+              {conv.quality_score !== null ? (() => {
+                const tags = computeFailuresFromScore(conv.quality_score, conv.id);
+                return tags.length > 0 ? (
+                  <div className="space-y-2">
+                    {tags.map((tag, i) => {
+                      const ft = FAILURE_TYPE_MAP[tag.type];
+                      return (
+                        <div key={i} className="rounded-lg p-2.5"
+                          style={{ backgroundColor: ft.color + "10", border: `1px solid ${ft.color}25` }}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-xs">{ft.icon}</span>
+                            <span className="text-[10px] font-semibold" style={{ color: ft.color }}>{ft.label}</span>
+                            <span className="ml-auto text-[9px] text-zinc-600 font-mono">Turn {tag.turn}</span>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 leading-snug">{tag.detail}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-600">No failures detected</p>
+                );
+              })() : (
+                <p className="text-xs text-zinc-600">Not scored</p>
+              )}
             </div>
 
             {/* Satisfaction */}
@@ -385,6 +437,9 @@ export default function Conversations() {
   // Client-side satisfaction filter
   const [filterSatisfaction, setFilterSatisfaction] = useState<InferredSatisfaction | ("")>("");
 
+  // Client-side failure type filter
+  const [filterFailureType, setFilterFailureType] = useState<FailureType | "">("");
+
   // Sort (server-side for standard fields, client-side for dimensions)
   const [sortBy, setSortBy] = useState<SortField>("created_at");
   const [order,  setOrder]  = useState<"asc" | "desc">("desc");
@@ -460,6 +515,7 @@ export default function Conversations() {
     setFilterMinScore(""); setFilterMaxScore("");
     setSearchText(""); setDimFilterKey(""); setDimFilterMax(""); setDimFilterMin("");
     setFilterSatisfaction("");
+    setFilterFailureType("");
     setPage(0);
   }
 
@@ -492,6 +548,14 @@ export default function Conversations() {
     displayed = displayed.filter((c) => {
       const sat = computeSatisfactionFromScore(c.quality_score ?? 50, c.id);
       return sat.inferred === filterSatisfaction;
+    });
+  }
+
+  // Failure type filter
+  if (filterFailureType) {
+    displayed = displayed.filter((c) => {
+      const tags = computeFailuresFromScore(c.quality_score ?? 50, c.id);
+      return tags.some((t) => t.type === filterFailureType);
     });
   }
 
@@ -579,6 +643,13 @@ export default function Conversations() {
               <option value="neutral">— Neutral</option>
               <option value="frustrated">! Frustrated</option>
               <option value="abandoned">✗ Abandoned</option>
+            </select>
+
+            <select value={filterFailureType} onChange={(e) => setFilterFailureType(e.target.value as FailureType | "")} className={SELECT_CLS}>
+              <option value="">All Failure Types</option>
+              {FAILURE_TYPES.map((ft) => (
+                <option key={ft.key} value={ft.key}>{ft.icon} {ft.label}</option>
+              ))}
             </select>
 
             <div className="flex items-center gap-1 text-xs text-zinc-600">
@@ -670,6 +741,9 @@ export default function Conversations() {
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">
                     Satisfaction
                   </th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">
+                    Failures
+                  </th>
                   <SortTh field="completion_status" label="Status"  sortBy={sortBy} order={order} onSort={handleSort} />
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Turns</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">First message</th>
@@ -679,7 +753,7 @@ export default function Conversations() {
               <tbody>
                 {displayed.length === 0 ? (
                   <tr>
-                    <td colSpan={isMultiPlatform ? 10 : 9} className="text-center py-12 text-zinc-600 text-sm">
+                    <td colSpan={isMultiPlatform ? 11 : 10} className="text-center py-12 text-zinc-600 text-sm">
                       No conversations found matching your filters
                     </td>
                   </tr>
@@ -713,6 +787,9 @@ export default function Conversations() {
                           </td>
                           <td className="px-4 py-3">
                             <SatisfactionBadge sat={conv.quality_score !== null ? computeSatisfactionFromScore(conv.quality_score, conv.id).inferred : null} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <FailureTags tags={conv.quality_score !== null ? computeFailuresFromScore(conv.quality_score, conv.id) : []} />
                           </td>
                           <td className="px-4 py-3"><StatusBadge status={conv.completion_status} /></td>
                           <td className="px-4 py-3 text-zinc-500 font-mono text-xs">

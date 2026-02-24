@@ -46,6 +46,12 @@ interface QualityScoresData {
   total: number;
 }
 
+interface TopFailureItem {
+  key: string; label: string; icon: string; color: string;
+  thisWeek: number; lastWeek: number; delta: number; isAlert: boolean;
+}
+interface FailureTaxonomyData { topThisWeek: TopFailureItem[]; }
+
 interface SatDistItem {
   key: InferredSatisfaction;
   label: string;
@@ -374,6 +380,43 @@ function SatisfactionSection({ sat }: { sat: SatisfactionData }) {
   );
 }
 
+// ─── Top Failures Card ────────────────────────────────────────────────────────
+
+function TopFailuresCard({ failures }: { failures: TopFailureItem[] }) {
+  const hasAlert = failures.some((f) => f.isAlert);
+  return (
+    <div className={`rounded-xl border bg-[#13141b] p-5 ${hasAlert ? "border-red-500/20" : "border-white/[0.07]"}`}>
+      <div className="flex items-center gap-2 mb-1">
+        {hasAlert && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />}
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Top Failures This Week</p>
+      </div>
+      <p className="text-xs text-zinc-600 mb-4">Most frequent failure patterns · vs. last week</p>
+      <div className="space-y-3">
+        {failures.slice(0, 3).map((f) => {
+          const isUp   = f.delta > 0;
+          const isDown = f.delta < 0;
+          const arrow  = isUp ? "↑" : isDown ? "↓" : "→";
+          const deltaColor = f.isAlert ? "text-red-400" : isUp ? "text-amber-400" : isDown ? "text-emerald-400" : "text-zinc-600";
+          return (
+            <div key={f.key} className="flex items-center gap-3">
+              <span className="text-base w-5 shrink-0">{f.icon}</span>
+              <span className="text-sm text-zinc-300 flex-1">{f.label}</span>
+              <span className="text-xs font-mono text-zinc-300">{f.thisWeek}</span>
+              <span className={`text-xs font-mono font-semibold ${deltaColor} flex items-center gap-0.5`}>
+                {arrow}{Math.abs(f.delta)}%
+                {f.isAlert && <span className="ml-0.5 text-[8px] bg-red-500/20 text-red-400 px-1 rounded">!</span>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {failures.length === 0 && (
+        <p className="text-sm text-zinc-600 text-center py-4">No failures detected this week</p>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Overview() {
@@ -381,6 +424,7 @@ export default function Overview() {
   const [data, setData] = useState<ApiData | null>(null);
   const [qualityData, setQualityData] = useState<QualityScoresData | null>(null);
   const [satData, setSatData] = useState<SatisfactionData | null>(null);
+  const [failureData, setFailureData] = useState<FailureTaxonomyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -396,11 +440,13 @@ export default function Overview() {
       fetch("/api/overview").then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))),
       fetch("/api/quality-scores").then((r) => r.ok ? r.json() : null),
       fetch("/api/satisfaction").then((r) => r.ok ? r.json() : null),
+      fetch("/api/failure-taxonomy?days=14").then((r) => r.ok ? r.json() : null),
     ])
-      .then(([overview, quality, satisfaction]) => {
+      .then(([overview, quality, satisfaction, failures]) => {
         setData(overview);
         setQualityData(quality);
         setSatData(satisfaction);
+        setFailureData(failures);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -578,6 +624,11 @@ export default function Overview() {
 
       {/* ── Satisfaction Section ─────────────────────────────────────────────── */}
       {satData && <SatisfactionSection sat={satData} />}
+
+      {/* ── Top Failures This Week ───────────────────────────────────────────── */}
+      {failureData && failureData.topThisWeek.length > 0 && (
+        <TopFailuresCard failures={failureData.topThisWeek} />
+      )}
 
       {/* ── What's Working / What's Not ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">

@@ -35,6 +35,89 @@ export const SATISFACTION_META: Record<InferredSatisfaction, { label: string; co
   abandoned:  { label: "Abandoned",  color: "#ef4444", icon: "✗" },
 };
 
+// ─── Failure Taxonomy ──────────────────────────────────────────────────────────
+
+export const FAILURE_TYPES = [
+  { key: "misunderstanding",    icon: "🎯", label: "Misunderstanding",    description: "AI interpreted user's intent incorrectly",                   color: "#f59e0b" },
+  { key: "context_loss",        icon: "🧠", label: "Context Loss",         description: "AI forgot something user said earlier",                      color: "#8b5cf6" },
+  { key: "loop",                icon: "🔄", label: "Loop",                 description: "AI repeated itself or got stuck",                            color: "#3b82f6" },
+  { key: "hallucination",       icon: "💭", label: "Hallucination",        description: "AI generated factually incorrect claims",                    color: "#ef4444" },
+  { key: "tone_break",          icon: "🎭", label: "Tone Break",           description: "AI's tone inappropriate for context",                        color: "#ec4899" },
+  { key: "refusal_failure",     icon: "🚫", label: "Refusal Failure",      description: "AI refused legitimate request or failed to refuse bad one",  color: "#f97316" },
+  { key: "abandonment_trigger", icon: "🚪", label: "Abandonment Trigger",  description: "Specific turn where user disengaged",                        color: "#6b7280" },
+] as const;
+
+export type FailureType = typeof FAILURE_TYPES[number]["key"];
+
+export interface FailureTag {
+  type:   FailureType;
+  turn:   number;
+  detail: string;
+}
+
+// Cumulative weights used for random selection (must sum to 1.0)
+const FAILURE_WEIGHTS: { key: FailureType; cumulative: number }[] = [
+  { key: "misunderstanding",    cumulative: 0.30 },
+  { key: "context_loss",        cumulative: 0.52 },
+  { key: "loop",                cumulative: 0.70 },
+  { key: "hallucination",       cumulative: 0.82 },
+  { key: "tone_break",          cumulative: 0.90 },
+  { key: "refusal_failure",     cumulative: 0.96 },
+  { key: "abandonment_trigger", cumulative: 1.00 },
+];
+
+const FAILURE_DETAILS: Record<FailureType, string[]> = {
+  misunderstanding: [
+    "AI answered a different question than what was asked",
+    "AI missed the 'not' in the user's constraint",
+    "AI treated a follow-up question as a brand-new request",
+    "AI interpreted a technical term as a colloquial phrase",
+    "AI assumed the user wanted a summary when they wanted a how-to",
+  ],
+  context_loss: [
+    "AI re-asked for information the user already provided",
+    "AI forgot the programming language specified in turn 1",
+    "AI ignored the constraint stated two messages earlier",
+    "AI re-introduced a solution the user had already rejected",
+    "AI lost track of which file the user was referring to",
+  ],
+  loop: [
+    "AI restated its previous answer verbatim without adding value",
+    "AI offered the same three solutions across four turns",
+    "AI entered a clarification loop without making progress",
+    "AI repeated the same warning in every response",
+    "AI kept asking for clarification after user had already clarified",
+  ],
+  hallucination: [
+    "AI cited a non-existent function in the standard library",
+    "AI stated an incorrect version number as established fact",
+    "AI described a feature removed in a prior release as current",
+    "AI invented a research paper title and author that don't exist",
+    "AI claimed a config option exists that has never been implemented",
+  ],
+  tone_break: [
+    "AI lectured when the user needed a quick direct answer",
+    "AI added patronizing safety caveats to a routine request",
+    "AI shifted to overly formal language mid-conversation",
+    "AI responded with humour to a clearly frustrated user",
+    "AI used highly technical jargon with a self-described beginner",
+  ],
+  refusal_failure: [
+    "AI refused a legitimate coding task citing vague policy concerns",
+    "AI added excessive disclaimers to a benign factual question",
+    "AI complied with an ambiguous request without asking to clarify",
+    "AI refused to answer a question it had answered two turns prior",
+    "AI blocked a request that clearly had a legitimate educational use",
+  ],
+  abandonment_trigger: [
+    "User stopped responding after AI gave a vague non-answer",
+    "User disengaged after AI failed to understand the third rephrasing",
+    "Conversation ended abruptly after AI returned an irrelevant code block",
+    "User left after AI's response exceeded 800 tokens without substance",
+    "User disengaged when AI asked for clarification a third time",
+  ],
+};
+
 // ─── Quality Score Types ───────────────────────────────────────────────────────
 
 export interface QualityScores {
@@ -57,6 +140,7 @@ export interface MockConversation {
   scores:                QualityScores;
   satisfaction_signals:  SatisfactionSignal[];
   inferred_satisfaction: InferredSatisfaction;
+  failure_tags:          FailureTag[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -222,6 +306,28 @@ function buildConversations(): MockConversation[] {
       }
       const inferred_satisfaction = inferSatisfaction(signals);
 
+      // Failure tag generation — independent RNG, never alters above field values
+      const frng = makeRng(idx * 31337 + 4242);
+      const isFailed = overall < 65 || Object.values(dims).some((v) => v < 40);
+      const failure_tags: FailureTag[] = [];
+      if (isFailed) {
+        const numFailures = frng() < 0.25 ? 2 : 1;
+        const picked = new Set<FailureType>();
+        for (let f = 0; f < numFailures; f++) {
+          const roll = frng();
+          for (const { key, cumulative } of FAILURE_WEIGHTS) {
+            if (roll < cumulative && !picked.has(key)) {
+              picked.add(key);
+              const details = FAILURE_DETAILS[key];
+              const detailIdx = Math.floor(frng() * details.length);
+              const turn = Math.floor(frng() * 7) + 2; // turns 2–8
+              failure_tags.push({ type: key, turn, detail: details[detailIdx] });
+              break;
+            }
+          }
+        }
+      }
+
       convos.push({
         id:                    `mock-${String(idx).padStart(4, "0")}`,
         timestamp:             ts.toISOString(),
@@ -231,6 +337,7 @@ function buildConversations(): MockConversation[] {
         scores:                { ...dims, overall },
         satisfaction_signals:  signals,
         inferred_satisfaction,
+        failure_tags,
       });
       idx++;
     }
@@ -299,6 +406,30 @@ export function computeSatisfactionFromScore(
   }
 
   return { signals, inferred: inferSatisfaction(signals) };
+}
+
+// ─── Utility: derive failure tags from a real quality_score + id ──────────────
+
+export function computeFailuresFromScore(qualityScore: number, convId: string): FailureTag[] {
+  if (qualityScore >= 65) return [];
+  const rng = makeRng(hashStr(convId) ^ 0xdeadbeef);
+  const numFailures = rng() < 0.25 ? 2 : 1;
+  const picked = new Set<FailureType>();
+  const tags: FailureTag[] = [];
+  for (let f = 0; f < numFailures; f++) {
+    const roll = rng();
+    for (const { key, cumulative } of FAILURE_WEIGHTS) {
+      if (roll < cumulative && !picked.has(key)) {
+        picked.add(key);
+        const details = FAILURE_DETAILS[key];
+        const detailIdx = Math.floor(rng() * details.length);
+        const turn = Math.floor(rng() * 7) + 2;
+        tags.push({ type: key, turn, detail: details[detailIdx] });
+        break;
+      }
+    }
+  }
+  return tags;
 }
 
 // ─── Helper: dimension score → colour ────────────────────────────────────────
