@@ -26,6 +26,7 @@ interface TopicSummary {
   label: string; count: number; avgQuality: number | null;
   failureRate: number; completionRate: number; avgTurns: number | null;
   topPlatform: string | null; firstSeen: string | null; isEmerging: boolean;
+  estRevenueImpact?: number | null;
 }
 interface PlatformBreakdown { platform: string; count: number; pct: number; }
 interface ClusterData {
@@ -37,7 +38,7 @@ interface EmergingTopic {
   label: string; count: number; clusterName: string | null;
   firstSeen: string; avgQuality: number | null;
 }
-interface UnclusteredIntent { label: string; count: number; avgQuality: number | null; failureRate: number; }
+interface UnclusteredIntent { label: string; count: number; avgQuality: number | null; failureRate: number; estRevenueImpact?: number; }
 interface TopicInsights {
   mostDiscussed: { name: string; count: number } | null;
   biggestQualityGap: { label: string; count: number; avgQuality: number } | null;
@@ -136,7 +137,7 @@ function TreemapCell({ x = 0, y = 0, width = 0, height = 0, name = "", quality, 
   );
 }
 
-type SortKey = "count" | "avgQuality" | "completionRate" | "failureRate" | "avgTurns";
+type SortKey = "count" | "avgQuality" | "completionRate" | "failureRate" | "avgTurns" | "revenue";
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -198,10 +199,18 @@ export default function Topics() {
         failureRate: unc.failureRate, completionRate: 0, avgTurns: null,
         topPlatform: null, firstSeen: null, isEmerging: false,
         clusterName: "Unclustered",
+        estRevenueImpact: unc.estRevenueImpact ?? null,
       });
     }
     return rows;
   }, [data]);
+
+  const hasRevenue = useMemo(() => allTopicRows.some((r) => (r.estRevenueImpact ?? 0) > 0), [allTopicRows]);
+
+  // Auto-switch to revenue sort when revenue data is available
+  useEffect(() => {
+    if (hasRevenue) { setSortKey("revenue"); setSortDir("desc"); }
+  }, [hasRevenue]);
 
   const sortedFilteredRows = useMemo(() => {
     let rows = allTopicRows;
@@ -210,8 +219,8 @@ export default function Topics() {
       rows = rows.filter((r) => r.label.toLowerCase().includes(q) || r.clusterName.toLowerCase().includes(q));
     }
     return [...rows].sort((a, b) => {
-      const av = a[sortKey] ?? 0;
-      const bv = b[sortKey] ?? 0;
+      const av = sortKey === "revenue" ? (a.estRevenueImpact ?? 0) : (a[sortKey as keyof typeof a] as number ?? 0);
+      const bv = sortKey === "revenue" ? (b.estRevenueImpact ?? 0) : (b[sortKey as keyof typeof b] as number ?? 0);
       return sortDir === "desc" ? (bv as number) - (av as number) : (av as number) - (bv as number);
     });
   }, [allTopicRows, tableSearch, sortKey, sortDir]);
@@ -383,13 +392,14 @@ export default function Topics() {
                   <SortTh k="avgQuality" label="Avg Quality" />
                   <SortTh k="completionRate" label="Completion" />
                   <SortTh k="avgTurns" label="Avg Turns" />
+                  {hasRevenue && <SortTh k="revenue" label="Est. Impact/mo" />}
                   <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Trend</th>
                   {isMultiPlatform && <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Top Platform</th>}
                 </tr>
               </thead>
               <tbody>
                 {sortedFilteredRows.length === 0 ? (
-                  <tr><td colSpan={isMultiPlatform ? 8 : 7} className="text-center py-8 text-zinc-600 text-sm">No topics match your search</td></tr>
+                  <tr><td colSpan={(isMultiPlatform ? 8 : 7) + (hasRevenue ? 1 : 0)} className="text-center py-8 text-zinc-600 text-sm">No topics match your search</td></tr>
                 ) : (
                   sortedFilteredRows.slice(0, 100).map((row) => (
                     <tr key={`${row.clusterName}:${row.label}`} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
@@ -405,6 +415,13 @@ export default function Topics() {
                       </td>
                       <td className="px-4 py-2.5 text-zinc-400 font-mono text-xs">{row.completionRate ? `${row.completionRate}%` : "—"}</td>
                       <td className="px-4 py-2.5 text-zinc-400 font-mono text-xs">{row.avgTurns ?? "—"}</td>
+                      {hasRevenue && (
+                        <td className="px-4 py-2.5">
+                          {(row.estRevenueImpact ?? 0) > 0
+                            ? <span className="font-mono text-xs font-semibold text-emerald-400">${(row.estRevenueImpact!).toLocaleString()}/mo</span>
+                            : <span className="text-zinc-700 text-xs">—</span>}
+                        </td>
+                      )}
                       <td className="px-4 py-2.5">
                         {row.isEmerging
                           ? <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">New</span>

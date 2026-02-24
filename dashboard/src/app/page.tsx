@@ -66,6 +66,13 @@ interface ModelComparisonSummary {
   regressions: { dimension: string; intent: string | null }[];
 }
 
+interface OutcomesData {
+  retentionCurve: { qualityBin: string; retentionPct: number }[];
+  retentionMultiplier: number;
+  revenueTable: { intent: string; sessionsPerWeek: number; successRate: number; estMonthlyImpact: number }[];
+  churnRisk: { atRiskCount: number; totalLtvAtRisk: number };
+}
+
 interface SatDistItem {
   key: InferredSatisfaction;
   label: string;
@@ -394,6 +401,120 @@ function SatisfactionSection({ sat }: { sat: SatisfactionData }) {
   );
 }
 
+// ─── Outcomes Section ─────────────────────────────────────────────────────────
+
+const TOOLTIP_STYLE_LOCAL = {
+  contentStyle: { background: "#1a1b23", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 12 },
+  labelStyle: { color: "#a1a1aa" },
+  itemStyle: { color: "#e4e4e7" },
+};
+
+function OutcomesSection({ data }: { data: OutcomesData }) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
+      <div className="px-5 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2">
+          <span className="text-base">📈</span>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Quality → Business Results</p>
+        </div>
+        <p className="text-xs text-zinc-600 mt-0.5">How conversation quality drives retention and revenue</p>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-0 divide-y xl:divide-y-0 xl:divide-x divide-white/[0.06]">
+        {/* Left: Retention curve */}
+        <div className="xl:col-span-3 p-5 space-y-4">
+          <div>
+            <p className="text-xs font-medium text-zinc-300 mb-0.5">30-Day Retention Rate by Quality Score</p>
+            <p className="text-[10px] text-zinc-600">Higher quality conversations drive significantly better retention</p>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={data.retentionCurve} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="retentionGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="qualityBin" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+              <Tooltip {...TOOLTIP_STYLE_LOCAL} formatter={(v: number | undefined) => [`${v ?? 0}%`, "30-day retention"]} />
+              <Line type="monotone" dataKey="retentionPct" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: "#6366f1", r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
+            </LineChart>
+          </ResponsiveContainer>
+          {/* Callout */}
+          <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/20 px-4 py-2.5 flex items-start gap-2.5">
+            <span className="text-amber-400 text-sm shrink-0 mt-0.5">⭐</span>
+            <p className="text-xs text-amber-200/80 leading-relaxed">
+              Users with quality <span className="font-semibold text-amber-300">&gt; 75</span> retain at{" "}
+              <span className="font-bold text-amber-300 text-sm">{data.retentionMultiplier}×</span> the rate of users with quality{" "}
+              <span className="font-semibold text-amber-300">&lt; 50</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Revenue impact table */}
+        <div className="xl:col-span-2 p-5 space-y-3">
+          <div>
+            <p className="text-xs font-medium text-zinc-300 mb-0.5">Revenue Impact of +10pp Success Rate</p>
+            <p className="text-[10px] text-zinc-600">Estimated monthly recovery per intent</p>
+          </div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-white/[0.06]">
+                <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Intent</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Sess/wk</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Success</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Impact/mo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.revenueTable.map((row) => (
+                <tr key={row.intent} className="border-b border-white/[0.03]">
+                  <td className="py-2 text-zinc-300 capitalize max-w-[100px] truncate">{cap(row.intent)}</td>
+                  <td className="py-2 text-right text-zinc-500 font-mono">{row.sessionsPerWeek}</td>
+                  <td className="py-2 text-right text-zinc-500 font-mono">{row.successRate}%</td>
+                  <td className="py-2 text-right font-mono font-semibold text-emerald-400">${row.estMonthlyImpact.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[10px] text-zinc-700 leading-relaxed">Based on improving success rate by +10 percentage points per intent, applied to monthly volume</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Churn Risk Card ──────────────────────────────────────────────────────────
+
+function ChurnRiskCard({ churnRisk }: { churnRisk: OutcomesData["churnRisk"] }) {
+  return (
+    <div className="rounded-xl border border-red-500/20 bg-[#13141b] p-5 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+        </span>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400/80">Churn Risk</p>
+      </div>
+      <div className="space-y-1">
+        <p className="text-2xl font-bold text-red-300">{fmt(churnRisk.atRiskCount)}</p>
+        <p className="text-xs text-zinc-400">high-value users at risk this week</p>
+      </div>
+      <div className="rounded-lg bg-red-500/[0.07] border border-red-500/15 px-3 py-2">
+        <p className="text-[10px] text-red-300/70">Total LTV at risk</p>
+        <p className="text-base font-bold text-red-300 font-mono">${churnRisk.totalLtvAtRisk.toLocaleString()}</p>
+      </div>
+      <a href="/conversations" className="inline-flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors mt-auto">
+        View at-risk conversations
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  );
+}
+
 // ─── Segment Insight Card ─────────────────────────────────────────────────────
 
 function SegmentInsightCard({ meta }: { meta: SegmentMeta }) {
@@ -514,6 +635,7 @@ export default function Overview() {
   const [satData, setSatData] = useState<SatisfactionData | null>(null);
   const [failureData, setFailureData] = useState<FailureTaxonomyData | null>(null);
   const [compareData, setCompareData] = useState<ModelComparisonSummary | null>(null);
+  const [outcomesData, setOutcomesData] = useState<OutcomesData | null>(null);
   const [segmentMeta, setSegmentMeta] = useState<SegmentMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -534,13 +656,15 @@ export default function Overview() {
       fetch(`/api/satisfaction?days=30${sp}`).then((r) => r.ok ? r.json() : null),
       fetch(`/api/failure-taxonomy?days=14${sp}`).then((r) => r.ok ? r.json() : null),
       fetch("/api/model-comparison").then((r) => r.ok ? r.json() : null),
+      fetch(`/api/outcomes${seg ? `?segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
     ])
-      .then(([overview, quality, satisfaction, failures, compare]) => {
+      .then(([overview, quality, satisfaction, failures, compare, outcomes]) => {
         setData(overview);
         setQualityData(quality);
         setSatData(satisfaction);
         setFailureData(failures);
         setCompareData(compare);
+        setOutcomesData(outcomes);
         setSegmentMeta(overview?.segmentMeta ?? null);
       })
       .catch((e) => setError(String(e)))
@@ -723,14 +847,20 @@ export default function Overview() {
       {/* ── Segment Insight ─────────────────────────────────────────────────── */}
       {segmentMeta && <SegmentInsightCard meta={segmentMeta} />}
 
-      {/* ── Top Failures + Model Comparison ─────────────────────────────────── */}
-      {(failureData?.topThisWeek.length || compareData) && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      {/* ── Outcomes: Quality → Business Results ─────────────────────────────── */}
+      {outcomesData && <OutcomesSection data={outcomesData} />}
+
+      {/* ── Top Failures + Model Comparison + Churn Risk ─────────────────────── */}
+      {(failureData?.topThisWeek.length || compareData || outcomesData?.churnRisk.atRiskCount) && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {failureData && failureData.topThisWeek.length > 0 && (
             <TopFailuresCard failures={failureData.topThisWeek} />
           )}
           {compareData && (
             <ModelComparisonWidget compare={compareData} />
+          )}
+          {outcomesData && outcomesData.churnRisk.atRiskCount > 0 && (
+            <ChurnRiskCard churnRisk={outcomesData.churnRisk} />
           )}
         </div>
       )}

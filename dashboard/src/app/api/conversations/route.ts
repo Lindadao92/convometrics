@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
-import { getSegmentConversations } from "@/lib/mockSegmentData";
+import { getSegmentConversations, getUserLtv, getConversationOutcome, computeChurnRiskUsers } from "@/lib/mockSegmentData";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
     const total = filtered.length;
     const paginated = filtered.slice(page * limit, (page + 1) * limit);
     const intents = [...new Set(allConvos.map(c => c.intent))].sort();
+    const { userIds: churnRiskSet } = computeChurnRiskUsers(allConvos);
 
     const conversations = paginated.map(c => ({
       id: c.id,
@@ -85,6 +86,9 @@ export async function GET(req: NextRequest) {
       created_at: c.timestamp,
       turns: Math.floor(Math.random() * 8) + 2,
       firstUserMessage: MOCK_FIRST_MESSAGES[c.intent] ?? `User asked about ${cap(c.intent).toLowerCase()}.`,
+      churnRisk: churnRiskSet.has(c.user_id),
+      ltv: getUserLtv(c.user_id),
+      outcome: getConversationOutcome(c.id, c.scores.overall),
     }));
 
     return NextResponse.json({ conversations, total, page, pageSize: limit, intents });

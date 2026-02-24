@@ -21,7 +21,7 @@ interface EmergingTopic {
   label: string; count: number; clusterName: string | null;
   firstSeen: string; avgQuality: number | null;
 }
-interface UnclusteredIntent { label: string; count: number; avgQuality: number | null; failureRate: number; }
+interface UnclusteredIntent { label: string; count: number; avgQuality: number | null; failureRate: number; estRevenueImpact?: number; }
 interface TopicsApiResponse {
   clusters: ClusterData[]; emergingTopics: EmergingTopic[]; unclustered: UnclusteredIntent[];
   hasClusterData: boolean; totalConversations: number; uniqueTopicsCount: number;
@@ -182,12 +182,16 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiRespo
   // 6. Unclustered intents (no cluster assignment)
   const unclustered: UnclusteredIntent[] = Object.entries(byIntent)
     .filter(([label, g]) => !g.clusterId && !intentToClusterId[label])
-    .map(([label, g]) => ({
-      label,
-      count: g.count,
-      avgQuality: g.scores.length ? Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length) : null,
-      failureRate: g.count > 0 ? Math.round(((g.failed + g.abandoned) / g.count) * 1000) / 10 : 0,
-    }))
+    .map(([label, g]) => {
+      const failureRate = g.count > 0 ? Math.round(((g.failed + g.abandoned) / g.count) * 1000) / 10 : 0;
+      return {
+        label,
+        count: g.count,
+        avgQuality: g.scores.length ? Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length) : null,
+        failureRate,
+        estRevenueImpact: g.count > 0 ? Math.round(g.count * 4.3 * (failureRate / 100) * 0.10 * 180) : 0,
+      };
+    })
     .sort((a, b) => b.count - a.count)
     .slice(0, 50);
 

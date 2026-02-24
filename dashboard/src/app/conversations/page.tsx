@@ -36,6 +36,7 @@ interface Conversation {
   intent: string | null; quality_score: number | null;
   completion_status: string | null; messages: Message[];
   created_at: string; turns: number | null; firstUserMessage: string;
+  churnRisk?: boolean; ltv?: number; outcome?: string | null;
 }
 type ServerSortField = "created_at" | "quality_score" | "intent" | "completion_status";
 type SortField = ServerSortField | DimensionKey;
@@ -751,6 +752,7 @@ export default function Conversations() {
                     Failures
                   </th>
                   <SortTh field="completion_status" label="Status"  sortBy={sortBy} order={order} onSort={handleSort} />
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">Risk</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Turns</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">First message</th>
                   <th className="px-4 py-3 w-8" />
@@ -759,7 +761,7 @@ export default function Conversations() {
               <tbody>
                 {displayed.length === 0 ? (
                   <tr>
-                    <td colSpan={isMultiPlatform ? 11 : 10} className="text-center py-12 text-zinc-600 text-sm">
+                    <td colSpan={isMultiPlatform ? 12 : 11} className="text-center py-12 text-zinc-600 text-sm">
                       No conversations found matching your filters
                     </td>
                   </tr>
@@ -798,6 +800,11 @@ export default function Conversations() {
                             <FailureTags tags={conv.quality_score !== null ? computeFailuresFromScore(conv.quality_score, conv.id) : []} />
                           </td>
                           <td className="px-4 py-3"><StatusBadge status={conv.completion_status} /></td>
+                          <td className="px-4 py-3">
+                            {conv.churnRisk
+                              ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20 whitespace-nowrap">⚡ Churn Risk</span>
+                              : <span className="text-zinc-700 text-xs">—</span>}
+                          </td>
                           <td className="px-4 py-3 text-zinc-500 font-mono text-xs">
                             {conv.turns !== null ? conv.turns : <span className="text-zinc-700">—</span>}
                           </td>

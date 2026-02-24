@@ -677,12 +677,16 @@ export function computeMockTopicsStats(segment: string) {
   }
 
   const unclustered = Object.entries(byIntent)
-    .map(([intent, g]) => ({
-      label: intent,
-      count: g.count,
-      avgQuality: g.qualityCount > 0 ? Math.round(g.qualitySum / g.qualityCount) : null,
-      failureRate: g.count > 0 ? Math.round((g.failCount / g.count) * 1000) / 10 : 0,
-    }))
+    .map(([intent, g]) => {
+      const failureRate = g.count > 0 ? Math.round((g.failCount / g.count) * 1000) / 10 : 0;
+      return {
+        label: intent,
+        count: g.count,
+        avgQuality: g.qualityCount > 0 ? Math.round(g.qualitySum / g.qualityCount) : null,
+        failureRate,
+        estRevenueImpact: Math.round(g.count * 4.3 * (failureRate / 100) * 0.10 * 180),
+      };
+    })
     .sort((a, b) => b.count - a.count);
 
   const bestQuality = [...unclustered].filter(x => x.avgQuality !== null).sort((a, b) => (b.avgQuality ?? 0) - (a.avgQuality ?? 0));
@@ -710,5 +714,111 @@ export function computeMockTopicsStats(segment: string) {
       platformSpecialization: [],
     },
     segmentMeta: { keyInsight: meta.keyInsight, name: meta.name, emoji: meta.emoji },
+  };
+}
+
+// ─── Outcomes helpers ──────────────────────────────────────────────────────────
+
+export function getUserLtv(userId: string): number {
+  const num = parseInt(userId.replace("user-", ""), 10) || 0;
+  const rng = makeRng(num * 7919 + 12345);
+  return rng() < 0.30
+    ? Math.round(200 + rng() * 300)  // Pro: $200–$500
+    : Math.round(rng() * 50);         // Free: $0–$50
+}
+
+export function getConversationOutcome(convId: string, quality: number): string | null {
+  const seed = convId.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const rng = makeRng(seed * 3571 + 8191);
+  const roll = rng();
+  if (quality >= 75) {
+    if (roll < 0.78) return "retained";
+    if (roll < 0.90) return "converted";
+    if (roll < 0.95) return "escalated";
+    return null;
+  } else if (quality >= 50) {
+    if (roll < 0.55) return "retained";
+    if (roll < 0.65) return "converted";
+    if (roll < 0.80) return "churned";
+    if (roll < 0.90) return "escalated";
+    return null;
+  } else {
+    if (roll < 0.20) return "retained";
+    if (roll < 0.65) return "churned";
+    if (roll < 0.87) return "escalated";
+    return null;
+  }
+}
+
+export function computeChurnRiskUsers(convos: MockConversation[]): { userIds: Set<string>; totalLtv: number; count: number } {
+  const sevenDaysAgo = Date.now() - 7 * 86400000;
+  const recentBad: Record<string, number> = {};
+  for (const c of convos) {
+    if (new Date(c.timestamp).getTime() < sevenDaysAgo) continue;
+    if (c.inferred_satisfaction === "frustrated" || c.inferred_satisfaction === "abandoned") {
+      recentBad[c.user_id] = (recentBad[c.user_id] ?? 0) + 1;
+    }
+  }
+  const userIds = new Set<string>();
+  let totalLtv = 0;
+  for (const [uid, bad] of Object.entries(recentBad)) {
+    const ltv = getUserLtv(uid);
+    if (bad >= 2 && ltv > 100) { userIds.add(uid); totalLtv += ltv; }
+  }
+  return { userIds, totalLtv, count: userIds.size };
+}
+
+// ─── Scripted outcomes data ────────────────────────────────────────────────────
+
+const RETENTION_CURVE = [
+  { qualityBin: "0–30",   retentionPct: 15 },
+  { qualityBin: "30–50",  retentionPct: 32 },
+  { qualityBin: "50–70",  retentionPct: 58 },
+  { qualityBin: "70–85",  retentionPct: 78 },
+  { qualityBin: "85–100", retentionPct: 89 },
+];
+
+type RevenueRow = { intent: string; sessionsPerWeek: number; successRate: number; estMonthlyImpact: number };
+
+const REVENUE_TABLES: Record<DemoSegment, RevenueRow[]> = {
+  ai_assistant: [
+    { intent: "code_help",          sessionsPerWeek: 87, successRate: 42, estMonthlyImpact: 3200 },
+    { intent: "connect_api",        sessionsPerWeek: 52, successRate: 25, estMonthlyImpact: 2800 },
+    { intent: "debug_error",        sessionsPerWeek: 61, successRate: 38, estMonthlyImpact: 2100 },
+    { intent: "explain_concept",    sessionsPerWeek: 73, successRate: 55, estMonthlyImpact: 1800 },
+    { intent: "research_question",  sessionsPerWeek: 95, successRate: 71, estMonthlyImpact:  900 },
+  ],
+  ai_support: [
+    { intent: "complaint",          sessionsPerWeek: 63, successRate: 34, estMonthlyImpact: 5400 },
+    { intent: "cancellation",       sessionsPerWeek: 44, successRate: 28, estMonthlyImpact: 4100 },
+    { intent: "technical_problem",  sessionsPerWeek: 78, successRate: 61, estMonthlyImpact: 3800 },
+    { intent: "account_access",     sessionsPerWeek: 55, successRate: 72, estMonthlyImpact: 1600 },
+    { intent: "billing_issue",      sessionsPerWeek: 91, successRate: 89, estMonthlyImpact: 1200 },
+  ],
+  ai_companion: [
+    { intent: "emotional_support",  sessionsPerWeek: 82, successRate: 64, estMonthlyImpact: 2900 },
+    { intent: "venting",            sessionsPerWeek: 59, successRate: 52, estMonthlyImpact: 2400 },
+    { intent: "roleplay",           sessionsPerWeek: 48, successRate: 43, estMonthlyImpact: 1800 },
+    { intent: "advice_seeking",     sessionsPerWeek: 71, successRate: 67, estMonthlyImpact: 1700 },
+    { intent: "casual_chat",        sessionsPerWeek: 66, successRate: 81, estMonthlyImpact:  800 },
+  ],
+  ai_tutor: [
+    { intent: "homework_help",       sessionsPerWeek: 94, successRate: 41, estMonthlyImpact: 3400 },
+    { intent: "exam_prep",           sessionsPerWeek: 68, successRate: 57, estMonthlyImpact: 2100 },
+    { intent: "concept_explanation", sessionsPerWeek: 76, successRate: 59, estMonthlyImpact: 1900 },
+    { intent: "practice_problem",    sessionsPerWeek: 57, successRate: 62, estMonthlyImpact: 1400 },
+    { intent: "quiz_review",         sessionsPerWeek: 45, successRate: 70, estMonthlyImpact:  900 },
+  ],
+};
+
+export function computeMockOutcomesData(segment: string) {
+  const seg = (segment in REVENUE_TABLES ? segment : "ai_assistant") as DemoSegment;
+  const convos = getSegmentConversations(segment);
+  const { count: atRiskCount, totalLtv: totalLtvAtRisk } = computeChurnRiskUsers(convos);
+  return {
+    retentionCurve: RETENTION_CURVE,
+    retentionMultiplier: 3.1,
+    revenueTable: REVENUE_TABLES[seg],
+    churnRisk: { atRiskCount, totalLtvAtRisk },
   };
 }
