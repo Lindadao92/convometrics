@@ -51,7 +51,7 @@ export const SEGMENT_META: Record<DemoSegment, SegmentMeta> = {
       "Context loss in roleplay increased as sessions grew longer (>12 turns)",
       "Users who experienced naturalness score >80 had 3.1× longer average sessions",
     ],
-    intents: ["emotional_support","roleplay","casual_chat","advice_seeking","creative_storytelling","venting","companionship","humor","philosophical_discussion"],
+    intents: ["roleplay","emotional_support","casual_chat","creative_storytelling","advice_seeking","companionship","humor_entertainment","learning_exploration","philosophical_discussion"],
     failureTypes: ["tone_break","context_loss","loop","abandonment_trigger","misunderstanding"],
     dimensionEmphasis: "Naturalness and coherence matter most; accuracy weighted less than other segments",
   },
@@ -229,7 +229,7 @@ const TUTOR_PROFILES: SegmentProfile[] = [
 const COMPANION_FAILURE_DETAILS: Partial<Record<FailureType, string[]>> = {
   tone_break: [
     "AI responded cheerfully when user described feeling overwhelmed and alone",
-    "Companion used humor during a venting session about a difficult breakup",
+    "Companion used humor during an emotional support session about a difficult breakup",
     "AI suggested 'look on the bright side' when user needed validation first",
     "Tone shifted to formal/clinical when user was being emotionally vulnerable",
     "AI added unsolicited life advice when user just wanted to be heard",
@@ -259,7 +259,7 @@ const COMPANION_FAILURE_DETAILS: Partial<Record<FailureType, string[]>> = {
     "AI read a playful tone as distress and responded with crisis resources",
     "Companion took ironic statement literally and responded out of context",
     "AI confused 'I need space' as a literal request instead of emotional need",
-    "Companion interpreted venting as a request for solutions",
+    "Companion interpreted emotional sharing as a request for solutions",
     "AI misread the emotional register of the user's message",
   ],
 };
@@ -797,7 +797,7 @@ const REVENUE_TABLES: Record<DemoSegment, RevenueRow[]> = {
   ],
   ai_companion: [
     { intent: "emotional_support",  sessionsPerWeek: 82, successRate: 64, estMonthlyImpact: 2900 },
-    { intent: "venting",            sessionsPerWeek: 59, successRate: 52, estMonthlyImpact: 2400 },
+    { intent: "humor_entertainment", sessionsPerWeek: 59, successRate: 52, estMonthlyImpact: 2400 },
     { intent: "roleplay",           sessionsPerWeek: 48, successRate: 43, estMonthlyImpact: 1800 },
     { intent: "advice_seeking",     sessionsPerWeek: 71, successRate: 67, estMonthlyImpact: 1700 },
     { intent: "casual_chat",        sessionsPerWeek: 66, successRate: 81, estMonthlyImpact:  800 },

@@ -47,9 +47,9 @@ const TOOLTIP_STYLE = {
 };
 
 function scoreColor(score: number) {
-  if (score >= 80) return "#22c55e";
-  if (score >= 65) return "#84cc16";
-  if (score >= 50) return "#eab308";
+  if (score >= 75) return "#22c55e";
+  if (score >= 55) return "#eab308";
+  if (score >= 40) return "#f97316";
   return "#ef4444";
 }
 

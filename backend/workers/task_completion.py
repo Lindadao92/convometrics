@@ -36,7 +36,7 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 
 BATCH_SIZE = 10
-MIN_MESSAGES = 3          # skip conversations that are too short to analyze
+MIN_MESSAGES = 1          # single-turn conversations are valid for this dataset
 FETCH_MULTIPLIER = 5      # fetch extra rows to compensate for filtering
 POLL_INTERVAL = 5         # seconds between polls when idle
 RATE_LIMIT_BACKOFF = 60   # seconds to wait on OpenAI rate limit

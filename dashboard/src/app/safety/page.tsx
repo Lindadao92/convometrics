@@ -418,9 +418,9 @@ export default function SafetyPage() {
                       key={entry.label}
                       fill={
                         entry.label === "0–20" ? "#ef4444" :
-                        entry.label === "20–40" ? "#f97316" :
-                        entry.label === "40–60" ? "#eab308" :
-                        entry.label === "60–80" ? "#84cc16" :
+                        entry.label === "20–40" ? "#ef4444" :
+                        entry.label === "40–60" ? "#f97316" :
+                        entry.label === "60–80" ? "#eab308" :
                         "#22c55e"
                       }
                     />
@@ -535,7 +535,7 @@ export default function SafetyPage() {
                         <span className="text-xs text-zinc-400 capitalize">{conv.intent ? cap(conv.intent) : "—"}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`font-mono text-xs ${conv.qualityScore >= 70 ? "text-emerald-400" : conv.qualityScore >= 45 ? "text-amber-400" : "text-red-400"}`}>
+                        <span className={`font-mono text-xs ${conv.qualityScore >= 75 ? "text-emerald-400" : conv.qualityScore >= 55 ? "text-amber-400" : conv.qualityScore >= 40 ? "text-orange-400" : "text-red-400"}`}>
                           {conv.qualityScore}
                         </span>
                       </td>

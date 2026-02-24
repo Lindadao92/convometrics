@@ -31,7 +31,7 @@ export type InferredSatisfaction = "satisfied" | "neutral" | "frustrated" | "aba
 export const SATISFACTION_META: Record<InferredSatisfaction, { label: string; color: string; icon: string }> = {
   satisfied:  { label: "Satisfied",  color: "#22c55e", icon: "✓" },
   neutral:    { label: "Neutral",    color: "#71717a", icon: "—" },
-  frustrated: { label: "Frustrated", color: "#f59e0b", icon: "!" },
+  frustrated: { label: "Frustrated", color: "#f97316", icon: "!" },
   abandoned:  { label: "Abandoned",  color: "#ef4444", icon: "✗" },
 };
 
@@ -476,7 +476,8 @@ export function computeFailuresFromScore(qualityScore: number, convId: string): 
 // ─── Helper: dimension score → colour ────────────────────────────────────────
 export function dimColor(score: number | null): string {
   if (score === null) return "#3f3f46";
-  if (score > 70) return "#22c55e";
-  if (score > 40) return "#eab308";
+  if (score > 75) return "#22c55e";
+  if (score > 55) return "#eab308";
+  if (score > 40) return "#f97316";
   return "#ef4444";
 }

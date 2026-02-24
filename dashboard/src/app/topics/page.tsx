@@ -145,7 +145,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 42, color: "#22c55e" },
-      { label: "Satisfied", pct: 29, color: "#84cc16" },
+      { label: "Satisfied", pct: 29, color: "#22c55e" },
       { label: "Neutral", pct: 18, color: "#eab308" },
       { label: "Dissatisfied", pct: 11, color: "#ef4444" },
     ],
@@ -171,7 +171,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 31, color: "#22c55e" },
-      { label: "Satisfied", pct: 34, color: "#84cc16" },
+      { label: "Satisfied", pct: 34, color: "#22c55e" },
       { label: "Neutral", pct: 22, color: "#eab308" },
       { label: "Dissatisfied", pct: 13, color: "#ef4444" },
     ],
@@ -197,7 +197,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 48, color: "#22c55e" },
-      { label: "Satisfied", pct: 30, color: "#84cc16" },
+      { label: "Satisfied", pct: 30, color: "#22c55e" },
       { label: "Neutral", pct: 14, color: "#eab308" },
       { label: "Dissatisfied", pct: 8, color: "#ef4444" },
     ],
@@ -223,7 +223,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 44, color: "#22c55e" },
-      { label: "Satisfied", pct: 29, color: "#84cc16" },
+      { label: "Satisfied", pct: 29, color: "#22c55e" },
       { label: "Neutral", pct: 16, color: "#eab308" },
       { label: "Dissatisfied", pct: 11, color: "#ef4444" },
     ],
@@ -249,7 +249,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 24, color: "#22c55e" },
-      { label: "Satisfied", pct: 34, color: "#84cc16" },
+      { label: "Satisfied", pct: 34, color: "#22c55e" },
       { label: "Neutral", pct: 26, color: "#eab308" },
       { label: "Dissatisfied", pct: 16, color: "#ef4444" },
     ],
@@ -275,7 +275,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 38, color: "#22c55e" },
-      { label: "Satisfied", pct: 32, color: "#84cc16" },
+      { label: "Satisfied", pct: 32, color: "#22c55e" },
       { label: "Neutral", pct: 18, color: "#eab308" },
       { label: "Dissatisfied", pct: 12, color: "#ef4444" },
     ],
@@ -301,7 +301,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 52, color: "#22c55e" },
-      { label: "Satisfied", pct: 28, color: "#84cc16" },
+      { label: "Satisfied", pct: 28, color: "#22c55e" },
       { label: "Neutral", pct: 13, color: "#eab308" },
       { label: "Dissatisfied", pct: 7, color: "#ef4444" },
     ],
@@ -327,7 +327,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 27, color: "#22c55e" },
-      { label: "Satisfied", pct: 35, color: "#84cc16" },
+      { label: "Satisfied", pct: 35, color: "#22c55e" },
       { label: "Neutral", pct: 24, color: "#eab308" },
       { label: "Dissatisfied", pct: 14, color: "#ef4444" },
     ],
@@ -353,7 +353,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
     ],
     satDist: [
       { label: "Very satisfied", pct: 35, color: "#22c55e" },
-      { label: "Satisfied", pct: 33, color: "#84cc16" },
+      { label: "Satisfied", pct: 33, color: "#22c55e" },
       { label: "Neutral", pct: 20, color: "#eab308" },
       { label: "Dissatisfied", pct: 12, color: "#ef4444" },
     ],
@@ -373,9 +373,8 @@ function cap(s: string) { return s.replace(/_/g, " "); }
 function qualityColor(q: number | null): string {
   if (q === null) return "#3f3f46";
   if (q >= 75) return "#22c55e";
-  if (q >= 60) return "#84cc16";
-  if (q >= 45) return "#eab308";
-  if (q >= 30) return "#f97316";
+  if (q >= 55) return "#eab308";
+  if (q >= 40) return "#f97316";
   return "#ef4444";
 }
 
@@ -610,7 +609,7 @@ export default function Topics() {
           </div>
 
           <div className="flex items-center gap-4 mb-4 mt-3">
-            {[["≥75", "#22c55e"], ["≥60", "#84cc16"], ["≥45", "#eab308"], ["<45", "#f97316"]].map(([label, color]) => (
+            {[["≥75", "#22c55e"], ["≥55", "#eab308"], ["≥40", "#f97316"], ["<40", "#ef4444"]].map(([label, color]) => (
               <span key={label} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
                 <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color as string, opacity: 0.8 }} />
                 {label}
@@ -992,7 +991,7 @@ export default function Topics() {
           </div>
 
           <div className="flex items-center gap-4 mb-4 mt-3">
-            {[["≥75", "#22c55e"], ["≥60", "#84cc16"], ["≥45", "#eab308"], ["≥30", "#f97316"], ["<30", "#ef4444"], ["No data", "#3f3f46"]].map(([label, color]) => (
+            {[["≥75", "#22c55e"], ["≥55", "#eab308"], ["≥40", "#f97316"], ["<40", "#ef4444"], ["No data", "#3f3f46"]].map(([label, color]) => (
               <span key={label} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
                 <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color as string, opacity: 0.8 }} />
                 {label}

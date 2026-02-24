@@ -235,7 +235,7 @@ export default function QualityIntent() {
                       <td className="px-4 py-2.5 text-zinc-600 text-xs">{i + 1}</td>
                       <td className="px-4 py-2.5 text-zinc-200 capitalize">{cap(row.intent)}</td>
                       <td className="px-4 py-2.5">
-                        <span className={`font-mono font-medium ${(row.avgScore ?? 0) >= 70 ? "text-emerald-400" : (row.avgScore ?? 0) >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                        <span className={`font-mono font-medium ${(row.avgScore ?? 0) >= 75 ? "text-emerald-400" : (row.avgScore ?? 0) >= 55 ? "text-amber-400" : (row.avgScore ?? 0) >= 40 ? "text-orange-400" : "text-red-400"}`}>
                           {row.avgScore}
                         </span>
                       </td>

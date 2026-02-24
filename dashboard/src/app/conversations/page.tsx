@@ -51,9 +51,8 @@ function fmtDate(iso: string) {
 }
 function qualityColor(q: number) {
   if (q >= 75) return "#22c55e";
-  if (q >= 60) return "#84cc16";
-  if (q >= 45) return "#eab308";
-  if (q >= 30) return "#f97316";
+  if (q >= 55) return "#eab308";
+  if (q >= 40) return "#f97316";
   return "#ef4444";
 }
 function isDimKey(k: string): k is DimensionKey {

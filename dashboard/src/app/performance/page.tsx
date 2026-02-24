@@ -221,9 +221,8 @@ function cap(s: string) { return s.replace(/_/g, " "); }
 function qualityColor(q: number | null): string {
   if (q === null) return "#3f3f46";
   if (q >= 75) return "#22c55e";
-  if (q >= 60) return "#84cc16";
-  if (q >= 45) return "#eab308";
-  if (q >= 30) return "#f97316";
+  if (q >= 55) return "#eab308";
+  if (q >= 40) return "#f97316";
   return "#ef4444";
 }
 
@@ -343,8 +342,9 @@ function CompanionQualityOverviewTab() {
 
 function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiPlatform: boolean }) {
   const qColors = (label: string) =>
-    label.startsWith("81") ? "#22c55e" : label.startsWith("61") ? "#84cc16" :
-    label.startsWith("41") ? "#eab308" : label.startsWith("21") ? "#f97316" : "#ef4444";
+    label.startsWith("81") || label.startsWith("76") ? "#22c55e" :
+    label.startsWith("61") || label.startsWith("56") ? "#eab308" :
+    label.startsWith("41") || label.startsWith("40") ? "#f97316" : "#ef4444";
 
   return (
     <div className="space-y-6">
@@ -1371,7 +1371,7 @@ export default function Performance() {
           {overallQuality !== null && (
             <div className="text-right">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Avg Quality</p>
-              <p className="text-2xl font-bold" style={{ color: overallQuality >= 70 ? "#22c55e" : overallQuality >= 50 ? "#eab308" : "#ef4444" }}>
+              <p className="text-2xl font-bold" style={{ color: overallQuality >= 75 ? "#22c55e" : overallQuality >= 55 ? "#eab308" : overallQuality >= 40 ? "#f97316" : "#ef4444" }}>
                 {overallQuality}<span className="text-base text-zinc-500">/100</span>
               </p>
             </div>

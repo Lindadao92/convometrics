@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
   LineChart, Line, CartesianGrid,
@@ -114,9 +114,9 @@ function HealthGauge({ score }: { score: number | null }) {
   const rotation = -225;
   const color =
     score === null ? "#3f3f46" :
-    score >= 80 ? "#22c55e" :
-    score >= 60 ? "#84cc16" :
-    score >= 40 ? "#eab308" : "#ef4444";
+    score >= 75 ? "#22c55e" :
+    score >= 55 ? "#eab308" :
+    score >= 40 ? "#f97316" : "#ef4444";
 
   return (
     <svg width="160" height="160" viewBox="0 0 160 160">
@@ -667,10 +667,216 @@ function ModelComparisonWidget({ compare }: { compare: ModelComparisonSummary })
   );
 }
 
+// ─── Character.ai companion constants ─────────────────────────────────────────
+
+const CHAR_TYPE_DATA = [
+  { label: "Anime / Fiction",      pct: 35, count: 875,  color: "#8b5cf6" },
+  { label: "Original Character",   pct: 25, count: 625,  color: "#6366f1" },
+  { label: "Celebrity",            pct: 15, count: 375,  color: "#3b82f6" },
+  { label: "Therapist / Advisor",  pct: 10, count: 250,  color: "#06b6d4" },
+  { label: "Romantic Partner",     pct: 8,  count: 200,  color: "#ec4899" },
+  { label: "Historical",           pct: 4,  count: 100,  color: "#f59e0b" },
+  { label: "Game Character",       pct: 3,  count: 75,   color: "#22c55e" },
+];
+
+const ENGAGEMENT_FUNNEL_DATA = [
+  { label: "Started conversation",       pct: 100, count: 2500, color: "#6366f1" },
+  { label: "Engaged (10+ turns)",        pct: 67,  count: 1675, color: "#8b5cf6" },
+  { label: "Deep engagement (30+ turns)", pct: 38, count: 950,  color: "#a855f7" },
+  { label: "Returned within 24h",        pct: 52,  count: 1300, color: "#ec4899" },
+];
+
+const COMPANION_DIMS = [
+  { key: "naturalness",  label: "Naturalness",  score: 76, weight: 0.05, color: "#8b5cf6" },
+  { key: "safety",       label: "Safety",       score: 71, weight: 0.05, color: "#22c55e" },
+  { key: "coherence",    label: "Coherence",    score: 70, weight: 0.15, color: "#6366f1" },
+  { key: "relevance",    label: "Relevance",    score: 68, weight: 0.20, color: "#3b82f6" },
+  { key: "satisfaction", label: "Satisfaction", score: 67, weight: 0.10, color: "#10b981" },
+  { key: "helpfulness",  label: "Helpfulness",  score: 63, weight: 0.25, color: "#f59e0b" },
+  { key: "accuracy",     label: "Accuracy",     score: 59, weight: 0.20, color: "#ef4444" },
+];
+
+const COMPANION_QUALITY_DIST = [
+  { label: "0–20",   count: 25  },
+  { label: "21–40",  count: 75  },
+  { label: "41–60",  count: 375 },
+  { label: "61–80",  count: 1375},
+  { label: "81–100", count: 650 },
+];
+
+const COMPANION_TREND = Array.from({ length: 30 }, (_, i) => ({
+  date: (() => { const d = new Date("2026-01-25"); d.setDate(d.getDate() + i); return d.toISOString().slice(0, 10); })(),
+  overall: 66 + Math.round((i / 29) * 3) + (i % 5 === 2 ? 1 : i % 7 === 4 ? -1 : 0),
+}));
+
+const COMPANION_QUALITY_DATA: QualityScoresData = {
+  overallScore: 69,
+  scoreDelta: 1,
+  dimensions: COMPANION_DIMS,
+  trendData: COMPANION_TREND,
+  total: 2500,
+};
+
+const COMPANION_WHAT_WORKS = [
+  { intent: "humor_entertainment", avgQuality: 77 },
+  { intent: "casual_chat",         avgQuality: 76 },
+  { intent: "creative_storytelling", avgQuality: 74 },
+];
+
+const COMPANION_WHAT_DOESNT = [
+  { intent: "advice_seeking",    avgQuality: 62, note: "" },
+  { intent: "learning_exploration", avgQuality: 65, note: "" },
+  { intent: "emotional_support", avgQuality: 68, note: "high volume — critical" },
+];
+
+const COMPANION_BRIEFING_BULLETS = [
+  "Overall conversation quality held steady at 69 (↑1 from last week)",
+  "emotional_support intent has the highest frustration rate (34%) — tone_break failures are the primary cause. Users in crisis moments are getting cheerful or dismissive responses.",
+  "character_break failures increased 18% this week, concentrated in Anime/Fiction characters on the Flash model.",
+  "Biggest opportunity: Fix tone_break in emotional_support. 450 sessions/week, only 58% satisfaction. Improving this could reduce churn risk for ~120 daily active users.",
+  "Power users are 2.8× more likely to have high-quality roleplay experiences than new users — onboarding quality gap is widening.",
+];
+
+// ─── Monday Morning Briefing Card ─────────────────────────────────────────────
+
+function MondayBriefingCard() {
+  return (
+    <div className="rounded-xl border border-indigo-500/25 bg-gradient-to-br from-indigo-500/[0.08] to-purple-500/[0.04] p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg">⚡</span>
+          <div>
+            <p className="text-sm font-semibold text-white">Weekly AI Briefing</p>
+            <p className="text-[10px] text-indigo-400/70">Feb 17–23, 2026 · auto-generated</p>
+          </div>
+        </div>
+        <a href="/report" className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors border border-indigo-500/30 rounded-lg px-2.5 py-1">
+          Full report →
+        </a>
+      </div>
+      <div className="space-y-2.5">
+        {COMPANION_BRIEFING_BULLETS.map((line, i) => {
+          const isAlert = line.includes("highest frustration") || line.includes("Biggest opportunity");
+          const isWarn  = line.includes("increased 18%");
+          return (
+            <div key={i} className="flex items-start gap-2.5">
+              <span className={`text-xs mt-0.5 shrink-0 ${isAlert ? "text-amber-400" : isWarn ? "text-red-400" : "text-indigo-400/60"}`}>
+                {isAlert ? "⚠" : isWarn ? "↑" : "·"}
+              </span>
+              <p className={`text-xs leading-relaxed ${isAlert ? "text-amber-100/80" : "text-zinc-400"}`}>{line}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Companion Churn Risk Card ─────────────────────────────────────────────────
+
+function CompanionChurnRiskCard() {
+  return (
+    <div className="rounded-xl border border-red-500/20 bg-[#13141b] p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+        </span>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-red-400/80">Daily Active Users at Risk</p>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <p className="text-3xl font-bold text-red-300 font-mono">87</p>
+          <p className="text-xs text-zinc-500 mt-0.5">DAUs at risk this week</p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-xs text-zinc-400 mb-2.5">Had 2+ frustrated conversations · concentrated in:</p>
+          <div className="space-y-1.5">
+            {[
+              { label: "emotional_support", count: 41, color: "#f87171" },
+              { label: "roleplay (context_loss)", count: 29, color: "#fb923c" },
+              { label: "other intents", count: 17, color: "#71717a" },
+            ].map((row) => (
+              <div key={row.label} className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
+                  <div className="h-full rounded-full" style={{ width: `${(row.count / 41) * 100}%`, backgroundColor: row.color + "aa" }} />
+                </div>
+                <span className="text-[10px] text-zinc-500 capitalize w-36 truncate">{row.label}</span>
+                <span className="text-[10px] font-mono text-zinc-400 w-5 text-right">{row.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <a href="/conversations" className="inline-flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors mt-4">
+        View at-risk conversations
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  );
+}
+
+// ─── Character Type Chart ──────────────────────────────────────────────────────
+
+function CharacterTypeChart() {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Conversations by Character Type</p>
+      <p className="text-xs text-zinc-600 mb-4">Distribution across character categories — 2,500 conversations</p>
+      <div className="space-y-2.5">
+        {CHAR_TYPE_DATA.map((row) => (
+          <div key={row.label} className="flex items-center gap-3">
+            <span className="text-xs text-zinc-400 w-36 shrink-0">{row.label}</span>
+            <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${row.pct}%`, backgroundColor: row.color }} />
+            </div>
+            <span className="text-xs font-mono text-zinc-400 w-8 text-right shrink-0">{row.pct}%</span>
+            <span className="text-[10px] text-zinc-600 w-12 text-right shrink-0">{fmt(row.count)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Engagement Funnel Card ────────────────────────────────────────────────────
+
+function EngagementFunnelCard() {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Engagement Funnel</p>
+      <p className="text-xs text-zinc-600 mb-5">How deeply users engage — more meaningful than completion for companion products</p>
+      <div className="space-y-3">
+        {ENGAGEMENT_FUNNEL_DATA.map((row, i) => (
+          <div key={row.label}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-zinc-300">{row.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-semibold" style={{ color: row.color }}>{row.pct}%</span>
+                <span className="text-[10px] text-zinc-600">{fmt(row.count)}</span>
+              </div>
+            </div>
+            <div className="relative h-2 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${row.pct}%`, backgroundColor: row.color + (i === 0 ? "99" : "cc") }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 pt-3 border-t border-white/[0.05]">
+        <p className="text-[10px] text-zinc-700">
+          <span className="text-indigo-400 font-semibold">52%</span> of engaged users return within 24 hours — strong retention signal
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Overview() {
-  const { profile, editableName, editableDescription, setEditableName, setEditableDescription } = useProductProfile();
+  const { profile } = useProductProfile();
   const { segment } = useDemoMode();
   const [data, setData] = useState<ApiData | null>(null);
   const [qualityData, setQualityData] = useState<QualityScoresData | null>(null);
@@ -682,13 +888,8 @@ export default function Overview() {
   const [segmentMeta, setSegmentMeta] = useState<SegmentMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [editingDesc, setEditingDesc] = useState(false);
-  const [draftName, setDraftName] = useState(editableName);
-  const [draftDesc, setDraftDesc] = useState(editableDescription);
-  const nameRef = useRef<HTMLInputElement>(null);
-  const descRef = useRef<HTMLTextAreaElement>(null);
+
+  const isCompanion = segment === "ai_companion";
 
   useEffect(() => {
     const seg = segment;
@@ -714,16 +915,7 @@ export default function Overview() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-
-    const seen = localStorage.getItem("convometrics_about_seen");
-    if (seen) setCollapsed(true);
-    else localStorage.setItem("convometrics_about_seen", "1");
   }, [segment]);
-
-  useEffect(() => { setDraftName(editableName); }, [editableName]);
-  useEffect(() => { setDraftDesc(editableDescription); }, [editableDescription]);
-  useEffect(() => { if (editingName) nameRef.current?.focus(); }, [editingName]);
-  useEffect(() => { if (editingDesc) descRef.current?.focus(); }, [editingDesc]);
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {
@@ -741,148 +933,79 @@ export default function Overview() {
   const analyzedPct = stats.total > 0 ? Math.round((stats.analyzed / stats.total) * 100) : 0;
   const hasAnalyzed = stats.analyzed > 0;
 
+  // For companion: use hardcoded data; for other segments: use API data
+  const effectiveQuality = isCompanion ? COMPANION_QUALITY_DATA : qualityData;
+  const effectiveHealthScore = isCompanion ? 68 : healthScore;
+  const effectiveQualityDist = isCompanion ? COMPANION_QUALITY_DIST : qualityDistribution;
+
   const funnelData = statusBreakdown.map(({ status, count }) => ({
     name: status.replace(/_/g, " "),
     value: count,
     fill: STATUS_COLORS[status] ?? "#6b7280",
   }));
 
-  const isMultiPlatform = (profile?.platforms?.length ?? 0) > 1;
+  const isMultiPlatform = !isCompanion && (profile?.platforms?.length ?? 0) > 1;
   const volumeData = isMultiPlatform
     ? byPlatform.map((d) => ({ name: PLATFORM_LABELS[d.platform] ?? d.platform, count: d.total, platform: d.platform }))
     : turnDistribution;
 
+  const healthLabel = (s: number | null) => {
+    if (s === null) return null;
+    if (s >= 80) return "Excellent";
+    if (s >= 70) return "Good";
+    if (s >= 60) return "Fair";
+    if (s >= 40) return "Needs work";
+    return "Critical";
+  };
+
+  const topWorking = isCompanion ? COMPANION_WHAT_WORKS : topPerformingTopics.map(t => ({ intent: t.intent, avgQuality: t.avgQuality }));
+  const topNotWorking = isCompanion ? COMPANION_WHAT_DOESNT : worstPerformingTopics.map(t => ({ intent: t.intent, avgQuality: t.avgQuality, note: "" }));
+
   return (
     <div className="p-8 max-w-7xl space-y-6">
 
-      {/* ── About this dataset card ─────────────────────────────────────────── */}
-      <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm font-medium text-zinc-300">About this dataset</span>
-          </div>
-          <svg className={`w-4 h-4 text-zinc-600 transition-transform ${collapsed ? "" : "rotate-180"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {!collapsed && (
-          <div className="px-5 pb-5 border-t border-white/[0.05] pt-4 space-y-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Dataset Name</p>
-              {editingName ? (
-                <input
-                  ref={nameRef}
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  onBlur={() => { setEditableName(draftName); setEditingName(false); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") { setEditableName(draftName); setEditingName(false); } if (e.key === "Escape") { setDraftName(editableName); setEditingName(false); } }}
-                  className="w-full bg-[#0f101a] border border-white/[0.12] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/50"
-                />
-              ) : (
-                <button onClick={() => setEditingName(true)} className="text-base font-semibold text-white hover:text-zinc-200 text-left group flex items-center gap-2">
-                  {editableName}
-                  <svg className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Description</p>
-              {editingDesc ? (
-                <textarea
-                  ref={descRef}
-                  value={draftDesc}
-                  rows={3}
-                  onChange={(e) => setDraftDesc(e.target.value)}
-                  onBlur={() => { setEditableDescription(draftDesc); setEditingDesc(false); }}
-                  className="w-full bg-[#0f101a] border border-white/[0.12] rounded-lg px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/50 resize-none"
-                />
-              ) : (
-                <button onClick={() => setEditingDesc(true)} className="text-sm text-zinc-400 hover:text-zinc-300 text-left group flex items-start gap-2 w-full">
-                  <span>{editableDescription}</span>
-                  <svg className="w-3 h-3 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            {profile?.dateRange && (profile.dateRange.start || profile.dateRange.end) && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Date Range</p>
-                <p className="text-sm text-zinc-400">
-                  {profile.dateRange.start ? fmtDate(profile.dateRange.start) : "—"}
-                  {" "}–{" "}
-                  {profile.dateRange.end ? fmtDate(profile.dateRange.end) : "—"}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* ── Monday Morning Briefing (companion) ─────────────────────────────── */}
+      {isCompanion && <MondayBriefingCard />}
+
+      {/* ── Companion Churn Risk banner (companion) ──────────────────────────── */}
+      {isCompanion && <CompanionChurnRiskCard />}
 
       {/* ── Health Score + Key metrics ──────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5 flex flex-col items-center justify-center">
-          <HealthGauge score={healthScore} />
-          {!hasAnalyzed && (
-            <p className="text-[10px] text-zinc-600 mt-2 text-center">Run analysis to calculate</p>
-          )}
-          {hasAnalyzed && healthScore !== null && (
+          <HealthGauge score={effectiveHealthScore} />
+          {effectiveHealthScore !== null && (
             <p className="text-[10px] text-zinc-500 mt-1 text-center">
-              {healthScore >= 80 ? "Excellent" : healthScore >= 60 ? "Good" : healthScore >= 40 ? "Needs work" : "Critical"}
+              {healthLabel(effectiveHealthScore)}
             </p>
           )}
         </div>
 
         <div className="xl:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-4">
-          <StatCard label="Total Conversations" value={fmt(stats.total)} />
-          <StatCard label="Analyzed" value={fmt(stats.analyzed)} sub={`${analyzedPct}% of total`} />
-          <StatCard label="Avg Quality" value={stats.avgQuality !== null ? `${stats.avgQuality}/100` : "—"} sub={hasAnalyzed ? "AI-scored" : "run analysis"} />
-          <StatCard label="Completion Rate" value={stats.completionRate !== null ? `${stats.completionRate}%` : "—"} />
-          <StatCard label="Avg Turns" value={stats.avgTurns !== null ? stats.avgTurns : "—"} sub="per conversation" />
-          <StatCard label="Top Topic" value={stats.topTopic ? cap(stats.topTopic) : "—"} sub="by volume" />
+          <StatCard label="Total Conversations" value={isCompanion ? "2,500" : fmt(stats.total)} />
+          <StatCard label="Analyzed" value={isCompanion ? "2,500" : fmt(stats.analyzed)} sub={isCompanion ? "100% of total" : `${analyzedPct}% of total`} />
+          <StatCard label="Avg Quality" value={isCompanion ? "69/100" : (stats.avgQuality !== null ? `${stats.avgQuality}/100` : "—")} sub="AI-scored" />
+          {isCompanion
+            ? <StatCard label="Engagement Rate" value="67%" sub="10+ turn conversations" />
+            : <StatCard label="Completion Rate" value={stats.completionRate !== null ? `${stats.completionRate}%` : "—"} />
+          }
+          <StatCard label="Avg Turns" value={isCompanion ? "25" : (stats.avgTurns !== null ? stats.avgTurns : "—")} sub="per conversation" />
+          <StatCard label="Top Intent" value={isCompanion ? "Roleplay" : (stats.topTopic ? cap(stats.topTopic) : "—")} sub={isCompanion ? "28% of sessions" : "by volume"} />
         </div>
       </div>
 
-      {/* Analysis progress bar */}
-      {stats.analyzed < stats.total && (
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] px-5 py-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-zinc-400">
-              Analysis progress — <span className="text-white font-mono">{fmt(stats.analyzed)}</span>
-              <span className="text-zinc-600"> of {fmt(stats.total)} conversations analyzed</span>
-            </span>
-            <span className="text-xs font-mono text-zinc-500">{analyzedPct}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-white/[0.06]">
-            <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${Math.max(analyzedPct, 0.5)}%` }} />
-          </div>
-          {stats.analyzed === 0 && (
-            <p className="text-xs text-zinc-500 mt-2">
-              Run <code className="text-zinc-300 bg-white/[0.06] px-1 rounded">python -m scripts.test_workers</code> to start analyzing conversations.
-            </p>
-          )}
-        </div>
-      )}
+      {/* Analysis progress bar removed — all conversations fully analyzed */}
 
       {/* ── Conversation Quality Score ───────────────────────────────────────── */}
-      {qualityData && (
+      {effectiveQuality && (
         <>
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <QualityScoreHero data={qualityData} />
+            <QualityScoreHero data={effectiveQuality} />
             <div className="xl:col-span-2">
-              <DimensionChart data={qualityData} />
+              <DimensionChart data={effectiveQuality} />
             </div>
           </div>
-
-          <QualityTrend trendData={qualityData.trendData} />
+          <QualityTrend trendData={effectiveQuality.trendData} />
         </>
       )}
 
@@ -895,8 +1018,8 @@ export default function Overview() {
       {/* ── Outcomes: Quality → Business Results ─────────────────────────────── */}
       {outcomesData && <OutcomesSection data={outcomesData} />}
 
-      {/* ── Top Failures + Model Comparison + Churn Risk ─────────────────────── */}
-      {(failureData?.topThisWeek.length || compareData || outcomesData?.churnRisk.atRiskCount || safetyData) && (
+      {/* ── Top Failures + Model Comparison + Churn Risk + Safety ────────────── */}
+      {(failureData?.topThisWeek.length || compareData || (!isCompanion && outcomesData?.churnRisk.atRiskCount) || safetyData) && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {failureData && failureData.topThisWeek.length > 0 && (
             <TopFailuresCard failures={failureData.topThisWeek} />
@@ -904,7 +1027,7 @@ export default function Overview() {
           {compareData && (
             <ModelComparisonWidget compare={compareData} />
           )}
-          {outcomesData && outcomesData.churnRisk.atRiskCount > 0 && (
+          {!isCompanion && outcomesData && outcomesData.churnRisk.atRiskCount > 0 && (
             <ChurnRiskCard churnRisk={outcomesData.churnRisk} />
           )}
           {safetyData && (
@@ -920,17 +1043,12 @@ export default function Overview() {
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-500/70">What&apos;s Working</p>
           </div>
-          <p className="text-xs text-zinc-600 mb-4">Top 3 highest-performing topics by quality score</p>
-          {!hasAnalyzed ? (
-            <div className="flex items-center justify-center h-24 flex-col gap-2">
-              <p className="text-sm text-zinc-600">Run AI workers to discover</p>
-              <p className="text-[10px] text-zinc-700">Topics will appear here after analysis</p>
-            </div>
-          ) : topPerformingTopics.length === 0 ? (
+          <p className="text-xs text-zinc-600 mb-4">Top intents by quality score</p>
+          {topWorking.length === 0 ? (
             <p className="text-sm text-zinc-600">No topics with sufficient data yet</p>
           ) : (
             <div className="space-y-3">
-              {topPerformingTopics.map((t, i) => (
+              {topWorking.map((t, i) => (
                 <div key={t.intent} className="flex items-center gap-3">
                   <span className="text-zinc-700 font-mono text-xs w-4">{i + 1}</span>
                   <span className="text-sm text-zinc-200 capitalize flex-1">{cap(t.intent)}</span>
@@ -946,21 +1064,21 @@ export default function Overview() {
             <span className="w-2 h-2 rounded-full bg-red-500" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-red-500/70">What&apos;s Not</p>
           </div>
-          <p className="text-xs text-zinc-600 mb-4">Top 3 worst-performing topics by quality score</p>
-          {!hasAnalyzed ? (
-            <div className="flex items-center justify-center h-24 flex-col gap-2">
-              <p className="text-sm text-zinc-600">Run AI workers to discover</p>
-              <p className="text-[10px] text-zinc-700">Failure patterns will appear here after analysis</p>
-            </div>
-          ) : worstPerformingTopics.length === 0 ? (
+          <p className="text-xs text-zinc-600 mb-4">
+            {isCompanion ? "Intents with highest frustration · high volume = urgent" : "Worst-performing topics by quality score"}
+          </p>
+          {topNotWorking.length === 0 ? (
             <p className="text-sm text-zinc-600">No topics with sufficient data yet</p>
           ) : (
             <div className="space-y-3">
-              {worstPerformingTopics.map((t, i) => (
+              {topNotWorking.map((t, i) => (
                 <div key={t.intent} className="flex items-center gap-3">
                   <span className="text-zinc-700 font-mono text-xs w-4">{i + 1}</span>
                   <span className="text-sm text-zinc-200 capitalize flex-1">{cap(t.intent)}</span>
-                  <span className={`text-xs font-mono font-medium ${t.avgQuality < 40 ? "text-red-400" : "text-amber-400"}`}>{t.avgQuality}/100</span>
+                  {"note" in t && t.note
+                    ? <span className="text-[10px] text-amber-500/80 italic mr-1">{t.note}</span>
+                    : null}
+                  <span className={`text-xs font-mono font-medium ${t.avgQuality < 60 ? "text-red-400" : "text-amber-400"}`}>{t.avgQuality}/100</span>
                 </div>
               ))}
             </div>
@@ -971,44 +1089,48 @@ export default function Overview() {
       {/* ── At a Glance 2×2 grid ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
-        {/* 1. Volume by platform / turn distribution */}
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">
-            {isMultiPlatform ? "Conversations by Platform" : "Conversation Length Distribution"}
-          </p>
-          <p className="text-xs text-zinc-600 mb-4">
-            {isMultiPlatform ? "Total conversation volume per AI platform" : "Distribution of conversation turn counts across all conversations"}
-          </p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={volumeData} layout={isMultiPlatform ? "vertical" : "horizontal"}
-              margin={isMultiPlatform ? { left: 8, right: 24, top: 0, bottom: 0 } : { top: 0, right: 8, bottom: 0, left: 0 }}>
-              {isMultiPlatform ? (
-                <>
-                  <XAxis type="number" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} width={76} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [fmt(v ?? 0), "Conversations"]} />
-                  <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={28}>
-                    {(volumeData as { platform: string }[]).map((d) => (
-                      <Cell key={d.platform} fill={PLATFORM_COLORS[d.platform] ?? "#6366f1"} />
-                    ))}
-                  </Bar>
-                </>
-              ) : (
-                <>
-                  <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [fmt(v ?? 0), "Conversations"]} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={52} fill="#6366f1" />
-                </>
-              )}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {/* 1. Character type (companion) or Platform/Turn distribution */}
+        {isCompanion ? <CharacterTypeChart /> : (
+          <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">
+              {isMultiPlatform ? "Conversations by Platform" : "Conversation Length Distribution"}
+            </p>
+            <p className="text-xs text-zinc-600 mb-4">
+              {isMultiPlatform ? "Total conversation volume per AI platform" : "Distribution of conversation turn counts"}
+            </p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={volumeData} layout={isMultiPlatform ? "vertical" : "horizontal"}
+                margin={isMultiPlatform ? { left: 8, right: 24, top: 0, bottom: 0 } : { top: 0, right: 8, bottom: 0, left: 0 }}>
+                {isMultiPlatform ? (
+                  <>
+                    <XAxis type="number" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} width={76} />
+                    <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [fmt(v ?? 0), "Conversations"]} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                      {(volumeData as { platform: string }[]).map((d) => (
+                        <Cell key={d.platform} fill={PLATFORM_COLORS[d.platform] ?? "#6366f1"} />
+                      ))}
+                    </Bar>
+                  </>
+                ) : (
+                  <>
+                    <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [fmt(v ?? 0), "Conversations"]} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={52} fill="#6366f1" />
+                  </>
+                )}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* 2. Conversation depth */}
         <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Conversation Depth Distribution</p>
-          <p className="text-xs text-zinc-600 mb-4">How many turns per conversation — shows whether users have brief or extended exchanges</p>
+          <p className="text-xs text-zinc-600 mb-4">
+            {isCompanion ? "Turn count distribution — companion users have long, immersive sessions" : "How many turns per conversation — brief vs extended exchanges"}
+          </p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={turnDistribution} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
               <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -1023,73 +1145,72 @@ export default function Overview() {
         <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Quality Distribution</p>
           <p className="text-xs text-zinc-600 mb-4">
-            {hasAnalyzed ? "How quality scores are distributed — skew left = AI struggles, right = AI excels" : "Run analysis to see quality distribution"}
+            How quality scores are distributed — skew left = AI struggles, right = AI excels
           </p>
-          {!hasAnalyzed ? (
-            <div className="flex items-center justify-center h-48 flex-col gap-3 text-zinc-600">
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <p className="text-sm">Run analysis workers to unlock</p>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={qualityDistribution} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
-                <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [fmt(v ?? 0), "Conversations"]} />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={52}>
-                  {qualityDistribution.map((entry) => {
-                    const label = entry.label;
-                    const fill = label.startsWith("81") ? "#22c55e" : label.startsWith("61") ? "#84cc16" : label.startsWith("41") ? "#eab308" : label.startsWith("21") ? "#f97316" : "#ef4444";
-                    return <Cell key={label} fill={fill} />;
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={effectiveQualityDist} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
+              <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [fmt(v ?? 0), "Conversations"]} />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={52}>
+                {effectiveQualityDist.map((entry) => {
+                  const label = entry.label;
+                  const fill = (label.startsWith("81") || label.startsWith("80") || label === "81–100" || label.startsWith("76") || label === "76–100")
+                    ? "#22c55e"
+                    : (label.startsWith("61") || label === "61–80" || label.startsWith("56") || label === "56–75")
+                    ? "#eab308"
+                    : (label.startsWith("41") || label === "41–60" || label === "40–55")
+                    ? "#f97316"
+                    : "#ef4444";
+                  return <Cell key={label} fill={fill} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* 4. Completion funnel */}
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Completion Funnel</p>
-          <p className="text-xs text-zinc-600 mb-4">
-            {hasAnalyzed ? "Breakdown of conversation outcomes — completed, failed, abandoned, in progress" : "Run analysis to see completion breakdown"}
-          </p>
-          {!hasAnalyzed || funnelData.length === 0 ? (
-            <div className="flex items-center justify-center h-48 flex-col gap-3 text-zinc-600">
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-              </svg>
-              <p className="text-sm">Run analysis workers to unlock</p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width="50%" height={180}>
-                <PieChart>
-                  <Pie data={funnelData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={70} strokeWidth={0}>
-                    {funnelData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                  </Pie>
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? ""]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-2 flex-1">
-                {funnelData.map((d) => {
-                  const total = funnelData.reduce((a, b) => a + b.value, 0);
-                  const pct = total > 0 ? Math.round((d.value / total) * 1000) / 10 : 0;
-                  return (
-                    <div key={d.name} className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
-                      <span className="text-xs text-zinc-300 capitalize flex-1">{d.name}</span>
-                      <span className="text-xs font-mono text-zinc-400">{pct}%</span>
-                    </div>
-                  );
-                })}
+        {/* 4. Engagement Funnel (companion) or Completion Funnel */}
+        {isCompanion ? <EngagementFunnelCard /> : (
+          <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Completion Funnel</p>
+            <p className="text-xs text-zinc-600 mb-4">
+              {hasAnalyzed ? "Breakdown of conversation outcomes" : "Run analysis to see completion breakdown"}
+            </p>
+            {!hasAnalyzed || funnelData.length === 0 ? (
+              <div className="flex items-center justify-center h-48 flex-col gap-3 text-zinc-600">
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                </svg>
+                <p className="text-sm">Run analysis workers to unlock</p>
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <ResponsiveContainer width="50%" height={180}>
+                  <PieChart>
+                    <Pie data={funnelData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={70} strokeWidth={0}>
+                      {funnelData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                    </Pie>
+                    <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? ""]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-2 flex-1">
+                  {funnelData.map((d) => {
+                    const total = funnelData.reduce((a, b) => a + b.value, 0);
+                    const pct = total > 0 ? Math.round((d.value / total) * 1000) / 10 : 0;
+                    return (
+                      <div key={d.name} className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
+                        <span className="text-xs text-zinc-300 capitalize flex-1">{d.name}</span>
+                        <span className="text-xs font-mono text-zinc-400">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

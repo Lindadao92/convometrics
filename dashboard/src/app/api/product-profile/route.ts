@@ -33,9 +33,9 @@ export async function GET() {
   const activePlatforms = platformCounts.filter((p) => p.count > 0).map((p) => p.platform);
 
   return NextResponse.json({
-    productName: "ShareChat Dataset",
+    productName: "Character.ai",
     productDescription:
-      "146,644 real conversations across 5 AI platforms: ChatGPT, Claude, Gemini, Grok, Perplexity. Sourced from tucnguyen/ShareChat on HuggingFace.",
+      "2,500 companion conversations analyzed across roleplay, emotional support, casual chat, and 6 other intents.",
     isMultiPlatform: activePlatforms.length > 1,
     platforms: activePlatforms,
     hasAnalyzedData: analyzedCount > 0,

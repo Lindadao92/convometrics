@@ -107,6 +107,7 @@ function ShellInner({ children }: { children: ReactNode }) {
         >
           Convometrics
         </a>
+        <span className="text-[10px] text-zinc-600 font-medium">Character.ai Dashboard</span>
 
         {/* Center: Demo mode segment picker */}
         <div className="flex-1 flex items-center justify-center gap-4">
@@ -132,24 +133,7 @@ function ShellInner({ children }: { children: ReactNode }) {
             })}
           </div>
 
-          {/* Platform filter (multi-platform only) */}
-          {profile?.isMultiPlatform && (
-            <div className="flex items-center gap-2">
-              <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              <select
-                value={selectedPlatform}
-                onChange={(e) => setSelectedPlatform(e.target.value)}
-                className="bg-[#13141b] border border-white/[0.08] rounded-lg px-3 py-1 text-xs text-zinc-300 focus:outline-none focus:border-white/20 cursor-pointer"
-              >
-                <option value="all">All Platforms</option>
-                {(profile.platforms ?? []).map((p) => (
-                  <option key={p} value={p}>{PLATFORM_LABELS[p] ?? p}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Platform filter removed — single-company demo */}
         </div>
 
         {/* Gear icon → Settings */}
@@ -189,7 +173,7 @@ function ShellInner({ children }: { children: ReactNode }) {
             })}
           </nav>
           <div className="mt-auto px-5 py-4 border-t border-white/[0.06]">
-            <p className="text-xs text-zinc-600">v0.3.0</p>
+            <p className="text-xs text-zinc-600">v0.4.0</p>
           </div>
         </aside>
 
