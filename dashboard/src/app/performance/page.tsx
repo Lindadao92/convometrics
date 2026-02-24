@@ -6,6 +6,7 @@ import {
   PieChart, Pie, LineChart, Line, CartesianGrid, ScatterChart, Scatter, ZAxis,
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { DIMENSIONS, DimensionKey, dimColor } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,21 @@ interface PerformanceData {
   fixFirst: { intent: string; count: number; failureRate: number; avgQuality: number | null; qualityGap: number; impactScore: number; examples: string[] }[];
   total: number;
   insights: { qualityDrop: string | null; abandonment: string | null; topFix: string | null };
+}
+
+interface QualityScoresData {
+  overallScore: number | null;
+  scoreDelta: number | null;
+  dimensions: { key: string; label: string; weight: number; color: string; score: number | null }[];
+  trendData: Record<string, string | number | null>[];
+  dimensionBreakdown: {
+    key: string; label: string; weight: number;
+    currentAvg: number | null; last7Avg: number | null; sevenDayChange: number | null;
+    bestIntent: string; worstIntent: string;
+  }[];
+  intents: string[];
+  models: string[];
+  total: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -103,7 +119,6 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
     <div className="space-y-6">
       {data.insights.qualityDrop && <AutoInsight text={data.insights.qualityDrop} />}
 
-      {/* Quality distribution */}
       <ChartCard title="Quality Score Distribution"
         subtitle="Distribution of AI quality scores — skew left = AI struggles, skew right = AI excels">
         <ResponsiveContainer width="100%" height={220}>
@@ -118,7 +133,6 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* Quality by topic */}
       <ChartCard title="Quality by Topic"
         subtitle="Topics sorted worst to best — red = needs improvement, green = performing well">
         {data.qualityByTopic.length === 0 ? (
@@ -138,7 +152,6 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
         )}
       </ChartCard>
 
-      {/* Quality by platform */}
       {isMultiPlatform && data.qualityByPlatform.length > 0 && (
         <ChartCard title="Quality by Platform"
           subtitle="Average quality score per AI platform — identifies which platform serves users best">
@@ -156,7 +169,6 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
         </ChartCard>
       )}
 
-      {/* Quality by conversation length */}
       {data.qualityByTurns.length > 0 && (
         <ChartCard title="Quality by Conversation Length"
           subtitle="Does AI quality drop in longer conversations? Longer = harder to maintain context and relevance">
@@ -188,7 +200,6 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
     <div className="space-y-6">
       {data.insights.abandonment && <AutoInsight text={data.insights.abandonment} />}
 
-      {/* Donut + legend */}
       <ChartCard title="Conversation Outcomes"
         subtitle="Overall breakdown of how conversations end — completed, failed, abandoned, or in progress">
         {donutData.length === 0 ? (
@@ -220,7 +231,6 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
         )}
       </ChartCard>
 
-      {/* Completion by topic */}
       <ChartCard title="Completion Rate by Topic"
         subtitle="Topics sorted worst to best completion — low completion means users don't get what they need">
         {data.completionByTopic.length === 0 ? (
@@ -242,7 +252,6 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
         )}
       </ChartCard>
 
-      {/* Completion by platform */}
       {isMultiPlatform && data.qualityByPlatform.length > 0 && (
         <ChartCard title="Completion Rate by Platform"
           subtitle="Which AI platform has the highest rate of users successfully achieving their goals?">
@@ -260,7 +269,6 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
         </ChartCard>
       )}
 
-      {/* Abandonment histogram */}
       {data.abandonmentHistogram.length > 0 && (
         <ChartCard title="Abandonment Patterns"
           subtitle="At which turn do users most often give up? Peaks reveal where AI consistently fails to satisfy users">
@@ -295,7 +303,6 @@ function FixPrioritiesTab({ data }: { data: PerformanceData }) {
     <div className="space-y-6">
       {data.insights.topFix && <AutoInsight text={data.insights.topFix} />}
 
-      {/* Impact Matrix scatter */}
       <ChartCard title="Impact Matrix"
         subtitle="Top-right quadrant = highest priority: high failure rate + high volume. Bubble size = quality gap.">
         {scatterData.length === 0 ? (
@@ -331,14 +338,12 @@ function FixPrioritiesTab({ data }: { data: PerformanceData }) {
                 <Scatter data={scatterData} fill="#ef4444" fillOpacity={0.6} />
               </ScatterChart>
             </ResponsiveContainer>
-            {/* Quadrant labels */}
             <div className="absolute top-4 right-8 text-[10px] text-red-400/70 font-semibold">Fix First ↗</div>
             <div className="absolute bottom-10 left-6 text-[10px] text-zinc-600 font-semibold">Monitor</div>
           </div>
         )}
       </ChartCard>
 
-      {/* Fix These First ranked list */}
       <ChartCard title="Fix These First"
         subtitle="Ranked by impact score = volume × failure rate × quality gap. Fix the top items for maximum improvement.">
         {data.fixFirst.length === 0 ? (
@@ -380,9 +385,205 @@ function FixPrioritiesTab({ data }: { data: PerformanceData }) {
   );
 }
 
+// ─── Tab 4: Quality Dimensions ────────────────────────────────────────────────
+
+function QualityDimensionsTab() {
+  const [filterIntent, setFilterIntent] = useState("");
+  const [filterModel, setFilterModel]   = useState("");
+  const [filterDays, setFilterDays]     = useState("30");
+  const [qData, setQData] = useState<QualityScoresData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ days: filterDays });
+    if (filterIntent) params.set("intent", filterIntent);
+    if (filterModel)  params.set("model",  filterModel);
+    fetch(`/api/quality-scores?${params}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setQData(d))
+      .finally(() => setLoading(false));
+  }, [filterIntent, filterModel, filterDays]);
+
+  const intents = qData?.intents ?? [];
+  const models  = qData?.models  ?? ["v2.0", "v2.1"];
+
+  const SELECT_CLS = "bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20";
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Filters ───────────────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-4 flex flex-wrap gap-3 items-center">
+        <p className="text-xs text-zinc-500 font-medium mr-1">Filter:</p>
+
+        <select value={filterIntent} onChange={(e) => setFilterIntent(e.target.value)} className={SELECT_CLS}>
+          <option value="">All Intent Categories</option>
+          {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
+        </select>
+
+        <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)} className={SELECT_CLS}>
+          <option value="">All Model Versions</option>
+          {models.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+
+        <select value={filterDays} onChange={(e) => setFilterDays(e.target.value)} className={SELECT_CLS}>
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="60">Last 60 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+
+        {(filterIntent || filterModel || filterDays !== "30") && (
+          <button
+            onClick={() => { setFilterIntent(""); setFilterModel(""); setFilterDays("30"); }}
+            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1.5"
+          >
+            Reset filters
+          </button>
+        )}
+
+        {qData && (
+          <span className="ml-auto text-[10px] text-zinc-600">
+            {fmt(qData.total)} conversations
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          <Bone className="h-72 rounded-xl" />
+          <Bone className="h-48 rounded-xl" />
+        </div>
+      ) : !qData || qData.total === 0 ? (
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-10 text-center">
+          <p className="text-zinc-500 text-sm">No data for selected filters</p>
+        </div>
+      ) : (
+        <>
+          {/* ── 7 Dimension Trendlines ───────────────────────────────────── */}
+          <ChartCard
+            title="Quality Dimensions Over Time"
+            subtitle="Daily average score per dimension — spot which axes are improving or degrading"
+          >
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={qData.trendData} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: "#71717a", fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval={Math.max(0, Math.floor(qData.trendData.length / 8) - 1)}
+                />
+                <YAxis domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  {...TOOLTIP_STYLE}
+                  formatter={(v: unknown, name: unknown) => [
+                    v != null ? `${v}/100` : "—",
+                    DIMENSIONS.find((d) => d.key === String(name))?.label ?? String(name),
+                  ]}
+                />
+                {DIMENSIONS.map((d) => (
+                  <Line
+                    key={d.key}
+                    type="monotone"
+                    dataKey={d.key}
+                    stroke={d.color}
+                    strokeWidth={1.5}
+                    dot={false}
+                    connectNulls
+                    name={d.key}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+
+            {/* Custom legend */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-4 pt-3 border-t border-white/[0.05]">
+              {DIMENSIONS.map((d) => (
+                <div key={d.key} className="flex items-center gap-1.5">
+                  <span className="w-4 h-0.5 shrink-0" style={{ backgroundColor: d.color }} />
+                  <span className="text-[10px] text-zinc-500">{d.label}</span>
+                  <span className="text-[10px] text-zinc-700">({Math.round(d.weight * 100)}%)</span>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
+
+          {/* ── Dimension Breakdown Table ────────────────────────────────── */}
+          <ChartCard
+            title="Dimension Breakdown"
+            subtitle="Per-dimension averages, 7-day change, and best/worst performing intent category"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/[0.06]">
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Dimension</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Weight</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Avg Score</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">7-Day Change</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Best Intent</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Worst Intent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {qData.dimensionBreakdown.map((row) => {
+                    const dim = DIMENSIONS.find((d) => d.key === row.key);
+                    const change = row.sevenDayChange;
+                    return (
+                      <tr key={row.key} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dim?.color ?? "#6b7280" }} />
+                            <span className="text-zinc-200 text-sm">{row.label}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-zinc-500 text-xs font-mono">
+                          {Math.round(row.weight * 100)}%
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${row.currentAvg ?? 0}%`, backgroundColor: dimColor(row.currentAvg) }}
+                              />
+                            </div>
+                            <span className="text-xs font-mono" style={{ color: dimColor(row.currentAvg) }}>
+                              {row.currentAvg ?? "—"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          {change !== null ? (
+                            <span className={`text-xs font-mono font-medium ${change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400" : "text-zinc-500"}`}>
+                              {change > 0 ? "+" : ""}{change}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-zinc-400 text-xs capitalize">{row.bestIntent}</td>
+                        <td className="px-3 py-3 text-zinc-400 text-xs capitalize">{row.worstIntent}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </ChartCard>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = "quality" | "completion" | "fixes";
+type Tab = "quality" | "completion" | "fixes" | "dimensions";
 
 export default function Performance() {
   const { selectedPlatform, profile } = useProductProfile();
@@ -414,22 +615,22 @@ export default function Performance() {
     );
   }
 
-  // Compute summary metrics
   const overallQuality = data.qualityByPlatform.length > 0
     ? Math.round(data.qualityByPlatform.reduce((s, p) => s + (p.avgQuality ?? 0) * p.count, 0) /
         data.qualityByPlatform.reduce((s, p) => s + p.count, 0))
     : null;
 
-  const totalCounted = data.statusBreakdown.reduce((a, b) => a + b.count, 0);
+  const totalCounted   = data.statusBreakdown.reduce((a, b) => a + b.count, 0);
   const completedCount = data.statusBreakdown.find((s) => s.status === "completed")?.count ?? 0;
   const overallCompletion = totalCounted > 0 ? Math.round((completedCount / totalCounted) * 1000) / 10 : null;
 
   const hasData = data.total > 0;
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: "quality", label: "Quality Overview" },
+    { id: "quality",    label: "Quality Overview" },
     { id: "completion", label: "Completion Analysis" },
-    { id: "fixes", label: "Fix Priorities" },
+    { id: "fixes",      label: "Fix Priorities" },
+    { id: "dimensions", label: "Quality Dimensions" },
   ];
 
   return (
@@ -461,7 +662,7 @@ export default function Performance() {
       </div>
 
       {/* No data state */}
-      {!hasData && (
+      {!hasData && activeTab !== "dimensions" && (
         <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.04] p-8 text-center">
           <svg className="w-12 h-12 mx-auto mb-4 text-indigo-400 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -478,28 +679,28 @@ export default function Performance() {
       )}
 
       {/* Tabs */}
-      {hasData && (
-        <>
-          <div className="flex gap-1 border-b border-white/[0.06] pb-0">
-            {TABS.map(({ id, label }) => (
-              <button key={id} onClick={() => setActiveTab(id)}
-                className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-                  activeTab === id
-                    ? "text-white bg-white/[0.07] border-b-2 border-indigo-500"
-                    : "text-zinc-500 hover:text-zinc-300"
-                }`}>
-                {label}
-              </button>
-            ))}
-          </div>
+      <div className="flex gap-1 border-b border-white/[0.06] pb-0">
+        {TABS.map(({ id, label }) => (
+          <button key={id} onClick={() => setActiveTab(id)}
+            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === id
+                ? "text-white bg-white/[0.07] border-b-2 border-indigo-500"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}>
+            {label}
+            {id === "dimensions" && (
+              <span className="ml-1.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">New</span>
+            )}
+          </button>
+        ))}
+      </div>
 
-          <div>
-            {activeTab === "quality"     && <QualityTab data={data} isMultiPlatform={isMultiPlatform} />}
-            {activeTab === "completion"  && <CompletionTab data={data} isMultiPlatform={isMultiPlatform} />}
-            {activeTab === "fixes"       && <FixPrioritiesTab data={data} />}
-          </div>
-        </>
-      )}
+      <div>
+        {activeTab === "quality"     && hasData && <QualityTab data={data} isMultiPlatform={isMultiPlatform} />}
+        {activeTab === "completion"  && hasData && <CompletionTab data={data} isMultiPlatform={isMultiPlatform} />}
+        {activeTab === "fixes"       && hasData && <FixPrioritiesTab data={data} />}
+        {activeTab === "dimensions"  && <QualityDimensionsTab />}
+      </div>
     </div>
   );
 }

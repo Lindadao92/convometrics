@@ -3,10 +3,12 @@
 import { useEffect, useState, useRef } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
+  LineChart, Line, CartesianGrid,
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
-import { StatCard } from '@/components/StatCard';
-import LoadingSkeleton from '@/components/LoadingSkeleton';
+import { StatCard } from "@/components/StatCard";
+import LoadingSkeleton from "@/components/LoadingSkeleton";
+import { DIMENSIONS, DimensionKey, dimColor } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,14 @@ interface ApiData {
   statusBreakdown: { status: string; count: number }[];
   topPerformingTopics: { intent: string; avgQuality: number; count: number; completionRate: number }[];
   worstPerformingTopics: { intent: string; avgQuality: number; count: number; failRate: number }[];
+}
+
+interface QualityScoresData {
+  overallScore: number | null;
+  scoreDelta: number | null;
+  dimensions: { key: string; label: string; weight: number; color: string; score: number | null }[];
+  trendData: Record<string, string | number | null>[];
+  total: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -83,7 +93,7 @@ function HealthGauge({ score }: { score: number | null }) {
   );
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
+// ─── Skeleton bone ────────────────────────────────────────────────────────────
 
 function Bone({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded bg-white/[0.04] ${className}`} />;
@@ -95,11 +105,153 @@ const TOOLTIP_STYLE = {
   contentStyle: { background: "#1c1d28", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 12 },
 };
 
+// ─── Quality Score Hero ───────────────────────────────────────────────────────
+
+function QualityScoreHero({ data }: { data: QualityScoresData }) {
+  const { overallScore, scoreDelta, total } = data;
+  const color = dimColor(overallScore);
+  const trendUp = scoreDelta !== null && scoreDelta > 0;
+  const trendDown = scoreDelta !== null && scoreDelta < 0;
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5 flex flex-col justify-between">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">
+          Conversation Quality Score
+        </p>
+        <div className="flex items-end gap-2">
+          <span className="text-7xl font-bold tabular-nums leading-none" style={{ color }}>
+            {overallScore ?? "—"}
+          </span>
+          <div className="mb-1.5 flex flex-col items-start gap-1">
+            <span className="text-xl text-zinc-500">/100</span>
+            {scoreDelta !== null && (
+              <span className={`flex items-center gap-0.5 text-sm font-medium ${trendUp ? "text-emerald-400" : trendDown ? "text-red-400" : "text-zinc-500"}`}>
+                {trendUp ? "↑" : trendDown ? "↓" : "→"}
+                {Math.abs(scoreDelta)} pts
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 pt-3 border-t border-white/[0.05]">
+        <p className="text-[10px] text-zinc-600">
+          Weighted composite · {total > 0 ? `${fmt(total)} conversations` : "no data"}
+        </p>
+        <p className="text-[10px] text-zinc-700 mt-0.5">
+          Helpfulness 25% · Relevance 20% · Accuracy 20%
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dimension Bar Chart ──────────────────────────────────────────────────────
+
+function DimensionChart({ data }: { data: QualityScoresData }) {
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">
+        Quality Dimensions
+      </p>
+      <p className="text-xs text-zinc-600 mb-5">
+        Average score across 7 quality axes — identifies where AI excels or needs work
+      </p>
+      <div className="space-y-3">
+        {data.dimensions.map((d) => (
+          <div key={d.key} className="flex items-center gap-3">
+            <span className="text-xs text-zinc-400 w-24 shrink-0 capitalize">{d.label}</span>
+            <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${d.score ?? 0}%`,
+                  backgroundColor: dimColor(d.score),
+                }}
+              />
+            </div>
+            <span
+              className="text-xs font-mono w-8 text-right shrink-0"
+              style={{ color: dimColor(d.score) }}
+            >
+              {d.score ?? "—"}
+            </span>
+          </div>
+        ))}
+      </div>
+      {/* Weight legend */}
+      <div className="mt-4 pt-3 border-t border-white/[0.05] flex flex-wrap gap-x-3 gap-y-1">
+        {DIMENSIONS.map((d) => (
+          <span key={d.key} className="text-[10px] text-zinc-700">
+            <span style={{ color: d.color }}>●</span> {d.label} {Math.round(d.weight * 100)}%
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Quality Trend Sparkline ──────────────────────────────────────────────────
+
+function QualityTrend({ trendData }: { trendData: Record<string, string | number | null>[] }) {
+  const hasData = trendData.some((d) => d.overall !== null);
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
+      <div className="flex items-start justify-between mb-1">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">
+          Quality Trend
+        </p>
+        <span className="text-[10px] text-zinc-700">Last 30 days</span>
+      </div>
+      <p className="text-xs text-zinc-600 mb-4">
+        Composite quality score over time — track whether AI performance is improving
+      </p>
+      {!hasData ? (
+        <div className="flex items-center justify-center h-16 text-zinc-700 text-xs">No trend data</div>
+      ) : (
+        <ResponsiveContainer width="100%" height={100}>
+          <LineChart data={trendData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: "#52525b", fontSize: 9 }}
+              axisLine={false}
+              tickLine={false}
+              interval={5}
+            />
+            <YAxis
+              domain={[0, 100]}
+              tick={{ fill: "#52525b", fontSize: 9 }}
+              axisLine={false}
+              tickLine={false}
+              width={22}
+            />
+            <Tooltip
+              {...TOOLTIP_STYLE}
+              formatter={(v: unknown) => [v != null ? `${v}/100` : "—", "Quality Score"]}
+            />
+            <Line
+              type="monotone"
+              dataKey="overall"
+              stroke="#6366f1"
+              strokeWidth={2}
+              dot={false}
+              connectNulls
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Overview() {
   const { profile, editableName, editableDescription, setEditableName, setEditableDescription } = useProductProfile();
   const [data, setData] = useState<ApiData | null>(null);
+  const [qualityData, setQualityData] = useState<QualityScoresData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -111,12 +263,17 @@ export default function Overview() {
   const descRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    fetch("/api/overview")
-      .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
-      .then(setData)
+    Promise.all([
+      fetch("/api/overview").then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))),
+      fetch("/api/quality-scores").then((r) => r.ok ? r.json() : null),
+    ])
+      .then(([overview, quality]) => {
+        setData(overview);
+        setQualityData(quality);
+      })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-    // Collapse the about card after first visit
+
     const seen = localStorage.getItem("convometrics_about_seen");
     if (seen) setCollapsed(true);
     else localStorage.setItem("convometrics_about_seen", "1");
@@ -143,14 +300,12 @@ export default function Overview() {
   const analyzedPct = stats.total > 0 ? Math.round((stats.analyzed / stats.total) * 100) : 0;
   const hasAnalyzed = stats.analyzed > 0;
 
-  // Funnel/donut data
   const funnelData = statusBreakdown.map(({ status, count }) => ({
     name: status.replace(/_/g, " "),
     value: count,
     fill: STATUS_COLORS[status] ?? "#6b7280",
   }));
 
-  // Volume chart: by platform if multi-platform, else just turn distribution
   const isMultiPlatform = (profile?.platforms?.length ?? 0) > 1;
   const volumeData = isMultiPlatform
     ? byPlatform.map((d) => ({ name: PLATFORM_LABELS[d.platform] ?? d.platform, count: d.total, platform: d.platform }))
@@ -177,7 +332,6 @@ export default function Overview() {
         </button>
         {!collapsed && (
           <div className="px-5 pb-5 border-t border-white/[0.05] pt-4 space-y-3">
-            {/* Editable name */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Dataset Name</p>
               {editingName ? (
@@ -198,7 +352,6 @@ export default function Overview() {
                 </button>
               )}
             </div>
-            {/* Editable description */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Description</p>
               {editingDesc ? (
@@ -219,7 +372,6 @@ export default function Overview() {
                 </button>
               )}
             </div>
-            {/* Date range */}
             {profile?.dateRange && (profile.dateRange.start || profile.dateRange.end) && (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Date Range</p>
@@ -236,7 +388,6 @@ export default function Overview() {
 
       {/* ── Health Score + Key metrics ──────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* Health Score gauge */}
         <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5 flex flex-col items-center justify-center">
           <HealthGauge score={healthScore} />
           {!hasAnalyzed && (
@@ -249,7 +400,6 @@ export default function Overview() {
           )}
         </div>
 
-        {/* Key metrics 2×3 grid */}
         <div className="xl:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-4">
           <StatCard label="Total Conversations" value={fmt(stats.total)} />
           <StatCard label="Analyzed" value={fmt(stats.analyzed)} sub={`${analyzedPct}% of total`} />
@@ -281,9 +431,33 @@ export default function Overview() {
         </div>
       )}
 
+      {/* ── Conversation Quality Score ───────────────────────────────────────── */}
+      {qualityData && (
+        <>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <QualityScoreHero data={qualityData} />
+            <div className="xl:col-span-2">
+              <DimensionChart data={qualityData} />
+            </div>
+          </div>
+
+          <QualityTrend trendData={qualityData.trendData} />
+        </>
+      )}
+
+      {qualityData === null && !loading && (
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5 flex items-center gap-3">
+          {/* Loading bones for quality section */}
+          <div className="flex-1 space-y-3">
+            <Bone className="h-4 w-40" />
+            <Bone className="h-2 w-full" />
+            <Bone className="h-2 w-4/5" />
+          </div>
+        </div>
+      )}
+
       {/* ── What's Working / What's Not ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* What's Working */}
         <div className="rounded-xl border border-emerald-500/10 bg-[#13141b] p-5">
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -310,7 +484,6 @@ export default function Overview() {
           )}
         </div>
 
-        {/* What's Not */}
         <div className="rounded-xl border border-red-500/10 bg-[#13141b] p-5">
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2 h-2 rounded-full bg-red-500" />
