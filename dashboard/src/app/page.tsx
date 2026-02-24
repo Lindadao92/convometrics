@@ -52,6 +52,12 @@ interface TopFailureItem {
 }
 interface FailureTaxonomyData { topThisWeek: TopFailureItem[]; }
 
+interface ModelComparisonSummary {
+  modelA: string; modelB: string;
+  overall: { scoreA: number; scoreB: number; delta: number };
+  regressions: { dimension: string; intent: string | null }[];
+}
+
 interface SatDistItem {
   key: InferredSatisfaction;
   label: string;
@@ -417,6 +423,54 @@ function TopFailuresCard({ failures }: { failures: TopFailureItem[] }) {
   );
 }
 
+// ─── Model Comparison Widget ──────────────────────────────────────────────────
+
+function ModelComparisonWidget({ compare }: { compare: ModelComparisonSummary }) {
+  const { modelA, modelB, overall, regressions } = compare;
+  const hasRegressions = regressions.length > 0;
+  const deltaPos = overall.delta > 0;
+
+  return (
+    <div className={`rounded-xl border bg-[#13141b] p-5 ${hasRegressions ? "border-amber-500/20" : "border-white/[0.07]"}`}>
+      <div className="flex items-center gap-2 mb-1">
+        {hasRegressions && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />}
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Model Comparison</p>
+      </div>
+      <p className="text-xs text-zinc-600 mb-4">{modelA} → {modelB} · scripted demo comparison</p>
+
+      {/* Score delta */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-2xl font-black font-mono text-zinc-400">{overall.scoreA}</span>
+        <span className="text-zinc-600">→</span>
+        <span className="text-2xl font-black font-mono text-zinc-300">{overall.scoreB}</span>
+        <span className={`text-lg font-bold font-mono ml-1 ${deltaPos ? "text-emerald-400" : "text-red-400"}`}>
+          ({deltaPos ? "+" : ""}{overall.delta} pts)
+        </span>
+      </div>
+
+      {/* Regression alert */}
+      {hasRegressions && (
+        <div className="flex items-center gap-2 mb-4 rounded-lg border border-amber-500/15 bg-amber-500/[0.07] px-3 py-1.5">
+          <span className="text-amber-400 text-sm">⚠</span>
+          <span className="text-xs text-amber-200 font-medium">
+            {regressions.length} regression{regressions.length > 1 ? "s" : ""} detected
+          </span>
+        </div>
+      )}
+
+      <a
+        href="/compare"
+        className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+      >
+        View full comparison
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Overview() {
@@ -425,6 +479,7 @@ export default function Overview() {
   const [qualityData, setQualityData] = useState<QualityScoresData | null>(null);
   const [satData, setSatData] = useState<SatisfactionData | null>(null);
   const [failureData, setFailureData] = useState<FailureTaxonomyData | null>(null);
+  const [compareData, setCompareData] = useState<ModelComparisonSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -441,12 +496,14 @@ export default function Overview() {
       fetch("/api/quality-scores").then((r) => r.ok ? r.json() : null),
       fetch("/api/satisfaction").then((r) => r.ok ? r.json() : null),
       fetch("/api/failure-taxonomy?days=14").then((r) => r.ok ? r.json() : null),
+      fetch("/api/model-comparison").then((r) => r.ok ? r.json() : null),
     ])
-      .then(([overview, quality, satisfaction, failures]) => {
+      .then(([overview, quality, satisfaction, failures, compare]) => {
         setData(overview);
         setQualityData(quality);
         setSatData(satisfaction);
         setFailureData(failures);
+        setCompareData(compare);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -625,9 +682,16 @@ export default function Overview() {
       {/* ── Satisfaction Section ─────────────────────────────────────────────── */}
       {satData && <SatisfactionSection sat={satData} />}
 
-      {/* ── Top Failures This Week ───────────────────────────────────────────── */}
-      {failureData && failureData.topThisWeek.length > 0 && (
-        <TopFailuresCard failures={failureData.topThisWeek} />
+      {/* ── Top Failures + Model Comparison ─────────────────────────────────── */}
+      {(failureData?.topThisWeek.length || compareData) && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {failureData && failureData.topThisWeek.length > 0 && (
+            <TopFailuresCard failures={failureData.topThisWeek} />
+          )}
+          {compareData && (
+            <ModelComparisonWidget compare={compareData} />
+          )}
+        </div>
       )}
 
       {/* ── What's Working / What's Not ─────────────────────────────────────── */}
