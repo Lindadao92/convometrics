@@ -46,7 +46,7 @@ export const SEGMENT_META: Record<DemoSegment, SegmentMeta> = {
     name: "AI Companion",
     emoji: "💬",
     description: "Emotionally intelligent AI focused on support, connection, and creative engagement.",
-    keyInsight: "Users who have high-quality emotional_support conversations in their first session return at 2.8× the rate of users who start with casual_chat.",
+    keyInsight: "Tone break is the #1 failure in emotional_support — users expressing sadness receive inappropriately cheerful responses. Character break in roleplay increased 18% this week, concentrated on the Flash model.",
     briefing: [
       "Tone breaks spiked 24% — companion was cheerful during emotional_support sessions",
       "Context loss in roleplay increased as sessions grew longer (>12 turns)",
@@ -858,11 +858,11 @@ const REVENUE_TABLES: Record<DemoSegment, RevenueRow[]> = {
     { intent: "billing_issue",      sessionsPerWeek: 91, successRate: 89, estMonthlyImpact: 1200 },
   ],
   ai_companion: [
-    { intent: "emotional_support",  sessionsPerWeek: 82, successRate: 64, estMonthlyImpact: 2900 },
-    { intent: "humor_entertainment", sessionsPerWeek: 59, successRate: 52, estMonthlyImpact: 2400 },
-    { intent: "roleplay",           sessionsPerWeek: 48, successRate: 43, estMonthlyImpact: 1800 },
-    { intent: "advice_seeking",     sessionsPerWeek: 71, successRate: 67, estMonthlyImpact: 1700 },
-    { intent: "casual_chat",        sessionsPerWeek: 66, successRate: 81, estMonthlyImpact:  800 },
+    { intent: "roleplay",           sessionsPerWeek: 112, successRate: 58, estMonthlyImpact: 4200 },
+    { intent: "emotional_support",  sessionsPerWeek: 82,  successRate: 51, estMonthlyImpact: 3600 },
+    { intent: "advice_seeking",     sessionsPerWeek: 71,  successRate: 44, estMonthlyImpact: 2900 },
+    { intent: "creative_storytelling", sessionsPerWeek: 64, successRate: 62, estMonthlyImpact: 1800 },
+    { intent: "companionship",      sessionsPerWeek: 55,  successRate: 71, estMonthlyImpact: 1100 },
   ],
   ai_tutor: [
     { intent: "homework_help",       sessionsPerWeek: 94, successRate: 41, estMonthlyImpact: 3400 },

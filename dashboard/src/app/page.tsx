@@ -416,7 +416,7 @@ const TOOLTIP_STYLE_LOCAL = {
   itemStyle: { color: "#e4e4e7" },
 };
 
-function OutcomesSection({ data }: { data: OutcomesData }) {
+function OutcomesSection({ data, isCompanion = false }: { data: OutcomesData; isCompanion?: boolean }) {
   return (
     <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
       <div className="px-5 py-4 border-b border-white/[0.06]">
@@ -462,16 +462,16 @@ function OutcomesSection({ data }: { data: OutcomesData }) {
         {/* Right: Revenue impact table */}
         <div className="xl:col-span-2 p-5 space-y-3">
           <div>
-            <p className="text-xs font-medium text-zinc-300 mb-0.5">Revenue Impact of +10pp Success Rate</p>
-            <p className="text-[10px] text-zinc-600">Estimated monthly recovery per intent</p>
+            <p className="text-xs font-medium text-zinc-300 mb-0.5">{isCompanion ? "Subscriber Churn Risk by Intent" : "Revenue Impact of +10pp Success Rate"}</p>
+            <p className="text-[10px] text-zinc-600">{isCompanion ? "Estimated monthly subscriber churn risk per intent" : "Estimated monthly recovery per intent"}</p>
           </div>
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-white/[0.06]">
                 <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Intent</th>
                 <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Sess/wk</th>
-                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Success</th>
-                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Impact/mo</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{isCompanion ? "Retain" : "Success"}</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">{isCompanion ? "Risk/mo" : "Impact/mo"}</th>
               </tr>
             </thead>
             <tbody>
@@ -480,12 +480,12 @@ function OutcomesSection({ data }: { data: OutcomesData }) {
                   <td className="py-2 text-zinc-300 capitalize max-w-[100px] truncate">{cap(row.intent)}</td>
                   <td className="py-2 text-right text-zinc-500 font-mono">{row.sessionsPerWeek}</td>
                   <td className="py-2 text-right text-zinc-500 font-mono">{row.successRate}%</td>
-                  <td className="py-2 text-right font-mono font-semibold text-emerald-400">${row.estMonthlyImpact.toLocaleString()}</td>
+                  <td className={`py-2 text-right font-mono font-semibold ${isCompanion ? "text-red-400" : "text-emerald-400"}`}>${row.estMonthlyImpact.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="text-[10px] text-zinc-700 leading-relaxed">Based on improving success rate by +10 percentage points per intent, applied to monthly volume</p>
+          <p className="text-[10px] text-zinc-700 leading-relaxed">{isCompanion ? "Estimated monthly subscriber churn risk from low-quality conversations per intent" : "Based on improving success rate by +10 percentage points per intent, applied to monthly volume"}</p>
         </div>
       </div>
     </div>
@@ -682,7 +682,7 @@ const CHAR_TYPE_DATA = [
 const ENGAGEMENT_FUNNEL_DATA = [
   { label: "Started conversation",       pct: 100, count: 2500, color: "#6366f1" },
   { label: "Engaged (10+ turns)",        pct: 67,  count: 1675, color: "#8b5cf6" },
-  { label: "Deep engagement (30+ turns)", pct: 38, count: 950,  color: "#a855f7" },
+  { label: "Deep engagement (30+ turns)", pct: 35, count: 875,  color: "#a855f7" },
   { label: "Returned within 24h",        pct: 52,  count: 1300, color: "#ec4899" },
 ];
 
@@ -724,9 +724,9 @@ const COMPANION_WHAT_WORKS = [
 ];
 
 const COMPANION_WHAT_DOESNT = [
-  { intent: "advice_seeking",    avgQuality: 62, note: "" },
-  { intent: "learning_exploration", avgQuality: 65, note: "" },
-  { intent: "emotional_support", avgQuality: 68, note: "high volume — critical" },
+  { intent: "advice_seeking",    avgQuality: 59, note: "" },
+  { intent: "learning_exploration", avgQuality: 63, note: "" },
+  { intent: "emotional_support", avgQuality: 65, note: "high volume — critical" },
 ];
 
 const COMPANION_BRIEFING_BULLETS = [
@@ -846,7 +846,7 @@ function CharacterTypeChart() {
 function EngagementFunnelCard() {
   return (
     <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Engagement Funnel</p>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Engagement Depth Funnel</p>
       <p className="text-xs text-zinc-600 mb-5">How deeply users engage — more meaningful than completion for companion products</p>
       <div className="space-y-3">
         {ENGAGEMENT_FUNNEL_DATA.map((row, i) => (
@@ -1016,7 +1016,7 @@ export default function Overview() {
       {segmentMeta && <SegmentInsightCard meta={segmentMeta} />}
 
       {/* ── Outcomes: Quality → Business Results ─────────────────────────────── */}
-      {outcomesData && <OutcomesSection data={outcomesData} />}
+      {outcomesData && <OutcomesSection data={outcomesData} isCompanion={isCompanion} />}
 
       {/* ── Top Failures + Model Comparison + Churn Risk + Safety ────────────── */}
       {(failureData?.topThisWeek.length || compareData || (!isCompanion && outcomesData?.churnRisk.atRiskCount) || safetyData) && (
