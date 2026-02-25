@@ -102,24 +102,44 @@ const COMPANION_ENGAGEMENT_BY_MODEL = [
   { model: "Flash",    engRate: 61, deepRate: 18, returnRate: 36, quality: 63, color: "#f59e0b" },
 ];
 
+const COMPANION_QUALITY_BY_TOPIC = [
+  { intent: "humor_entertainment",     label: "Humor & Entertainment",    avgQuality: 77 },
+  { intent: "casual_chat",             label: "Casual Chat",              avgQuality: 76 },
+  { intent: "creative_storytelling",   label: "Creative Storytelling",    avgQuality: 74 },
+  { intent: "roleplay",               label: "Roleplay",                 avgQuality: 72 },
+  { intent: "companionship",          label: "Companionship",            avgQuality: 71 },
+  { intent: "philosophical_discussion",label: "Philosophical Discussion", avgQuality: 70 },
+  { intent: "emotional_support",      label: "Emotional Support",        avgQuality: 65 },
+  { intent: "learning_exploration",   label: "Learning & Exploration",   avgQuality: 63 },
+  { intent: "advice_seeking",         label: "Advice Seeking",           avgQuality: 59 },
+];
+
+const COMPANION_QUALITY_BY_TURNS = [
+  { group: "1–5",   avgQuality: 72 },
+  { group: "6–15",  avgQuality: 71 },
+  { group: "16–30", avgQuality: 69 },
+  { group: "31–50", avgQuality: 66 },
+  { group: "51+",   avgQuality: 57 },
+];
+
 const COMPANION_FIX_PRIORITIES = [
   {
     rank: 1, urgency: "critical", icon: "😤", color: "#ef4444",
     title: "Tone breaks in emotional_support",
     detail: "AI reverts to clinical/formal tone mid-conversation when users are most vulnerable.",
-    metrics: ["450 sessions/wk", "34% frustration rate", "120 DAUs at churn risk"],
+    metrics: ["90 sessions/wk", "34% frustration rate", "120 DAUs at churn risk"],
   },
   {
     rank: 2, urgency: "high", icon: "🎭", color: "#f97316",
-    title: "Character breaks on Flash model",
+    title: "Character breaks in roleplay on Flash model",
     detail: "Increased 18% this week. Concentrated in Anime and Fiction character types.",
     metrics: ["+18% this week", "Flash model only", "Anime & Fiction chars"],
   },
   {
     rank: 3, urgency: "high", icon: "🔀", color: "#f59e0b",
     title: "Context loss in long roleplay sessions",
-    detail: "Conversations over 50 turns have 3× the context_loss rate vs shorter sessions.",
-    metrics: [">50 turns affected", "3× context_loss rate", "700 sessions/wk"],
+    detail: "Quality drops 15 pts in long sessions. Conversations over 50 turns have 3× the context_loss rate.",
+    metrics: ["Quality drops 15 pts", ">50 turns affected", "3× context_loss rate"],
   },
   {
     rank: 4, urgency: "medium", icon: "🌀", color: "#8b5cf6",
@@ -274,6 +294,9 @@ function CompanionQualityOverviewTab() {
 
   return (
     <div className="space-y-6">
+      {/* Insight banner */}
+      <AutoInsight text="Overall quality at 69/100 — naturalness leads at 76, accuracy weakest at 59 in advice_seeking and learning_exploration intents." />
+
       {/* 30-day trendline */}
       <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Overall Quality — 30-Day Trend</p>
@@ -334,6 +357,36 @@ function CompanionQualityOverviewTab() {
           <p className="text-xs text-zinc-500">Naturalness and Helpfulness improved. Accuracy still declining — advice_seeking hallucinations up week-on-week. Flash model dragging composite score.</p>
         </div>
       </div>
+
+      {/* Quality by Topic — horizontal bar chart */}
+      <ChartCard title="Quality by Topic"
+        subtitle="Companion intents sorted worst to best — red = needs improvement, green = performing well">
+        <ResponsiveContainer width="100%" height={COMPANION_QUALITY_BY_TOPIC.length * 32}>
+          <BarChart data={[...COMPANION_QUALITY_BY_TOPIC].reverse()}
+            layout="vertical" margin={{ left: 0, right: 50, top: 0, bottom: 0 }}>
+            <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis type="category" dataKey="label" width={180} tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [`${v ?? 0}/100`, "Avg Quality"]} />
+            <Bar dataKey="avgQuality" radius={[0, 4, 4, 0]} maxBarSize={18}>
+              {[...COMPANION_QUALITY_BY_TOPIC].reverse().map((entry) => <Cell key={entry.intent} fill={qualityColor(entry.avgQuality)} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      {/* Quality by Conversation Length */}
+      <ChartCard title="Quality by Conversation Length"
+        subtitle="Does quality drop in longer companion sessions? (turn buckets)">
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={COMPANION_QUALITY_BY_TURNS} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="group" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
+            <YAxis domain={[40, 80]} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [`${v ?? 0}/100`, "Avg Quality"]} />
+            <Line type="monotone" dataKey="avgQuality" stroke="#6366f1" strokeWidth={2} dot={{ fill: "#6366f1", r: 4 }} connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
     </div>
   );
 }
