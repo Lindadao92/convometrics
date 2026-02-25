@@ -34,14 +34,42 @@ interface OutcomesData {
   churnRisk: { atRiskCount: number; totalLtvAtRisk: number };
 }
 
-// ─── KPI sparkline data ───────────────────────────────────────────────────────
+// ─── KPI chart data ───────────────────────────────────────────────────────────
 
-const KPI_SPARKLINE = {
-  retention:    [48, 49, 47, 50, 49, 51, 50, 52, 51, 53, 52, 51, 52, 52],
-  engagement:   [62, 63, 64, 65, 64, 66, 65, 67, 66, 68, 67, 66, 67, 67],
-  satisfaction: [46, 47, 48, 48, 49, 48, 50, 49, 51, 50, 49, 50, 50, 50],
-  atRisk:       [95, 93, 91, 90, 92, 90, 89, 88, 90, 89, 87, 88, 87, 87],
-};
+const KPI_RETENTION_DATA = [
+  { label: "< 1 Wk", value: 100 },
+  { label: "Week 1", value: 43 },
+  { label: "Week 2", value: 41 },
+  { label: "Week 3", value: 46 },
+  { label: "Week 4", value: 45 },
+];
+
+// 30 days of daily engagement rate (% deep conversations)
+const KPI_ENGAGEMENT_DATA = (() => {
+  const base = [64, 66, 68, 65, 67, 69, 66, 63, 65, 67, 70, 68, 66, 64, 67, 69, 71, 68, 66, 65, 67, 68, 70, 67, 65, 66, 68, 69, 67, 67];
+  return base.map((v, i) => {
+    const d = new Date("2026-01-25"); d.setDate(d.getDate() + i);
+    return { label: d.toISOString().slice(5, 10), value: v };
+  });
+})();
+
+// 30 days of daily satisfaction rate (slight downward trend ~52% → ~50%)
+const KPI_SATISFACTION_DATA = (() => {
+  const base = [53, 52, 54, 53, 51, 52, 53, 51, 50, 52, 51, 53, 52, 50, 51, 50, 52, 51, 49, 50, 51, 50, 49, 51, 50, 49, 50, 51, 50, 50];
+  return base.map((v, i) => {
+    const d = new Date("2026-01-25"); d.setDate(d.getDate() + i);
+    return { label: d.toISOString().slice(5, 10), value: v };
+  });
+})();
+
+// 30 days of daily at-risk DAU count (slight upward trend ending at 87)
+const KPI_ATRISK_DATA = (() => {
+  const base = [72, 74, 71, 75, 78, 76, 79, 77, 80, 78, 81, 79, 82, 80, 83, 81, 84, 82, 85, 83, 86, 84, 85, 86, 84, 87, 85, 88, 86, 87];
+  return base.map((v, i) => {
+    const d = new Date("2026-01-25"); d.setDate(d.getDate() + i);
+    return { label: d.toISOString().slice(5, 10), value: v };
+  });
+})();
 
 // ─── Character table data ─────────────────────────────────────────────────────
 
@@ -156,34 +184,49 @@ function SmartBriefingCard({ effectiveDays, preset }: { effectiveDays: number; p
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
-function KPICard({ label, value, sub, detail, sparkData, color, alert }: {
+function KPICard({ label, value, sub, detail, chartData, color, alert, yDomain, yFormat, tooltipLabel, dataRow }: {
   label: string; value: string; sub: string; detail: string;
-  sparkData: number[]; color: string; alert?: boolean;
+  chartData: { label: string; value: number }[]; color: string; alert?: boolean;
+  yDomain: [number, number]; yFormat?: (v: number) => string;
+  tooltipLabel: string; dataRow?: { labels: string[]; values: string[] };
 }) {
-  const data = sparkData.map((v, i) => ({ v, i }));
+  const gradientId = `kpi-grad-${label.replace(/\s/g, "")}`;
+  const fmtY = yFormat ?? ((v: number) => `${v}`);
   return (
-    <div className={`rounded-xl border bg-[#13141b] p-4 flex flex-col gap-2 ${alert ? "border-red-500/25" : "border-white/[0.07]"}`}>
-      <p className={`text-[10px] font-semibold uppercase tracking-widest ${alert ? "text-red-400/80" : "text-zinc-500"}`}>{label}</p>
-      <div className="flex items-end justify-between">
-        <div>
-          <p className={`text-3xl font-bold ${alert ? "text-red-300" : "text-white"} font-mono leading-none`}>{value}</p>
-          <p className="text-[11px] text-zinc-500 mt-1">{sub}</p>
-        </div>
-        <div className="w-[80px] h-[40px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id={`spark-${label}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={color} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#spark-${label})`} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+    <div className={`rounded-xl border bg-[#13141b] p-4 flex flex-col ${alert ? "border-red-500/25" : "border-white/[0.07]"}`}>
+      <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${alert ? "text-red-400/80" : "text-zinc-500"}`}>{label}</p>
+      <p className={`text-3xl font-bold font-mono leading-none ${alert ? "text-red-300" : "text-white"}`}>{value}</p>
+      <p className="text-[11px] text-zinc-500 mt-0.5 mb-3">{sub}</p>
+      <div className="flex-1 min-h-0" style={{ height: 130 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={color} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="label" tick={{ fill: "#52525b", fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+            <YAxis domain={yDomain} tick={{ fill: "#52525b", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={fmtY} width={36} />
+            <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [fmtY(v ?? 0), tooltipLabel]} />
+            <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`}
+              dot={chartData.length <= 7 ? { fill: color, r: 3.5, strokeWidth: 0 } : false}
+              activeDot={{ r: 4, fill: color, strokeWidth: 0 }} />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-zinc-600 leading-relaxed">{detail}</p>
+      {dataRow && (
+        <div className="flex justify-between mt-2 px-1">
+          {dataRow.labels.map((l, i) => (
+            <div key={l} className="text-center">
+              <p className="text-[9px] text-zinc-600">{l}</p>
+              <p className="text-[10px] font-mono text-zinc-400 font-semibold">{dataRow.values[i]}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-zinc-600 leading-relaxed mt-2">{detail}</p>
     </div>
   );
 }
@@ -561,36 +604,48 @@ export default function Overview() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <KPICard
           label="Retention"
-          value="52%"
-          sub="24h return rate"
-          detail="Users who come back within 24 hours of their last session"
-          sparkData={KPI_SPARKLINE.retention}
+          value="45%"
+          sub="Week 4 retention rate"
+          detail="Classic drop-off then stabilization — users who survive Week 1 tend to stay"
+          chartData={KPI_RETENTION_DATA}
           color="#6366f1"
+          yDomain={[0, 100]}
+          yFormat={(v) => `${v}%`}
+          tooltipLabel="Retention"
+          dataRow={{ labels: ["< 1 Wk", "Wk 1", "Wk 2", "Wk 3", "Wk 4"], values: ["100%", "43%", "41%", "46%", "45%"] }}
         />
         <KPICard
           label="Engagement"
           value="67%"
           sub="Deep conversations (10+ turns)"
           detail="Avg 25 turns per session · 35% reach 30+ turns"
-          sparkData={KPI_SPARKLINE.engagement}
+          chartData={KPI_ENGAGEMENT_DATA}
           color="#8b5cf6"
+          yDomain={[0, 100]}
+          yFormat={(v) => `${v}%`}
+          tooltipLabel="Deep rate"
         />
         <KPICard
           label="Satisfaction"
           value="50%"
-          sub="Inferred satisfied"
-          detail="Signal-based — trending flat over 2 weeks"
-          sparkData={KPI_SPARKLINE.satisfaction}
+          sub="Inferred satisfied · ↓ 2pp"
+          detail="Signal-based — slight downward trend over 30 days"
+          chartData={KPI_SATISFACTION_DATA}
           color="#f59e0b"
+          yDomain={[0, 100]}
+          yFormat={(v) => `${v}%`}
+          tooltipLabel="Satisfied"
         />
         <KPICard
           label="At Risk"
           value="87"
           sub="DAUs at risk this week"
           detail="41 emotional_support · 29 roleplay · 17 other"
-          sparkData={KPI_SPARKLINE.atRisk}
+          chartData={KPI_ATRISK_DATA}
           color="#ef4444"
           alert
+          yDomain={[0, 150]}
+          tooltipLabel="At-risk DAUs"
         />
       </div>
 
