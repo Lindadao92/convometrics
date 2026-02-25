@@ -8,10 +8,11 @@ const PLATFORMS = ["chatgpt", "claude", "gemini", "grok", "perplexity"] as const
 
 export async function GET(req: NextRequest) {
   const segment = req.nextUrl.searchParams.get("segment") ?? "";
+  const days = parseInt(req.nextUrl.searchParams.get("days") ?? "30", 10);
 
   // Demo mode: return mock performance data
   if (segment) {
-    return NextResponse.json(computeMockPerformanceStats(segment));
+    return NextResponse.json(computeMockPerformanceStats(segment, days));
   }
 
   const sb = getSupabaseServer();

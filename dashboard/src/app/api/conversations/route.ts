@@ -56,13 +56,15 @@ export async function GET(req: NextRequest) {
   // Demo mode: return mock conversations
   if (segment) {
     const allConvos = getSegmentConversations(segment);
+    const days      = parseInt(params.get("days") ?? "30", 10);
     const intent    = params.get("intent")    ?? "";
     const minScore  = params.get("min_score") ?? "";
     const maxScore  = params.get("max_score") ?? "";
     const page      = parseInt(params.get("page") || "0", 10);
     const limit     = 25;
 
-    let filtered = [...allConvos];
+    const cutoff = Date.now() - days * 86400000;
+    let filtered = allConvos.filter(c => new Date(c.timestamp).getTime() >= cutoff);
     if (intent) filtered = filtered.filter(c => c.intent === intent);
     const minNum = minScore ? parseInt(minScore, 10) : NaN;
     const maxNum = maxScore ? parseInt(maxScore, 10) : NaN;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDemoMode } from "@/lib/demo-mode-context";
+import { useTimeRange } from "@/lib/time-range-context";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts";
@@ -273,6 +274,7 @@ function ComplianceModal({
 
 export default function SafetyPage() {
   const { segment } = useDemoMode();
+  const { effectiveDays } = useTimeRange();
   const [safetyData, setSafetyData] = useState<SafetyApiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -282,13 +284,13 @@ export default function SafetyPage() {
 
   useEffect(() => {
     setLoading(true);
-    const seg = segment ?? "ai_assistant";
-    fetch(`/api/safety?segment=${seg}`)
+    const seg = segment ?? "ai_companion";
+    fetch(`/api/safety?segment=${seg}&days=${effectiveDays}`)
       .then((r) => r.ok ? r.json() : r.json().then((b: { error: string }) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
       .then((d: SafetyApiData) => setSafetyData(d))
       .catch((e: unknown) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [segment]);
+  }, [segment, effectiveDays]);
 
   if (loading) return (
     <div className="p-8 flex items-center justify-center min-h-64">

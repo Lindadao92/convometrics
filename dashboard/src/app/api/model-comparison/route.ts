@@ -67,10 +67,13 @@ export async function GET(req: NextRequest) {
   const sp     = req.nextUrl.searchParams;
   const modelA = sp.get("modelA") ?? "Flash";
   const modelB = sp.get("modelB") ?? "Brainiac";
+  const days   = parseInt(sp.get("days") ?? "30", 10);
 
-  const availableModels = [...new Set(MOCK_CONVERSATIONS.map((c) => c.model_version))].sort();
-  const convosA = MOCK_CONVERSATIONS.filter((c) => c.model_version === modelA);
-  const convosB = MOCK_CONVERSATIONS.filter((c) => c.model_version === modelB);
+  const cutoff = Date.now() - days * 86400000;
+  const ALL = MOCK_CONVERSATIONS.filter((c) => new Date(c.timestamp).getTime() >= cutoff);
+  const availableModels = [...new Set(ALL.map((c) => c.model_version))].sort();
+  const convosA = ALL.filter((c) => c.model_version === modelA);
+  const convosB = ALL.filter((c) => c.model_version === modelB);
   const countA  = convosA.length;
   const countB  = convosB.length;
 

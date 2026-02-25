@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, useCallback } from "react";
 import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
+import { useTimeRange } from "@/lib/time-range-context";
 import {
   DIMENSIONS, DimensionKey, QualityScores, computeDimensionsFromScore, dimColor,
   SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
@@ -414,6 +415,7 @@ function ConversationDrawer({
 export default function Conversations() {
   const { selectedPlatform, profile } = useProductProfile();
   const { segment } = useDemoMode();
+  const { effectiveDays } = useTimeRange();
 
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [total, setTotal] = useState(0);
@@ -470,7 +472,7 @@ export default function Conversations() {
 
   const fetchData = useCallback(() => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), sort: serverSortBy, order });
+    const params = new URLSearchParams({ page: String(page), sort: serverSortBy, order, days: String(effectiveDays) });
     if (segment) {
       params.set("segment", segment);
     } else {
@@ -491,7 +493,7 @@ export default function Conversations() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment]);
+  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment, effectiveDays]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

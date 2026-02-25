@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
+import { useTimeRange } from "@/lib/time-range-context";
 import { StatCard } from "@/components/StatCard";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import { DIMENSIONS, SIGNALS, SATISFACTION_META, InferredSatisfaction, dimColor } from "@/lib/mockQualityData";
@@ -878,6 +879,7 @@ function EngagementFunnelCard() {
 export default function Overview() {
   const { profile } = useProductProfile();
   const { segment } = useDemoMode();
+  const { effectiveDays } = useTimeRange();
   const [data, setData] = useState<ApiData | null>(null);
   const [qualityData, setQualityData] = useState<QualityScoresData | null>(null);
   const [satData, setSatData] = useState<SatisfactionData | null>(null);
@@ -892,16 +894,18 @@ export default function Overview() {
   const isCompanion = segment === "ai_companion";
 
   useEffect(() => {
+    setLoading(true);
     const seg = segment;
     const sp = seg ? `&segment=${seg}` : "";
+    const dp = `&days=${effectiveDays}`;
     Promise.all([
-      fetch(`/api/overview${seg ? `?segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))),
-      fetch(`/api/quality-scores?days=30${sp}`).then((r) => r.ok ? r.json() : null),
-      fetch(`/api/satisfaction?days=30${sp}`).then((r) => r.ok ? r.json() : null),
-      fetch(`/api/failure-taxonomy?days=14${sp}`).then((r) => r.ok ? r.json() : null),
-      fetch("/api/model-comparison").then((r) => r.ok ? r.json() : null),
-      fetch(`/api/outcomes${seg ? `?segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
-      fetch(`/api/safety${seg ? `?segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/overview?days=${effectiveDays}${seg ? `&segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`))),
+      fetch(`/api/quality-scores?days=${effectiveDays}${sp}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/satisfaction?days=${effectiveDays}${sp}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/failure-taxonomy?days=${effectiveDays}${sp}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/model-comparison?days=${effectiveDays}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/outcomes?days=${effectiveDays}${seg ? `&segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
+      fetch(`/api/safety?days=${effectiveDays}${seg ? `&segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
     ])
       .then(([overview, quality, satisfaction, failures, compare, outcomes, safety]) => {
         setData(overview);
@@ -915,7 +919,7 @@ export default function Overview() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [segment]);
+  }, [segment, effectiveDays]);
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {

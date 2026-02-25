@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
+import { useTimeRange } from "@/lib/time-range-context";
 import { FAILURE_TYPES } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -436,6 +437,7 @@ type SortKey = "count" | "avgQuality" | "completionRate" | "failureRate" | "avgT
 export default function Topics() {
   const { selectedPlatform, profile } = useProductProfile();
   const { segment } = useDemoMode();
+  const { effectiveDays } = useTimeRange();
   const isCompanion = segment === "ai_companion";
 
   const [data, setData] = useState<ApiData | null>(null);
@@ -466,25 +468,26 @@ export default function Topics() {
     setLoading(true);
     setSelectedCluster(null);
     const params = new URLSearchParams();
+    params.set("days", String(effectiveDays));
     if (segment) params.set("segment", segment);
     else if (effectivePlatform !== "all") params.set("platform", effectivePlatform);
-    const url = `/api/topics${params.toString() ? `?${params}` : ""}`;
+    const url = `/api/topics?${params}`;
     fetch(url)
       .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [effectivePlatform, segment, isCompanion]);
+  }, [effectivePlatform, segment, isCompanion, effectiveDays]);
 
   useEffect(() => {
     if (isCompanion) return;
     setFailureLoading(true);
     const sp = segment ? `&segment=${segment}` : "";
-    fetch(`/api/failure-taxonomy?days=30${sp}`)
+    fetch(`/api/failure-taxonomy?days=${effectiveDays}${sp}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => setFailureData(d))
       .finally(() => setFailureLoading(false));
-  }, [segment, isCompanion]);
+  }, [segment, isCompanion, effectiveDays]);
 
   // Flat list of all topic rows for the breakdown table
   const allTopicRows = useMemo(() => {

@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
+import { useTimeRange } from "@/lib/time-range-context";
 import { DIMENSIONS, dimColor } from "@/lib/mockQualityData";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1350,6 +1351,7 @@ type Tab = "quality" | "completion" | "fixes" | "dimensions" | "satisfaction" | 
 export default function Performance() {
   const { selectedPlatform, profile } = useProductProfile();
   const { segment } = useDemoMode();
+  const { effectiveDays } = useTimeRange();
   const isCompanion = segment === "ai_companion";
 
   const [data, setData] = useState<PerformanceData | null>(null);
@@ -1362,15 +1364,16 @@ export default function Performance() {
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams();
+    params.set("days", String(effectiveDays));
     if (segment) params.set("segment", segment);
     else if (selectedPlatform !== "all") params.set("platform", selectedPlatform);
-    const url = `/api/performance${params.toString() ? `?${params}` : ""}`;
+    const url = `/api/performance?${params}`;
     fetch(url)
       .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [selectedPlatform, segment]);
+  }, [selectedPlatform, segment, effectiveDays]);
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {

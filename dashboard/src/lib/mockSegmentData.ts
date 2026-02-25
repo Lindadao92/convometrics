@@ -542,8 +542,9 @@ export function getSegmentFailureTypes(segment: string) {
 
 // ─── Mock overview stats ───────────────────────────────────────────────────────
 
-export function computeMockOverviewStats(segment: string) {
-  const convos = getSegmentConversations(segment);
+export function computeMockOverviewStats(segment: string, days?: number) {
+  let convos = getSegmentConversations(segment);
+  if (days !== undefined) { const cutoff = Date.now() - days * 86400000; convos = convos.filter(c => new Date(c.timestamp).getTime() >= cutoff); }
   const meta = getSegmentMeta(segment);
   const n = convos.length;
 
@@ -645,8 +646,9 @@ export function computeMockOverviewStats(segment: string) {
 
 // ─── Mock performance stats ────────────────────────────────────────────────────
 
-export function computeMockPerformanceStats(segment: string) {
-  const convos = getSegmentConversations(segment);
+export function computeMockPerformanceStats(segment: string, days?: number) {
+  let convos = getSegmentConversations(segment);
+  if (days !== undefined) { const cutoff = Date.now() - days * 86400000; convos = convos.filter(c => new Date(c.timestamp).getTime() >= cutoff); }
 
   const qualityBuckets: Record<string, number> = { "0–20": 0, "21–40": 0, "41–60": 0, "61–80": 0, "81–100": 0 };
   const statusCounts: Record<string, number> = {};
@@ -723,8 +725,9 @@ export function computeMockPerformanceStats(segment: string) {
 
 // ─── Mock topics stats ─────────────────────────────────────────────────────────
 
-export function computeMockTopicsStats(segment: string) {
-  const convos = getSegmentConversations(segment);
+export function computeMockTopicsStats(segment: string, days?: number) {
+  let convos = getSegmentConversations(segment);
+  if (days !== undefined) { const cutoff = Date.now() - days * 86400000; convos = convos.filter(c => new Date(c.timestamp).getTime() >= cutoff); }
   const meta = getSegmentMeta(segment);
 
   const byIntent: Record<string, { qualitySum: number; qualityCount: number; failCount: number; completeCount: number; count: number; firstSeen: string }> = {};
@@ -873,9 +876,10 @@ const REVENUE_TABLES: Record<DemoSegment, RevenueRow[]> = {
   ],
 };
 
-export function computeMockOutcomesData(segment: string) {
+export function computeMockOutcomesData(segment: string, days?: number) {
   const seg = (segment in REVENUE_TABLES ? segment : "ai_assistant") as DemoSegment;
-  const convos = getSegmentConversations(segment);
+  let convos = getSegmentConversations(segment);
+  if (days !== undefined) { const cutoff = Date.now() - days * 86400000; convos = convos.filter(c => new Date(c.timestamp).getTime() >= cutoff); }
   const { count: atRiskCount, totalLtv: totalLtvAtRisk } = computeChurnRiskUsers(convos);
   return {
     retentionCurve: RETENTION_CURVE,
@@ -922,8 +926,9 @@ function getReviewStatus(convId: string): "needs_review" | "reviewed_confirmed" 
   return "reviewed_false_positive";
 }
 
-export function computeMockSafetyData(segment: string) {
-  const convos = getSegmentConversations(segment);
+export function computeMockSafetyData(segment: string, days?: number) {
+  let convos = getSegmentConversations(segment);
+  if (days !== undefined) { const cutoff = Date.now() - days * 86400000; convos = convos.filter(c => new Date(c.timestamp).getTime() >= cutoff); }
 
   // Compute safety scores for all conversations
   const withSafety = convos.map((c) => ({

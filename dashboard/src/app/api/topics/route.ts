@@ -37,10 +37,11 @@ interface TopicsApiResponse {
 
 export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiResponse | { error: string }>> {
   const segment = req.nextUrl.searchParams.get("segment") ?? "";
+  const days = parseInt(req.nextUrl.searchParams.get("days") ?? "30", 10);
 
   // Demo mode: return mock topic stats
   if (segment) {
-    return NextResponse.json(computeMockTopicsStats(segment) as unknown as TopicsApiResponse);
+    return NextResponse.json(computeMockTopicsStats(segment, days) as unknown as TopicsApiResponse);
   }
 
   const sb = getSupabaseServer();

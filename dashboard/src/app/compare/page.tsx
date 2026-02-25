@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
+import { useTimeRange } from "@/lib/time-range-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -312,16 +313,17 @@ export default function ComparePage() {
   const [modelB, setModelB] = useState("Brainiac");
   const [data, setData] = useState<CompareData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { effectiveDays } = useTimeRange();
 
   const fetchData = useCallback((a: string, b: string) => {
     setLoading(true);
-    fetch(`/api/model-comparison?modelA=${a}&modelB=${b}`)
+    fetch(`/api/model-comparison?modelA=${a}&modelB=${b}&days=${effectiveDays}`)
       .then((r) => r.ok ? r.json() : null)
       .then(setData)
       .finally(() => setLoading(false));
-  }, []);
+  }, [effectiveDays]);
 
-  useEffect(() => { fetchData(modelA, modelB); }, []);
+  useEffect(() => { fetchData(modelA, modelB); }, [effectiveDays]);
 
   function handleChange(a: string, b: string) {
     setModelA(a);

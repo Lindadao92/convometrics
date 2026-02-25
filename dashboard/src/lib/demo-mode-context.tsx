@@ -30,7 +30,7 @@ const DemoModeContext = createContext<DemoModeCtx>({
 const STORAGE_KEY = "convometrics_demo_segment";
 
 export function DemoModeProvider({ children }: { children: ReactNode }) {
-  const [segment, setSegmentState] = useState<DemoSegment>("ai_assistant");
+  const [segment, setSegmentState] = useState<DemoSegment>("ai_companion");
 
   useEffect(() => {
     try {

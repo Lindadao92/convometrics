@@ -1,16 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
-import { ProductProfileProvider, useProductProfile } from "@/lib/product-profile-context";
-import { DemoModeProvider, useDemoMode, DEMO_SEGMENT_META, DEMO_SEGMENTS, DemoSegment } from "@/lib/demo-mode-context";
+import { ReactNode, useState, useRef, useEffect } from "react";
+import { ProductProfileProvider } from "@/lib/product-profile-context";
+import { DemoModeProvider } from "@/lib/demo-mode-context";
+import { TimeRangeProvider, useTimeRange, TIME_RANGE_PRESETS, TimeRangePreset } from "@/lib/time-range-context";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const PLATFORM_LABELS: Record<string, string> = {
-  chatgpt: "ChatGPT", claude: "Claude", gemini: "Gemini",
-  grok: "Grok", perplexity: "Perplexity",
-};
 
 const NAV = [
   {
@@ -87,12 +83,105 @@ const NAV = [
   },
 ];
 
+// ─── Time Range Selector ─────────────────────────────────────────────────────
+
+function TimeRangeSelector() {
+  const { timeRange, setPreset, setCustomRange, isShowingAllData } = useTimeRange();
+  const [showCustom, setShowCustom] = useState(false);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowCustom(false);
+      }
+    }
+    if (showCustom) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showCustom]);
+
+  function applyCustom() {
+    if (customFrom && customTo) {
+      setCustomRange(customFrom, customTo);
+      setShowCustom(false);
+    }
+  }
+
+  return (
+    <div className="relative flex items-center gap-2" ref={dropdownRef}>
+      <div className="flex items-center gap-0.5 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.07] p-0.5">
+        {TIME_RANGE_PRESETS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => { setPreset(p.key); setShowCustom(false); }}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
+              timeRange.preset === p.key
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowCustom(!showCustom)}
+          className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
+            timeRange.preset === "custom"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
+          }`}
+        >
+          Custom
+        </button>
+      </div>
+
+      {isShowingAllData && (
+        <span className="text-[10px] text-zinc-600 whitespace-nowrap">Showing all available data (30 days)</span>
+      )}
+
+      {showCustom && (
+        <div className="absolute right-0 top-full mt-2 rounded-xl border border-white/[0.08] bg-[#13141b] p-4 shadow-xl z-30 min-w-[280px]">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">Custom Date Range</p>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex-1">
+              <label className="text-[10px] text-zinc-500 mb-1 block">From</label>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="w-full bg-[#0a0b10] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/40"
+              />
+            </div>
+            <span className="text-zinc-600 mt-4">-</span>
+            <div className="flex-1">
+              <label className="text-[10px] text-zinc-500 mb-1 block">To</label>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="w-full bg-[#0a0b10] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/40"
+              />
+            </div>
+          </div>
+          <button
+            onClick={applyCustom}
+            disabled={!customFrom || !customTo}
+            className="w-full py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Apply
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Inner shell (uses context) ───────────────────────────────────────────────
 
 function ShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { profile, selectedPlatform, setSelectedPlatform } = useProductProfile();
-  const { segment, setSegment } = useDemoMode();
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0b10]">
@@ -109,32 +198,11 @@ function ShellInner({ children }: { children: ReactNode }) {
         </a>
         <span className="text-[10px] text-zinc-600 font-medium">Character.ai Dashboard</span>
 
-        {/* Center: Demo mode segment picker */}
-        <div className="flex-1 flex items-center justify-center gap-4">
-          {/* Segment pill toggle */}
-          <div className="flex items-center gap-1 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.07] p-0.5">
-            {DEMO_SEGMENTS.map((seg) => {
-              const m = DEMO_SEGMENT_META[seg];
-              const active = segment === seg;
-              return (
-                <button
-                  key={seg}
-                  onClick={() => setSegment(seg as DemoSegment)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                    active
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
-                  }`}
-                >
-                  <span>{m.emoji}</span>
-                  <span className="hidden sm:inline">{m.short}</span>
-                </button>
-              );
-            })}
-          </div>
+        {/* Spacer */}
+        <div className="flex-1" />
 
-          {/* Platform filter removed — single-company demo */}
-        </div>
+        {/* Time range selector */}
+        <TimeRangeSelector />
 
         {/* Gear icon → Settings */}
         <a
@@ -190,7 +258,9 @@ export default function Shell({ children }: { children: ReactNode }) {
   return (
     <DemoModeProvider>
       <ProductProfileProvider>
-        <ShellInner>{children}</ShellInner>
+        <TimeRangeProvider>
+          <ShellInner>{children}</ShellInner>
+        </TimeRangeProvider>
       </ProductProfileProvider>
     </DemoModeProvider>
   );
