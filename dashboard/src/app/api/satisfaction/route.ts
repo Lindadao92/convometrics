@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       distribution: SAT_ORDER.map(k => ({ key: k, ...SATISFACTION_META[k], count: 0, pct: 0 })),
       topFrustrationSignals: [], dailyTrend: [], byIntent: [],
-      intents, models: ["v2.0", "v2.1"], total: 0,
+      intents, models: ["Brainiac", "Prime", "Flash"], total: 0,
     });
   }
 
@@ -130,6 +130,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     distribution, topFrustrationSignals, dailyTrend, byIntent,
-    intents, models: ["v2.0", "v2.1"], total,
+    intents, models: ["Brainiac", "Prime", "Flash"], total,
   });
 }

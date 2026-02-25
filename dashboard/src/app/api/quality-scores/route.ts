@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       overallScore: null, scoreDelta: null,
       dimensions:   DIMENSIONS.map(d => ({ ...d, score: null })),
       trendData:    [], dimensionBreakdown: [],
-      intents, models: ["v2.0", "v2.1"], total: 0,
+      intents, models: ["Brainiac", "Prime", "Flash"], total: 0,
     });
   }
 
@@ -136,6 +136,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     overallScore, scoreDelta,
     dimensions, trendData, dimensionBreakdown,
-    intents, models: ["v2.0", "v2.1"], total: convos.length,
+    intents, models: ["Brainiac", "Prime", "Flash"], total: convos.length,
   });
 }

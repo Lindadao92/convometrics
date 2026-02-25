@@ -833,7 +833,7 @@ function QualityDimensionsTab({ isCompanion }: { isCompanion: boolean }) {
   }, [filterIntent, filterModel, filterDays, segment, isCompanion]);
 
   const intents = qData?.intents ?? [];
-  const models  = qData?.models  ?? ["v2.0", "v2.1"];
+  const models  = qData?.models  ?? ["Brainiac", "Prime", "Flash"];
   const SELECT_CLS = "bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20";
 
   return (
@@ -992,7 +992,7 @@ function SatisfactionTab() {
   }, [filterIntent, filterModel, filterDays, segment]);
 
   const intents = satData?.intents ?? [];
-  const models  = satData?.models  ?? ["v2.0", "v2.1"];
+  const models  = satData?.models  ?? ["Brainiac", "Prime", "Flash"];
   const SELECT_CLS = "bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20";
 
   return (

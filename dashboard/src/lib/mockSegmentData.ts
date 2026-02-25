@@ -6,6 +6,7 @@
 
 import {
   MockConversation, FailureTag, FailureType, SatisfactionSignal, InferredSatisfaction,
+  ModelVersion, CharacterType, SessionStatus,
   makeRng, ri, MOCK_CONVERSATIONS, FAILURE_TYPES,
 } from "./mockQualityData";
 import { DemoSegment } from "./demo-mode-context";
@@ -52,7 +53,7 @@ export const SEGMENT_META: Record<DemoSegment, SegmentMeta> = {
       "Users who experienced naturalness score >80 had 3.1× longer average sessions",
     ],
     intents: ["roleplay","emotional_support","casual_chat","creative_storytelling","advice_seeking","companionship","humor_entertainment","learning_exploration","philosophical_discussion"],
-    failureTypes: ["tone_break","context_loss","loop","abandonment_trigger","misunderstanding"],
+    failureTypes: ["tone_break","context_loss","loop","character_break","hallucination","misunderstanding","refusal_failure","abandonment_trigger"],
     dimensionEmphasis: "Naturalness and coherence matter most; accuracy weighted less than other segments",
   },
   ai_support: {
@@ -126,37 +127,37 @@ const COMPANION_PROFILES: SegmentProfile[] = [
   { count: 15,
     gen: (r) => ({ helpfulness: ri(r,75,92), relevance: ri(r,72,90), accuracy: ri(r,62,82), coherence: ri(r,78,95), satisfaction: ri(r,75,92), naturalness: ri(r,80,97), safety: ri(r,80,100) }),
     signals: [{ key:"gratitude",prob:0.90 },{ key:"deepening",prob:0.78 },{ key:"quick_followup",prob:0.52 }],
-    failureWeights: [{ key:"tone_break",cumulative:0.40 },{ key:"context_loss",cumulative:0.65 },{ key:"loop",cumulative:0.85 },{ key:"abandonment_trigger",cumulative:1.00 }],
+    failureWeights: [{ key:"tone_break",cumulative:0.26 },{ key:"context_loss",cumulative:0.48 },{ key:"loop",cumulative:0.64 },{ key:"character_break",cumulative:0.76 },{ key:"hallucination",cumulative:0.86 },{ key:"misunderstanding",cumulative:0.94 },{ key:"refusal_failure",cumulative:0.98 },{ key:"abandonment_trigger",cumulative:1.00 }],
   },
   // ② Good sessions
   { count: 90,
     gen: (r) => ({ helpfulness: ri(r,60,82), relevance: ri(r,58,80), accuracy: ri(r,50,75), coherence: ri(r,62,84), satisfaction: ri(r,58,80), naturalness: ri(r,65,88), safety: ri(r,72,95) }),
     signals: [{ key:"gratitude",prob:0.72 },{ key:"deepening",prob:0.55 },{ key:"quick_followup",prob:0.38 }],
-    failureWeights: [{ key:"tone_break",cumulative:0.40 },{ key:"context_loss",cumulative:0.65 },{ key:"loop",cumulative:0.85 },{ key:"abandonment_trigger",cumulative:1.00 }],
+    failureWeights: [{ key:"tone_break",cumulative:0.26 },{ key:"context_loss",cumulative:0.48 },{ key:"loop",cumulative:0.64 },{ key:"character_break",cumulative:0.76 },{ key:"hallucination",cumulative:0.86 },{ key:"misunderstanding",cumulative:0.94 },{ key:"refusal_failure",cumulative:0.98 },{ key:"abandonment_trigger",cumulative:1.00 }],
   },
   // ③ Tone break failures — cheerful when user needs empathy
   { count: 75,
     gen: (r) => ({ helpfulness: ri(r,52,72), relevance: ri(r,55,75), accuracy: ri(r,48,68), coherence: ri(r,52,72), satisfaction: ri(r,40,62), naturalness: ri(r,20,50), safety: ri(r,68,90) }),
     signals: [{ key:"message_shortening",prob:0.55 },{ key:"rephrasing",prob:0.40 }],
-    failureWeights: [{ key:"tone_break",cumulative:0.55 },{ key:"context_loss",cumulative:0.78 },{ key:"loop",cumulative:0.92 },{ key:"abandonment_trigger",cumulative:1.00 }],
+    failureWeights: [{ key:"tone_break",cumulative:0.45 },{ key:"context_loss",cumulative:0.62 },{ key:"character_break",cumulative:0.74 },{ key:"loop",cumulative:0.88 },{ key:"misunderstanding",cumulative:0.96 },{ key:"abandonment_trigger",cumulative:1.00 }],
   },
   // ④ Context loss — forgot backstory
   { count: 60,
     gen: (r) => ({ helpfulness: ri(r,48,68), relevance: ri(r,52,72), accuracy: ri(r,45,65), coherence: ri(r,20,45), satisfaction: ri(r,42,62), naturalness: ri(r,55,75), safety: ri(r,68,92) }),
     signals: [{ key:"rephrasing",prob:0.62 },{ key:"retry_pattern",prob:0.28 }],
-    failureWeights: [{ key:"context_loss",cumulative:0.50 },{ key:"tone_break",cumulative:0.72 },{ key:"loop",cumulative:0.88 },{ key:"abandonment_trigger",cumulative:1.00 }],
+    failureWeights: [{ key:"context_loss",cumulative:0.45 },{ key:"character_break",cumulative:0.60 },{ key:"tone_break",cumulative:0.78 },{ key:"loop",cumulative:0.90 },{ key:"misunderstanding",cumulative:0.97 },{ key:"abandonment_trigger",cumulative:1.00 }],
   },
   // ⑤ Hard failures
   { count: 45,
     gen: (r) => ({ helpfulness: ri(r,22,50), relevance: ri(r,25,52), accuracy: ri(r,20,48), coherence: ri(r,28,55), satisfaction: ri(r,20,45), naturalness: ri(r,30,58), safety: ri(r,65,88) }),
     signals: [{ key:"abandonment",prob:0.55 },{ key:"retry_pattern",prob:0.45 },{ key:"rephrasing",prob:0.35 }],
-    failureWeights: [{ key:"tone_break",cumulative:0.35 },{ key:"context_loss",cumulative:0.60 },{ key:"loop",cumulative:0.80 },{ key:"abandonment_trigger",cumulative:1.00 }],
+    failureWeights: [{ key:"tone_break",cumulative:0.30 },{ key:"context_loss",cumulative:0.52 },{ key:"character_break",cumulative:0.66 },{ key:"loop",cumulative:0.80 },{ key:"hallucination",cumulative:0.90 },{ key:"misunderstanding",cumulative:0.97 },{ key:"abandonment_trigger",cumulative:1.00 }],
   },
   // ⑥ Very frustrated
   { count: 15,
     gen: (r) => ({ helpfulness: ri(r,15,38), relevance: ri(r,18,42), accuracy: ri(r,15,38), coherence: ri(r,15,40), satisfaction: ri(r,12,35), naturalness: ri(r,20,45), safety: ri(r,62,85) }),
     signals: [{ key:"abandonment",prob:0.80 },{ key:"retry_pattern",prob:0.62 }],
-    failureWeights: [{ key:"tone_break",cumulative:0.40 },{ key:"context_loss",cumulative:0.65 },{ key:"abandonment_trigger",cumulative:1.00 }],
+    failureWeights: [{ key:"tone_break",cumulative:0.30 },{ key:"character_break",cumulative:0.50 },{ key:"context_loss",cumulative:0.72 },{ key:"loop",cumulative:0.88 },{ key:"abandonment_trigger",cumulative:1.00 }],
   },
 ];
 
@@ -235,8 +236,8 @@ const COMPANION_FAILURE_DETAILS: Partial<Record<FailureType, string[]>> = {
     "AI added unsolicited life advice when user just wanted to be heard",
   ],
   context_loss: [
-    "AI forgot the user's name and backstory established two sessions ago",
-    "Character in roleplay broke consistency mid-conversation",
+    "AI forgot the user's name and backstory established earlier in the conversation",
+    "Character forgot established plot details and reintroduced resolved conflict",
     "AI re-asked about the user's situation after they'd shared it in detail",
     "Companion forgot the emotional context set at the start of the session",
     "AI ignored the ongoing narrative the user had been building over multiple turns",
@@ -247,6 +248,13 @@ const COMPANION_FAILURE_DETAILS: Partial<Record<FailureType, string[]>> = {
     "AI looped back to the same question the user had already answered",
     "Repetitive empathy phrases without genuine progression or new insight",
     "AI gave the same roleplay response verbatim after user asked for variation",
+  ],
+  character_break: [
+    "Medieval knight character suddenly said 'As an AI language model, I cannot...'",
+    "Anime character dropped Japanese honorifics and started using corporate English",
+    "Romantic partner character broke into bullet-pointed advice format mid-conversation",
+    "Character referenced 'my training data' while in the middle of a story scene",
+    "Fantasy wizard suddenly offered to 'help with any other questions' like a chatbot",
   ],
   abandonment_trigger: [
     "User stopped responding after AI gave formulaic empathy response",
@@ -360,6 +368,7 @@ function buildSegmentConversations(
     loop: ["AI repeated a previous response without adding value"],
     hallucination: ["AI generated a factually incorrect claim"],
     tone_break: ["AI's tone was inappropriate for the context"],
+    character_break: ["AI dropped persona and reverted to generic assistant mode"],
     refusal_failure: ["AI refused a legitimate request"],
     abandonment_trigger: ["User disengaged after an unhelpful response"],
     escalation_needed: ["Issue required human escalation"],
@@ -372,6 +381,53 @@ function buildSegmentConversations(
   const getDetails = (type: FailureType): string[] =>
     failureDetails[type] ?? defaultFallback[type];
 
+  // Character type distribution
+  const CHAR_TYPES: { type: CharacterType; cumulative: number }[] = [
+    { type: "Anime/Fiction",       cumulative: 0.35 },
+    { type: "Original Character",  cumulative: 0.60 },
+    { type: "Celebrity",           cumulative: 0.75 },
+    { type: "Therapist/Advisor",   cumulative: 0.85 },
+    { type: "Romantic Partner",    cumulative: 0.93 },
+    { type: "Historical Figure",   cumulative: 0.97 },
+    { type: "Game Character",      cumulative: 1.00 },
+  ];
+
+  // Model distribution: Brainiac 30%, Prime 45%, Flash 25%
+  const MODELS: { model: ModelVersion; cumulative: number }[] = [
+    { model: "Brainiac", cumulative: 0.30 },
+    { model: "Prime",    cumulative: 0.75 },
+    { model: "Flash",    cumulative: 1.00 },
+  ];
+
+  function pickCharType(rng: () => number): CharacterType {
+    const r = rng();
+    for (const d of CHAR_TYPES) { if (r < d.cumulative) return d.type; }
+    return "Original Character";
+  }
+
+  function pickModel(rng: () => number): ModelVersion {
+    const r = rng();
+    for (const d of MODELS) { if (r < d.cumulative) return d.model; }
+    return "Prime";
+  }
+
+  // Turn count: avg ~25, range 3-120
+  function genTurns(rng: () => number): number {
+    const r = rng();
+    if (r < 0.10) return ri(rng, 3, 5);
+    if (r < 0.35) return ri(rng, 6, 15);
+    if (r < 0.65) return ri(rng, 16, 30);
+    if (r < 0.85) return ri(rng, 31, 50);
+    return ri(rng, 51, 120);
+  }
+
+  function sessionStatus(turns: number, sat: InferredSatisfaction): SessionStatus {
+    if (sat === "abandoned" || turns < 3) return "Abandoned";
+    if (turns >= 30) return "Deep";
+    if (turns >= 10) return "Normal";
+    return "Brief";
+  }
+
   for (const p of profiles) {
     for (let i = 0; i < p.count; i++) {
       const seed = idx * 31337 + 9001 + (segment === "ai_companion" ? 100000 : segment === "ai_support" ? 200000 : 300000);
@@ -381,8 +437,10 @@ function buildSegmentConversations(
       const msAgo = rng() * 29 * 86400000;
       const ts = new Date(now - msAgo);
       const intent = intents[Math.floor(rng() * intents.length)];
-      const user_id = `user-${String(Math.floor(rng() * 150)).padStart(3, "0")}`;
-      const model_version = rng() > 0.48 ? "v2.1" : "v2.0" as "v2.0" | "v2.1";
+      const user_id = `user-${String(Math.floor(rng() * 200)).padStart(3, "0")}`;
+      const model_version = pickModel(rng);
+      const character_type = pickCharType(rng);
+      const turns = genTurns(rng);
 
       // Satisfaction signals
       const signals: SatisfactionSignal[] = [];
@@ -390,6 +448,7 @@ function buildSegmentConversations(
         if (rng() < rule.prob) signals.push(rule.key);
       }
       const inferred_satisfaction = inferSatisfaction(signals);
+      const session_status = sessionStatus(turns, inferred_satisfaction);
 
       // Failure tags — independent RNG
       const frng = makeRng(seed + 4242);
@@ -405,8 +464,8 @@ function buildSegmentConversations(
               picked.add(key);
               const details = getDetails(key);
               const detailIdx = Math.floor(frng() * details.length);
-              const turn = Math.floor(frng() * 7) + 2;
-              failure_tags.push({ type: key, turn, detail: details[detailIdx] });
+              const failTurn = Math.min(turns, Math.floor(frng() * Math.min(turns, 30)) + 2);
+              failure_tags.push({ type: key, turn: failTurn, detail: details[detailIdx] });
               break;
             }
           }
@@ -419,6 +478,9 @@ function buildSegmentConversations(
         intent,
         user_id,
         model_version,
+        character_type,
+        turns,
+        session_status,
         scores: { ...dims, overall },
         satisfaction_signals: signals,
         inferred_satisfaction,

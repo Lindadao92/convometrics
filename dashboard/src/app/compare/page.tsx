@@ -308,8 +308,8 @@ function RecommendationCard({ rec }: { rec: CompareData["recommendation"] }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ComparePage() {
-  const [modelA, setModelA] = useState("v2.0");
-  const [modelB, setModelB] = useState("v2.1");
+  const [modelA, setModelA] = useState("Flash");
+  const [modelB, setModelB] = useState("Brainiac");
   const [data, setData] = useState<CompareData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -329,7 +329,7 @@ export default function ComparePage() {
     fetchData(a, b);
   }
 
-  const models = data?.availableModels ?? ["v2.0", "v2.1"];
+  const models = data?.availableModels ?? ["Brainiac", "Prime", "Flash"];
 
   return (
     <div className="p-8 max-w-6xl space-y-6">

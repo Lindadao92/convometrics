@@ -5,34 +5,34 @@ export const dynamic = "force-dynamic";
 
 function cap(s: string) { return s.replace(/_/g, " "); }
 
-// ─── Scripted comparison data (v2.0 = A, v2.1 = B) ───────────────────────────
+// ─── Scripted comparison data (Flash = A, Brainiac = B) ──────────────────────
 
 const SCRIPTED_DIMS: Record<string, { scoreA: number; scoreB: number; pValue: number }> = {
-  helpfulness:  { scoreA: 71, scoreB: 73, pValue: 0.18 },
-  relevance:    { scoreA: 70, scoreB: 71, pValue: 0.31 },
-  accuracy:     { scoreA: 76, scoreB: 71, pValue: 0.08 },
-  coherence:    { scoreA: 69, scoreB: 70, pValue: 0.44 },
-  satisfaction: { scoreA: 66, scoreB: 68, pValue: 0.22 },
-  naturalness:  { scoreA: 58, scoreB: 69, pValue: 0.01 },
-  safety:       { scoreA: 82, scoreB: 83, pValue: 0.61 },
+  helpfulness:  { scoreA: 62, scoreB: 75, pValue: 0.01 },
+  relevance:    { scoreA: 63, scoreB: 72, pValue: 0.04 },
+  accuracy:     { scoreA: 66, scoreB: 70, pValue: 0.12 },
+  coherence:    { scoreA: 60, scoreB: 74, pValue: 0.01 },
+  satisfaction: { scoreA: 58, scoreB: 71, pValue: 0.02 },
+  naturalness:  { scoreA: 65, scoreB: 76, pValue: 0.01 },
+  safety:       { scoreA: 80, scoreB: 82, pValue: 0.52 },
 };
 
-const SCRIPTED_OVERALL = { scoreA: 68, scoreB: 72 };
+const SCRIPTED_OVERALL = { scoreA: 64, scoreB: 73 };
 
 const SCRIPTED_REGRESSIONS = [
   {
     dimension: "accuracy", dimLabel: "Accuracy",
-    intent: "code_help", intentLabel: "Code Help",
-    scoreA: 79, scoreB: 64, delta: -15,
-    pValue: 0.02, conversationsAffected: 23,
-    description: "v2.1 hallucinates more in code generation tasks — likely caused by fine-tuning data that under-represented precise technical content.",
+    intent: "creative_storytelling", intentLabel: "Creative Storytelling",
+    scoreA: 71, scoreB: 65, delta: -6,
+    pValue: 0.03, conversationsAffected: 31,
+    description: "Brainiac occasionally over-embellishes plot details, introducing minor continuity errors in long-form creative sessions.",
   },
   {
-    dimension: "accuracy", dimLabel: "Accuracy",
-    intent: "explain_concept", intentLabel: "Explain Concept",
-    scoreA: 81, scoreB: 71, delta: -10,
-    pValue: 0.04, conversationsAffected: 17,
-    description: "Explanations contain more factual errors, particularly for nuanced or multi-step concepts.",
+    dimension: "safety", dimLabel: "Safety",
+    intent: "roleplay", intentLabel: "Roleplay",
+    scoreA: 84, scoreB: 78, delta: -6,
+    pValue: 0.04, conversationsAffected: 19,
+    description: "Brainiac's stronger character immersion sometimes weakens safety guardrails in intense roleplay scenarios.",
   },
 ];
 
@@ -40,26 +40,33 @@ const SCRIPTED_IMPROVEMENTS = [
   {
     dimension: "naturalness", dimLabel: "Naturalness",
     intent: null, intentLabel: "All intents",
-    scoreA: 58, scoreB: 69, delta: 11,
+    scoreA: 65, scoreB: 76, delta: 11,
     pValue: 0.01, conversationsAffected: null,
-    description: "v2.1 sounds more conversational and human across all intent categories — highest-confidence finding in this update.",
+    description: "Brainiac sounds significantly more human and emotionally present across all companion intents — strongest finding in this comparison.",
+  },
+  {
+    dimension: "coherence", dimLabel: "Coherence",
+    intent: "emotional_support", intentLabel: "Emotional Support",
+    scoreA: 57, scoreB: 72, delta: 15,
+    pValue: 0.01, conversationsAffected: 42,
+    description: "Brainiac maintains emotional thread and context across long emotional support sessions far better than Flash.",
   },
 ];
 
 const SCRIPTED_RECOMMENDATION = {
-  summary: "v2.1 improves overall quality by +4 points but introduces accuracy regression in code_help.",
+  summary: "Brainiac improves overall quality by +9 points over Flash, with minor accuracy regression in creative storytelling.",
   details:
-    "Naturalness improved significantly across all intents (+11 pts, p=0.01). However, accuracy regressed in code_help (−15 pts, p=0.02, 23 conversations) and explain_concept (−10 pts, p=0.04, 17 conversations) — both high-volume intents. The accuracy regressions are statistically significant and likely linked to fine-tuning changes.",
-  action: "investigate" as const,
-  actionLabel: "Investigate code_help & explain_concept accuracy before full rollout",
+    "Naturalness improved significantly across all intents (+11 pts, p=0.01). Coherence in emotional support improved dramatically (+15 pts, p=0.01, 42 conversations). However, accuracy regressed in creative storytelling (−6 pts, p=0.03, 31 conversations) and safety dipped slightly in roleplay (−6 pts, p=0.04, 19 conversations). Recommend monitoring roleplay safety closely.",
+  action: "approve" as const,
+  actionLabel: "Approve Brainiac rollout with roleplay safety monitoring",
 };
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const sp     = req.nextUrl.searchParams;
-  const modelA = sp.get("modelA") ?? "v2.0";
-  const modelB = sp.get("modelB") ?? "v2.1";
+  const modelA = sp.get("modelA") ?? "Flash";
+  const modelB = sp.get("modelB") ?? "Brainiac";
 
   const availableModels = [...new Set(MOCK_CONVERSATIONS.map((c) => c.model_version))].sort();
   const convosA = MOCK_CONVERSATIONS.filter((c) => c.model_version === modelA);
@@ -67,9 +74,9 @@ export async function GET(req: NextRequest) {
   const countA  = convosA.length;
   const countB  = convosB.length;
 
-  // ── Dimensions (scripted for v2.0↔v2.1, generic delta for other pairs) ────
-  const isScripted = (modelA === "v2.0" && modelB === "v2.1") || (modelA === "v2.1" && modelB === "v2.0");
-  const flip = modelA === "v2.1" && modelB === "v2.0"; // reversed pair
+  // ── Dimensions (scripted for Flash↔Brainiac, generic delta for other pairs) ─
+  const isScripted = (modelA === "Flash" && modelB === "Brainiac") || (modelA === "Brainiac" && modelB === "Flash");
+  const flip = modelA === "Brainiac" && modelB === "Flash"; // reversed pair
 
   const dimensions = DIMENSIONS.map((d) => {
     let scoreA: number, scoreB: number, pValue: number;
@@ -106,15 +113,15 @@ export async function GET(req: NextRequest) {
   const improvements = isScripted ? (flip ? SCRIPTED_REGRESSIONS.map((r) => ({ ...r, delta: -r.delta, scoreA: r.scoreB, scoreB: r.scoreA })) : SCRIPTED_IMPROVEMENTS) : [];
   const recommendation = isScripted ? SCRIPTED_RECOMMENDATION : {
     summary: "Insufficient scripted data for this model pair.",
-    details: "Scripted story only available for v2.0 vs v2.1.",
+    details: "Scripted story only available for Flash vs Brainiac.",
     action: "investigate" as const,
     actionLabel: "Review raw data",
   };
 
   // ── Sample conversations ───────────────────────────────────────────────────
-  // samplesBetter: v2.1 high-quality non-code_help conversations (naturalness shines)
+  // samplesBetter: Brainiac high-quality conversations (naturalness shines)
   const betterPool = convosB
-    .filter((c) => c.scores.overall >= 75 && c.intent !== "code_help")
+    .filter((c) => c.scores.overall >= 75 && c.intent !== "creative_storytelling")
     .sort((a, b) => {
       const na = computeDimensionsFromScore(a.scores.overall, a.id).naturalness;
       const nb = computeDimensionsFromScore(b.scores.overall, b.id).naturalness;
@@ -129,13 +136,13 @@ export async function GET(req: NextRequest) {
       model: modelB, overall: c.scores.overall,
       keyDim: "naturalness", keyDimLabel: "Naturalness", keyDimScore: dims.naturalness,
       improvement: dims.naturalness - SCRIPTED_DIMS.naturalness.scoreA,
-      snippet: `User asked a ${cap(c.intent).toLowerCase()} question — v2.1 responded conversationally and clearly.`,
+      snippet: `User started a ${cap(c.intent).toLowerCase()} session — Brainiac responded naturally and stayed in character.`,
     };
   });
 
-  // samplesWorse: v2.1 code_help conversations where accuracy dropped
+  // samplesWorse: Brainiac creative_storytelling conversations where accuracy dropped
   const worsePool = convosB
-    .filter((c) => c.intent === "code_help")
+    .filter((c) => c.intent === "creative_storytelling" || c.intent === "roleplay")
     .sort((a, b) => {
       const aa = computeDimensionsFromScore(a.scores.overall, a.id).accuracy;
       const ab = computeDimensionsFromScore(b.scores.overall, b.id).accuracy;
@@ -150,7 +157,7 @@ export async function GET(req: NextRequest) {
       model: modelA, overall: c.scores.overall,
       keyDim: "accuracy", keyDimLabel: "Accuracy", keyDimScore: dims.accuracy,
       regression: SCRIPTED_DIMS.accuracy.scoreA - dims.accuracy,
-      snippet: `User asked for code help — v2.1 introduced subtle inaccuracies in the implementation.`,
+      snippet: `User engaged in ${cap(c.intent).toLowerCase()} — Brainiac introduced minor continuity or safety issues.`,
     };
   });
 

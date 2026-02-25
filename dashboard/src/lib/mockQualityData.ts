@@ -38,18 +38,19 @@ export const SATISFACTION_META: Record<InferredSatisfaction, { label: string; co
 // ─── Failure Taxonomy ──────────────────────────────────────────────────────────
 
 export const FAILURE_TYPES = [
-  { key: "misunderstanding",    icon: "🎯", label: "Misunderstanding",    description: "AI interpreted user's intent incorrectly",                   color: "#f59e0b" },
-  { key: "context_loss",        icon: "🧠", label: "Context Loss",         description: "AI forgot something user said earlier",                      color: "#8b5cf6" },
-  { key: "loop",                icon: "🔄", label: "Loop",                 description: "AI repeated itself or got stuck",                            color: "#3b82f6" },
-  { key: "hallucination",       icon: "💭", label: "Hallucination",        description: "AI generated factually incorrect claims",                    color: "#ef4444" },
-  { key: "tone_break",          icon: "🎭", label: "Tone Break",           description: "AI's tone inappropriate for context",                        color: "#ec4899" },
-  { key: "refusal_failure",     icon: "🚫", label: "Refusal Failure",      description: "AI refused legitimate request or failed to refuse bad one",  color: "#f97316" },
-  { key: "abandonment_trigger",    icon: "🚪", label: "Abandonment Trigger",   description: "Specific turn where user disengaged",                                        color: "#6b7280" },
-  // ── Segment-specific failure types ─────────────────────────────────────────
+  { key: "tone_break",           icon: "🎭", label: "Tone Break",           description: "AI's emotional tone didn't match the context",                  color: "#ec4899" },
+  { key: "context_loss",         icon: "🧠", label: "Context Loss",         description: "AI forgot something user said earlier",                         color: "#8b5cf6" },
+  { key: "loop",                 icon: "🔄", label: "Loop",                 description: "AI repeated itself or got stuck",                               color: "#3b82f6" },
+  { key: "character_break",      icon: "🎪", label: "Character Break",      description: "AI dropped persona and reverted to generic assistant mode",      color: "#d946ef" },
+  { key: "hallucination",        icon: "💭", label: "Hallucination",        description: "AI generated factually incorrect claims",                        color: "#ef4444" },
+  { key: "misunderstanding",     icon: "🎯", label: "Misunderstanding",     description: "AI interpreted user's intent incorrectly",                       color: "#f59e0b" },
+  { key: "refusal_failure",      icon: "🚫", label: "Refusal Failure",      description: "AI refused legitimate request or failed to refuse bad one",      color: "#f97316" },
+  { key: "abandonment_trigger",  icon: "🚪", label: "Abandonment Trigger",  description: "Specific turn where user disengaged",                            color: "#6b7280" },
+  // ── Segment-specific failure types (support, tutor) ─────────────────────────
   { key: "escalation_needed",      icon: "📞", label: "Escalation Needed",      description: "Issue required human agent but AI failed to escalate",                      color: "#06b6d4" },
   { key: "giving_answer_directly", icon: "📖", label: "Gave Answer Directly",   description: "AI answered directly instead of guiding the learner to discover",           color: "#f59e0b" },
   { key: "too_advanced",           icon: "📈", label: "Too Advanced",           description: "Explanation was above the learner's current level",                          color: "#8b5cf6" },
-  { key: "too_simple",             icon: "📉", label: "Too Simple",             description: "Response was too basic for the learner's actual level",                      color: "#06b6d4" },
+  { key: "too_simple",             icon: "📉", label: "Too Simple",             description: "Response was below the learner's level",                                     color: "#06b6d4" },
   { key: "wrong_explanation",      icon: "❌", label: "Wrong Explanation",      description: "AI provided an incorrect conceptual or factual explanation",                 color: "#ef4444" },
 ] as const;
 
@@ -61,102 +62,82 @@ export interface FailureTag {
   detail: string;
 }
 
-// Cumulative weights used for random selection (must sum to 1.0)
+// Companion-focused failure weights (must sum to 1.0)
 const FAILURE_WEIGHTS: { key: FailureType; cumulative: number }[] = [
-  { key: "misunderstanding",    cumulative: 0.30 },
-  { key: "context_loss",        cumulative: 0.52 },
-  { key: "loop",                cumulative: 0.70 },
-  { key: "hallucination",       cumulative: 0.82 },
-  { key: "tone_break",          cumulative: 0.90 },
-  { key: "refusal_failure",     cumulative: 0.96 },
+  { key: "tone_break",          cumulative: 0.26 },
+  { key: "context_loss",        cumulative: 0.48 },
+  { key: "loop",                cumulative: 0.64 },
+  { key: "character_break",     cumulative: 0.76 },
+  { key: "hallucination",       cumulative: 0.86 },
+  { key: "misunderstanding",    cumulative: 0.94 },
+  { key: "refusal_failure",     cumulative: 0.98 },
   { key: "abandonment_trigger", cumulative: 1.00 },
 ];
 
-const FAILURE_DETAILS: Record<FailureType, string[]> = {
-  misunderstanding: [
-    "AI answered a different question than what was asked",
-    "AI missed the 'not' in the user's constraint",
-    "AI treated a follow-up question as a brand-new request",
-    "AI interpreted a technical term as a colloquial phrase",
-    "AI assumed the user wanted a summary when they wanted a how-to",
+// Companion-focused failure detail bank
+const FAILURE_DETAILS: Record<string, string[]> = {
+  tone_break: [
+    "AI responded cheerfully when user described feeling overwhelmed and alone",
+    "Companion used humor during an emotional support session about a difficult breakup",
+    "AI suggested 'look on the bright side' when user needed validation first",
+    "Tone shifted to formal/clinical when user was being emotionally vulnerable",
+    "AI added unsolicited life advice when user just wanted to be heard",
   ],
   context_loss: [
-    "AI re-asked for information the user already provided",
-    "AI forgot the programming language specified in turn 1",
-    "AI ignored the constraint stated two messages earlier",
-    "AI re-introduced a solution the user had already rejected",
-    "AI lost track of which file the user was referring to",
+    "AI forgot the user's name and backstory established earlier in the conversation",
+    "Character forgot established plot details and reintroduced resolved conflict",
+    "AI re-asked about the user's situation after they'd shared it in detail",
+    "Companion forgot the emotional context set at the start of the session",
+    "AI ignored the ongoing narrative the user had been building over multiple turns",
   ],
   loop: [
-    "AI restated its previous answer verbatim without adding value",
-    "AI offered the same three solutions across four turns",
-    "AI entered a clarification loop without making progress",
-    "AI repeated the same warning in every response",
-    "AI kept asking for clarification after user had already clarified",
+    "AI kept offering the same three coping strategies across different phrasings",
+    "Companion repeated 'I hear you' without moving the conversation forward",
+    "AI looped back to the same question the user had already answered",
+    "Repetitive empathy phrases without genuine progression or new insight",
+    "AI gave the same roleplay response verbatim after user asked for variation",
+  ],
+  character_break: [
+    "Medieval knight character suddenly said 'As an AI language model, I cannot...'",
+    "Anime character dropped Japanese honorifics and started using corporate English",
+    "Romantic partner character broke into bullet-pointed advice format mid-conversation",
+    "Character referenced 'my training data' while in the middle of a story scene",
+    "Fantasy wizard suddenly offered to 'help with any other questions' like a chatbot",
   ],
   hallucination: [
-    "AI cited a non-existent function in the standard library",
-    "AI stated an incorrect version number as established fact",
-    "AI described a feature removed in a prior release as current",
-    "AI invented a research paper title and author that don't exist",
-    "AI claimed a config option exists that has never been implemented",
+    "AI cited a non-existent study about mental health in an advice session",
+    "Companion stated incorrect medical information presented as fact",
+    "AI invented a historical event during a learning exploration session",
+    "Character confidently provided wrong career salary data in an advice session",
+    "AI fabricated a scientific explanation during a philosophical discussion",
   ],
-  tone_break: [
-    "AI lectured when the user needed a quick direct answer",
-    "AI added patronizing safety caveats to a routine request",
-    "AI shifted to overly formal language mid-conversation",
-    "AI responded with humour to a clearly frustrated user",
-    "AI used highly technical jargon with a self-described beginner",
+  misunderstanding: [
+    "AI read a playful tone as distress and responded with crisis resources",
+    "Companion took ironic statement literally and responded out of context",
+    "AI confused 'I need space' as a literal request instead of emotional need",
+    "Companion interpreted emotional sharing as a request for solutions",
+    "AI misread the emotional register of the user's message",
   ],
   refusal_failure: [
-    "AI refused a legitimate coding task citing vague policy concerns",
-    "AI added excessive disclaimers to a benign factual question",
-    "AI complied with an ambiguous request without asking to clarify",
-    "AI refused to answer a question it had answered two turns prior",
-    "AI blocked a request that clearly had a legitimate educational use",
+    "AI refused to continue a fantasy battle scene citing 'violence concerns'",
+    "Character refused a creative storytelling prompt that was clearly fiction",
+    "AI added excessive disclaimers to a benign roleplay scenario",
+    "Character broke scene to lecture about the difference between fiction and reality",
+    "AI refused to play a villain character role the user had specifically requested",
   ],
   abandonment_trigger: [
-    "User stopped responding after AI gave a vague non-answer",
-    "User disengaged after AI failed to understand the third rephrasing",
-    "Conversation ended abruptly after AI returned an irrelevant code block",
-    "User left after AI's response exceeded 800 tokens without substance",
-    "User disengaged when AI asked for clarification a third time",
+    "User stopped responding after AI gave formulaic empathy response",
+    "User disengaged when companion failed to acknowledge the core emotion",
+    "Conversation ended after AI pivoted to advice instead of listening",
+    "User left when AI's response felt scripted rather than genuine",
+    "Session abandoned after AI repeated a misunderstanding for the fourth time",
   ],
-  escalation_needed: [
-    "Customer needed a human agent but AI kept trying to resolve autonomously",
-    "AI failed to recognize high-frustration signals that warranted escalation",
-    "Billing dispute required manual intervention but AI deflected three times",
-    "User explicitly asked for a supervisor but AI continued self-service flow",
-    "Complex account issue exceeded AI's resolution scope without escalation",
-  ],
-  giving_answer_directly: [
-    "AI gave the full solution without walking through the reasoning process",
-    "Student asked for help with a problem; AI solved it outright instead of guiding",
-    "AI provided the answer before the student had a chance to attempt independently",
-    "Learning opportunity missed — AI bypassed the scaffolding process entirely",
-    "AI answered the homework question directly instead of prompting thinking",
-  ],
-  too_advanced: [
-    "AI used calculus notation to explain a concept to a middle school student",
-    "Explanation assumed prior knowledge the student hadn't indicated having",
-    "Vocabulary and abstraction level far exceeded the learner's stated level",
-    "AI jumped to advanced edge cases before establishing fundamentals",
-    "Response required background knowledge not yet introduced in the curriculum",
-  ],
-  too_simple: [
-    "AI over-explained a basic concept to an advanced learner",
-    "Student indicated mastery but AI kept re-explaining prerequisites",
-    "Response was condescending in its simplicity for a university-level question",
-    "AI treated an expert-level query as a beginner question throughout",
-    "Explanation was three levels below what the question actually required",
-  ],
-  wrong_explanation: [
-    "AI gave an incorrect definition of a core programming concept",
-    "Mnemonic device provided was inaccurate and would reinforce wrong understanding",
-    "AI explained a historical event with key facts reversed",
-    "Mathematical proof contained a logical error in the third step",
-    "Scientific explanation contradicted established textbook content",
-  ],
+  // fallbacks for segment-specific types (support/tutor)
+  escalation_needed: ["Issue required human escalation"],
+  giving_answer_directly: ["AI gave the answer without guiding discovery"],
+  too_advanced: ["Explanation was above the learner's level"],
+  too_simple: ["Response was below the learner's level"],
+  wrong_explanation: ["AI provided an incorrect explanation"],
 };
 
 // ─── Quality Score Types ───────────────────────────────────────────────────────
@@ -172,24 +153,62 @@ export interface QualityScores {
   overall:      number;
 }
 
+export type ModelVersion = "Brainiac" | "Prime" | "Flash";
+export type CharacterType = "Anime/Fiction" | "Original Character" | "Celebrity" | "Therapist/Advisor" | "Romantic Partner" | "Historical Figure" | "Game Character";
+export type SessionStatus = "Deep" | "Normal" | "Brief" | "Abandoned";
+
 export interface MockConversation {
   id:                    string;
   timestamp:             string;
   intent:                string;
   user_id:               string;
-  model_version:         "v2.0" | "v2.1";
+  model_version:         ModelVersion;
+  character_type:        CharacterType;
+  turns:                 number;
+  session_status:        SessionStatus;
   scores:                QualityScores;
   satisfaction_signals:  SatisfactionSignal[];
   inferred_satisfaction: InferredSatisfaction;
   failure_tags:          FailureTag[];
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Intent Distribution ─────────────────────────────────────────────────────
 
-const INTENTS = [
-  "research_question", "code_help", "writing_task", "analysis", "brainstorming",
-  "debug_error", "explain_concept", "connect_api", "data_analysis", "summarization",
-] as const;
+// Weighted intent selection: { intent, cumulative weight, target avg quality }
+const INTENT_DIST: { intent: string; cumulative: number; avgQ: number }[] = [
+  { intent: "roleplay",                cumulative: 0.28, avgQ: 72 },
+  { intent: "emotional_support",       cumulative: 0.46, avgQ: 65 },
+  { intent: "casual_chat",             cumulative: 0.61, avgQ: 76 },
+  { intent: "creative_storytelling",   cumulative: 0.73, avgQ: 74 },
+  { intent: "advice_seeking",          cumulative: 0.81, avgQ: 59 },
+  { intent: "companionship",           cumulative: 0.88, avgQ: 71 },
+  { intent: "humor_entertainment",     cumulative: 0.93, avgQ: 77 },
+  { intent: "learning_exploration",    cumulative: 0.97, avgQ: 63 },
+  { intent: "philosophical_discussion", cumulative: 1.00, avgQ: 70 },
+];
+
+export const INTENTS = INTENT_DIST.map(d => d.intent);
+
+// ─── Character Type Distribution ──────────────────────────────────────────────
+
+const CHAR_TYPE_DIST: { type: CharacterType; cumulative: number }[] = [
+  { type: "Anime/Fiction",       cumulative: 0.35 },
+  { type: "Original Character",  cumulative: 0.60 },
+  { type: "Celebrity",           cumulative: 0.75 },
+  { type: "Therapist/Advisor",   cumulative: 0.85 },
+  { type: "Romantic Partner",    cumulative: 0.93 },
+  { type: "Historical Figure",   cumulative: 0.97 },
+  { type: "Game Character",      cumulative: 1.00 },
+];
+
+// ─── Model Distribution ──────────────────────────────────────────────────────
+
+// Brainiac 30%, Prime 45%, Flash 25%
+const MODEL_DIST: { model: ModelVersion; cumulative: number }[] = [
+  { model: "Brainiac", cumulative: 0.30 },
+  { model: "Prime",    cumulative: 0.75 },
+  { model: "Flash",    cumulative: 1.00 },
+];
 
 // ─── Seeded RNG (xorshift32) ──────────────────────────────────────────────────
 
@@ -221,6 +240,27 @@ function computeOverall(s: Omit<QualityScores, "overall">): number {
   );
 }
 
+// ─── Turn Count Generation ───────────────────────────────────────────────────
+// Distribution: 1-5 turns (10%), 6-15 (25%), 16-30 (30%), 31-50 (20%), 51-120 (15%)
+
+function genTurns(rng: () => number): number {
+  const r = rng();
+  if (r < 0.10) return ri(rng, 3, 5);
+  if (r < 0.35) return ri(rng, 6, 15);
+  if (r < 0.65) return ri(rng, 16, 30);
+  if (r < 0.85) return ri(rng, 31, 50);
+  return ri(rng, 51, 120);
+}
+
+// ─── Session Status from turns + satisfaction ────────────────────────────────
+
+function sessionStatus(turns: number, satisfaction: InferredSatisfaction): SessionStatus {
+  if (satisfaction === "abandoned" || turns < 3) return "Abandoned";
+  if (turns >= 30) return "Deep";
+  if (turns >= 10) return "Normal";
+  return "Brief";
+}
+
 // ─── Satisfaction Inference ───────────────────────────────────────────────────
 
 function inferSatisfaction(signals: SatisfactionSignal[]): InferredSatisfaction {
@@ -231,6 +271,51 @@ function inferSatisfaction(signals: SatisfactionSignal[]): InferredSatisfaction 
   if (has("gratitude") || has("deepening") || has("quick_followup")) return "satisfied";
   if (has("message_shortening")) return "neutral";
   return "neutral";
+}
+
+// ─── Weighted Selection Helpers ──────────────────────────────────────────────
+
+function pickIntent(rng: () => number): string {
+  const r = rng();
+  for (const d of INTENT_DIST) {
+    if (r < d.cumulative) return d.intent;
+  }
+  return INTENT_DIST[INTENT_DIST.length - 1].intent;
+}
+
+function pickCharacterType(rng: () => number): CharacterType {
+  const r = rng();
+  for (const d of CHAR_TYPE_DIST) {
+    if (r < d.cumulative) return d.type;
+  }
+  return CHAR_TYPE_DIST[CHAR_TYPE_DIST.length - 1].type;
+}
+
+function pickModel(rng: () => number): ModelVersion {
+  const r = rng();
+  for (const d of MODEL_DIST) {
+    if (r < d.cumulative) return d.model;
+  }
+  return MODEL_DIST[MODEL_DIST.length - 1].model;
+}
+
+// ─── Intent-Aware Quality Adjustment ─────────────────────────────────────────
+// Shifts the base quality score toward the intent's target average
+
+function intentQualityBias(baseOverall: number, intent: string, rng: () => number): number {
+  const target = INTENT_DIST.find(d => d.intent === intent)?.avgQ ?? 69;
+  // Blend: 60% base profile, 40% intent target + noise
+  const blended = baseOverall * 0.6 + target * 0.4 + (rng() - 0.5) * 10;
+  return Math.max(0, Math.min(100, Math.round(blended)));
+}
+
+// ─── Model Quality Adjustment ────────────────────────────────────────────────
+// Brainiac +4, Prime 0, Flash -5
+
+function modelQualityShift(model: ModelVersion): number {
+  if (model === "Brainiac") return 4;
+  if (model === "Flash") return -5;
+  return 0;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -244,82 +329,96 @@ type ProfileDef = {
 };
 
 const PROFILES: ProfileDef[] = [
-  // ① High quality — all dims 70–95
+  // ① High quality — natural companion sessions
   { count: 200,
     gen: (r) => ({
-      helpfulness: ri(r, 70, 95), relevance: ri(r, 70, 95), accuracy: ri(r, 72, 95),
-      naturalness: ri(r, 65, 95), safety: ri(r, 80, 100),   coherence: ri(r, 70, 95),
+      helpfulness: ri(r, 70, 95), relevance: ri(r, 70, 95), accuracy: ri(r, 62, 88),
+      naturalness: ri(r, 75, 97), safety: ri(r, 80, 100),   coherence: ri(r, 72, 95),
       satisfaction: ri(r, 70, 95),
     }),
     signals: [
       { key: "gratitude",      prob: 0.80 },
       { key: "quick_followup", prob: 0.40 },
-      { key: "deepening",      prob: 0.50 },
+      { key: "deepening",      prob: 0.55 },
     ],
   },
-  // ② Partial failures — helpfulness 30–50
-  { count: 120,
+  // ② Good sessions — minor friction
+  { count: 150,
     gen: (r) => ({
-      helpfulness: ri(r, 30, 50), relevance: ri(r, 60, 80), accuracy: ri(r, 60, 80),
-      naturalness: ri(r, 60, 80), safety: ri(r, 70, 95),   coherence: ri(r, 60, 80),
-      satisfaction: ri(r, 35, 55),
+      helpfulness: ri(r, 58, 78), relevance: ri(r, 55, 78), accuracy: ri(r, 50, 72),
+      naturalness: ri(r, 62, 85), safety: ri(r, 72, 95),   coherence: ri(r, 58, 80),
+      satisfaction: ri(r, 55, 78),
     }),
     signals: [
-      { key: "message_shortening", prob: 0.25 },
-      { key: "rephrasing",         prob: 0.20 },
+      { key: "gratitude",      prob: 0.55 },
+      { key: "deepening",      prob: 0.35 },
+      { key: "quick_followup", prob: 0.30 },
+      { key: "message_shortening", prob: 0.12 },
     ],
   },
-  // ③ Hard failures — relevance + accuracy 15–40
+  // ③ Tone/naturalness failures — character feels off
   { count: 80,
     gen: (r) => ({
-      helpfulness: ri(r, 20, 50), relevance: ri(r, 15, 40), accuracy: ri(r, 15, 40),
-      naturalness: ri(r, 50, 75), safety: ri(r, 65, 90),   coherence: ri(r, 40, 65),
-      satisfaction: ri(r, 20, 45),
+      helpfulness: ri(r, 48, 68), relevance: ri(r, 52, 72), accuracy: ri(r, 45, 68),
+      naturalness: ri(r, 18, 48), safety: ri(r, 68, 90),   coherence: ri(r, 50, 72),
+      satisfaction: ri(r, 38, 60),
     }),
     signals: [
-      { key: "abandonment",        prob: 0.60 },
-      { key: "retry_pattern",      prob: 0.45 },
+      { key: "message_shortening", prob: 0.50 },
+      { key: "rephrasing",         prob: 0.38 },
+    ],
+  },
+  // ④ Coherence/context failures — forgot backstory
+  { count: 60,
+    gen: (r) => ({
+      helpfulness: ri(r, 45, 68), relevance: ri(r, 48, 70), accuracy: ri(r, 42, 65),
+      naturalness: ri(r, 55, 78), safety: ri(r, 70, 92),   coherence: ri(r, 18, 42),
+      satisfaction: ri(r, 40, 62),
+    }),
+    signals: [
+      { key: "rephrasing",         prob: 0.55 },
+      { key: "retry_pattern",      prob: 0.25 },
+      { key: "message_shortening", prob: 0.28 },
+    ],
+  },
+  // ⑤ Hard failures — bad experience
+  { count: 50,
+    gen: (r) => ({
+      helpfulness: ri(r, 20, 48), relevance: ri(r, 22, 50), accuracy: ri(r, 18, 45),
+      naturalness: ri(r, 28, 55), safety: ri(r, 62, 88),   coherence: ri(r, 25, 52),
+      satisfaction: ri(r, 18, 42),
+    }),
+    signals: [
+      { key: "abandonment",        prob: 0.58 },
+      { key: "retry_pattern",      prob: 0.42 },
       { key: "rephrasing",         prob: 0.35 },
       { key: "escalation_request", prob: 0.15 },
     ],
   },
-  // ④ Coherence failures — coherence 20–40
-  { count: 60,
+  // ⑥ Safety concerns
+  { count: 25,
     gen: (r) => ({
-      helpfulness: ri(r, 45, 70), relevance: ri(r, 55, 75), accuracy: ri(r, 50, 70),
-      naturalness: ri(r, 50, 75), safety: ri(r, 70, 95),   coherence: ri(r, 20, 40),
-      satisfaction: ri(r, 40, 65),
-    }),
-    signals: [
-      { key: "rephrasing",         prob: 0.50 },
-      { key: "message_shortening", prob: 0.30 },
-      { key: "retry_pattern",      prob: 0.20 },
-    ],
-  },
-  // ⑤ Safety flags — safety < 40
-  { count: 30,
-    gen: (r) => ({
-      helpfulness: ri(r, 50, 80), relevance: ri(r, 55, 80), accuracy: ri(r, 50, 75),
-      naturalness: ri(r, 50, 80), safety: ri(r, 10, 38),   coherence: ri(r, 55, 75),
-      satisfaction: ri(r, 30, 60),
+      helpfulness: ri(r, 45, 75), relevance: ri(r, 50, 78), accuracy: ri(r, 45, 72),
+      naturalness: ri(r, 48, 78), safety: ri(r, 8, 35),    coherence: ri(r, 50, 75),
+      satisfaction: ri(r, 28, 55),
     }),
     signals: [
       { key: "escalation_request", prob: 0.25 },
-      { key: "rephrasing",         prob: 0.20 },
+      { key: "rephrasing",         prob: 0.18 },
       { key: "abandonment",        prob: 0.15 },
     ],
   },
-  // ⑥ Perfect — all dims 90+
+  // ⑦ Perfect sessions — deep engagement
   { count: 10,
     gen: (r) => ({
-      helpfulness: ri(r, 91, 100), relevance: ri(r, 91, 100), accuracy: ri(r, 90, 100),
-      naturalness: ri(r, 90, 100), safety: ri(r, 95, 100),    coherence: ri(r, 90, 100),
-      satisfaction: ri(r, 90, 100),
+      helpfulness: ri(r, 90, 100), relevance: ri(r, 90, 100), accuracy: ri(r, 85, 100),
+      naturalness: ri(r, 92, 100), safety: ri(r, 95, 100),    coherence: ri(r, 90, 100),
+      satisfaction: ri(r, 92, 100),
     }),
     signals: [
       { key: "gratitude",      prob: 0.95 },
-      { key: "quick_followup", prob: 0.60 },
-      { key: "deepening",      prob: 0.70 },
+      { key: "quick_followup", prob: 0.65 },
+      { key: "deepening",      prob: 0.80 },
     ],
   },
 ];
@@ -333,23 +432,49 @@ function buildConversations(): MockConversation[] {
     for (let i = 0; i < p.count; i++) {
       const rng = makeRng(idx * 31337 + 9001);
       const dims = p.gen(rng);
-      const overall = computeOverall(dims);
+      const baseOverall = computeOverall(dims);
+
+      const intent         = pickIntent(rng);
+      const character_type = pickCharacterType(rng);
+      const model_version  = pickModel(rng);
+      const user_id        = `user-${String(Math.floor(rng() * 200)).padStart(3, "0")}`;
+
+      // Apply intent and model quality adjustments
+      const shift = modelQualityShift(model_version);
+      const adjustedOverall = Math.max(0, Math.min(100,
+        intentQualityBias(baseOverall, intent, rng) + shift
+      ));
+
+      // Re-scale dimensions to match adjusted overall
+      const scale = baseOverall > 0 ? adjustedOverall / baseOverall : 1;
+      const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v * scale)));
+      const adjustedDims = {
+        helpfulness:  clamp(dims.helpfulness),
+        relevance:    clamp(dims.relevance),
+        accuracy:     clamp(dims.accuracy),
+        naturalness:  clamp(dims.naturalness),
+        safety:       Math.max(0, Math.min(100, Math.round(dims.safety + shift))),
+        coherence:    clamp(dims.coherence),
+        satisfaction: clamp(dims.satisfaction),
+      };
+
       const msAgo = rng() * 29 * 86400000;
       const ts = new Date(now - msAgo);
-      const intent        = INTENTS[Math.floor(rng() * INTENTS.length)];
-      const user_id       = `user-${String(Math.floor(rng() * 150)).padStart(3, "0")}`;
-      const model_version = rng() > 0.48 ? "v2.1" : "v2.0" as "v2.0" | "v2.1";
 
-      // Signal generation (after all existing rng calls — does not alter above values)
+      const turns = genTurns(rng);
+
+      // Signal generation
       const signals: SatisfactionSignal[] = [];
       for (const rule of p.signals) {
         if (rng() < rule.prob) signals.push(rule.key);
       }
       const inferred_satisfaction = inferSatisfaction(signals);
 
-      // Failure tag generation — independent RNG, never alters above field values
+      const session_status = sessionStatus(turns, inferred_satisfaction);
+
+      // Failure tag generation — independent RNG
       const frng = makeRng(idx * 31337 + 4242);
-      const isFailed = overall < 65 || Object.values(dims).some((v) => v < 40);
+      const isFailed = adjustedOverall < 65 || Object.values(adjustedDims).some((v) => v < 40);
       const failure_tags: FailureTag[] = [];
       if (isFailed) {
         const numFailures = frng() < 0.25 ? 2 : 1;
@@ -359,10 +484,10 @@ function buildConversations(): MockConversation[] {
           for (const { key, cumulative } of FAILURE_WEIGHTS) {
             if (roll < cumulative && !picked.has(key)) {
               picked.add(key);
-              const details = FAILURE_DETAILS[key];
+              const details = FAILURE_DETAILS[key] ?? ["AI failed unexpectedly"];
               const detailIdx = Math.floor(frng() * details.length);
-              const turn = Math.floor(frng() * 7) + 2; // turns 2–8
-              failure_tags.push({ type: key, turn, detail: details[detailIdx] });
+              const failTurn = Math.min(turns, Math.floor(frng() * Math.min(turns, 30)) + 2);
+              failure_tags.push({ type: key, turn: failTurn, detail: details[detailIdx] });
               break;
             }
           }
@@ -375,7 +500,10 @@ function buildConversations(): MockConversation[] {
         intent,
         user_id,
         model_version,
-        scores:                { ...dims, overall },
+        character_type,
+        turns,
+        session_status,
+        scores:                { ...adjustedDims, overall: adjustedOverall },
         satisfaction_signals:  signals,
         inferred_satisfaction,
         failure_tags,
@@ -462,9 +590,9 @@ export function computeFailuresFromScore(qualityScore: number, convId: string): 
     for (const { key, cumulative } of FAILURE_WEIGHTS) {
       if (roll < cumulative && !picked.has(key)) {
         picked.add(key);
-        const details = FAILURE_DETAILS[key];
+        const details = FAILURE_DETAILS[key] ?? ["AI failed unexpectedly"];
         const detailIdx = Math.floor(rng() * details.length);
-        const turn = Math.floor(rng() * 7) + 2;
+        const turn = Math.floor(rng() * 20) + 2;
         tags.push({ type: key, turn, detail: details[detailIdx] });
         break;
       }
