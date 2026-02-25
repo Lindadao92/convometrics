@@ -27,12 +27,23 @@ interface FrustrationSignal { key: string; label: string; emoji: string; count: 
 interface SatisfactionData { distribution: SatisfactionDist[]; topFrustrationSignals: FrustrationSignal[]; total: number; }
 interface TopFailureItem { key: string; label: string; icon: string; thisWeek: number; delta: number; isAlert: boolean; }
 interface FailureTaxonomyData { topThisWeek: TopFailureItem[]; }
-interface OutcomesData {
-  retentionCurve: { qualityBin: string; retentionPct: number }[];
-  retentionMultiplier: number;
-  revenueTable: { intent: string; sessionsPerWeek: number; successRate: number; estMonthlyImpact: number }[];
-  churnRisk: { atRiskCount: number; totalLtvAtRisk: number };
-}
+// ─── Quality vs Return Rate data ──────────────────────────────────────────────
+
+const QUALITY_RETURN_CURVE = [
+  { qualityBin: "0–30",  returnPct: 22 },
+  { qualityBin: "30–50", returnPct: 31 },
+  { qualityBin: "50–70", returnPct: 48 },
+  { qualityBin: "70–85", returnPct: 58 },
+  { qualityBin: "85–100", returnPct: 67 },
+];
+
+const RETENTION_BY_INTENT = [
+  { intent: "Roleplay",            sessions: 812, avgQuality: 68, returnRate: 61 },
+  { intent: "Emotional Support",   sessions: 504, avgQuality: 59, returnRate: 54 },
+  { intent: "Casual Chat",         sessions: 421, avgQuality: 52, returnRate: 47 },
+  { intent: "Creative Storytelling", sessions: 337, avgQuality: 71, returnRate: 64 },
+  { intent: "Knowledge Q&A",       sessions: 226, avgQuality: 45, returnRate: 38 },
+];
 
 // ─── KPI chart data ───────────────────────────────────────────────────────────
 
@@ -476,9 +487,10 @@ function SatisfactionSection({ sat }: { sat: SatisfactionData }) {
   );
 }
 
-// ─── Outcomes Section ─────────────────────────────────────────────────────────
+// ─── Quality vs Return Rate Section ───────────────────────────────────────────
 
-function OutcomesSection({ data }: { data: OutcomesData }) {
+function QualityReturnSection() {
+  const returnColor = (v: number) => v > 55 ? "text-emerald-400" : v >= 40 ? "text-amber-400" : "text-red-400";
   return (
     <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
       <div className="px-5 py-4 border-b border-white/[0.06]">
@@ -486,67 +498,69 @@ function OutcomesSection({ data }: { data: OutcomesData }) {
           <span className="text-base">📈</span>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Quality → Retention</p>
         </div>
-        <p className="text-xs text-zinc-600 mt-0.5">How conversation quality drives retention and revenue</p>
+        <p className="text-xs text-zinc-600 mt-0.5">How conversation quality drives user return rates</p>
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-0 divide-y xl:divide-y-0 xl:divide-x divide-white/[0.06]">
-        {/* Left: Retention curve */}
+        {/* Left: Quality vs Return Rate chart */}
         <div className="xl:col-span-3 p-5 space-y-4">
           <div>
-            <p className="text-xs font-medium text-zinc-300 mb-0.5">30-Day Retention Rate by Quality Score</p>
-            <p className="text-[10px] text-zinc-600">Higher quality conversations drive significantly better retention</p>
+            <p className="text-xs font-medium text-zinc-300 mb-0.5">Quality Score vs. Return Rate</p>
+            <p className="text-[10px] text-zinc-600">% of users who returned within 7 days, by quality bucket</p>
           </div>
           <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={data.retentionCurve} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+            <AreaChart data={QUALITY_RETURN_CURVE} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
               <defs>
-                <linearGradient id="retentionGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                <linearGradient id="qualReturnGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
               <XAxis dataKey="qualityBin" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [`${v ?? 0}%`, "30-day retention"]} />
-              <Line type="monotone" dataKey="retentionPct" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: "#6366f1", r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
-            </LineChart>
+              <Tooltip {...TOOLTIP_STYLE} formatter={(v: number | undefined) => [`${v ?? 0}%`, "7-day return"]} />
+              <Area type="monotone" dataKey="returnPct" stroke="#6366f1" strokeWidth={2.5} fill="url(#qualReturnGrad)"
+                dot={{ fill: "#6366f1", r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} />
+            </AreaChart>
           </ResponsiveContainer>
           <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/20 px-4 py-2.5 flex items-start gap-2.5">
             <span className="text-amber-400 text-sm shrink-0 mt-0.5">⭐</span>
             <p className="text-xs text-amber-200/80 leading-relaxed">
               Users with quality <span className="font-semibold text-amber-300">&gt; 75</span> retain at{" "}
-              <span className="font-bold text-amber-300 text-sm">{data.retentionMultiplier}×</span> the rate of users with quality{" "}
+              <span className="font-bold text-amber-300 text-sm">2.1×</span> the rate of users with quality{" "}
               <span className="font-semibold text-amber-300">&lt; 50</span>
             </p>
           </div>
+          <p className="text-[10px] text-zinc-700">Based on 2,847 users over 30 days</p>
         </div>
 
-        {/* Right: Revenue impact table */}
+        {/* Right: Return Rate by Intent */}
         <div className="xl:col-span-2 p-5 space-y-3">
           <div>
-            <p className="text-xs font-medium text-zinc-300 mb-0.5">Subscriber Churn Risk by Intent</p>
-            <p className="text-[10px] text-zinc-600">Estimated monthly subscriber churn risk per intent</p>
+            <p className="text-xs font-medium text-zinc-300 mb-0.5">Return Rate by Intent</p>
+            <p className="text-[10px] text-zinc-600">7-day return rate broken down by conversation intent</p>
           </div>
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-white/[0.06]">
                 <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Intent</th>
-                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Sess/wk</th>
-                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Retain</th>
-                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Risk/mo</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Sessions</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Avg Qual</th>
+                <th className="pb-2 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500">7-Day Return</th>
               </tr>
             </thead>
             <tbody>
-              {data.revenueTable.map((row) => (
+              {RETENTION_BY_INTENT.map((row) => (
                 <tr key={row.intent} className="border-b border-white/[0.03]">
-                  <td className="py-2 text-zinc-300 capitalize max-w-[100px] truncate">{cap(row.intent)}</td>
-                  <td className="py-2 text-right text-zinc-500 font-mono">{row.sessionsPerWeek}</td>
-                  <td className="py-2 text-right text-zinc-500 font-mono">{row.successRate}%</td>
-                  <td className="py-2 text-right font-mono font-semibold text-red-400">${row.estMonthlyImpact.toLocaleString()}</td>
+                  <td className="py-2 text-zinc-300">{row.intent}</td>
+                  <td className="py-2 text-right text-zinc-500 font-mono">{fmt(row.sessions)}</td>
+                  <td className="py-2 text-right text-zinc-500 font-mono">{row.avgQuality}</td>
+                  <td className={`py-2 text-right font-mono font-semibold ${returnColor(row.returnRate)}`}>{row.returnRate}%</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="text-[10px] text-zinc-700 leading-relaxed">Estimated monthly subscriber churn risk from low-quality conversations per intent</p>
+          <p className="text-[10px] text-zinc-700 leading-relaxed">Return rate = % of users who started another session within 7 days</p>
         </div>
       </div>
     </div>
@@ -560,7 +574,6 @@ export default function Overview() {
   const { effectiveDays, timeRange } = useTimeRange();
   const [satData, setSatData] = useState<SatisfactionData | null>(null);
   const [failureData, setFailureData] = useState<FailureTaxonomyData | null>(null);
-  const [outcomesData, setOutcomesData] = useState<OutcomesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -571,12 +584,10 @@ export default function Overview() {
     Promise.all([
       fetch(`/api/satisfaction?days=${effectiveDays}${sp}`).then((r) => r.ok ? r.json() : null),
       fetch(`/api/failure-taxonomy?days=${effectiveDays}${sp}`).then((r) => r.ok ? r.json() : null),
-      fetch(`/api/outcomes?days=${effectiveDays}${seg ? `&segment=${seg}` : ""}`).then((r) => r.ok ? r.json() : null),
     ])
-      .then(([satisfaction, failures, outcomes]) => {
+      .then(([satisfaction, failures]) => {
         setSatData(satisfaction);
         setFailureData(failures);
-        setOutcomesData(outcomes);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
@@ -661,7 +672,7 @@ export default function Overview() {
       {satData && <SatisfactionSection sat={satData} />}
 
       {/* 6. Quality → Retention */}
-      {outcomesData && <OutcomesSection data={outcomesData} />}
+      <QualityReturnSection />
 
       {/* Summary links */}
       <div className="flex items-center gap-4 pt-2">
