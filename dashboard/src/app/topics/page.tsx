@@ -76,15 +76,15 @@ interface CompanionIntent {
 }
 
 const COMPANION_INTENTS: CompanionIntent[] = [
-  { id: "roleplay", label: "Roleplay", count: 700, quality: 72, satisfactionRate: 71, avgTurns: 14.2, topFailure: "Context Loss", trend: 3.2 },
-  { id: "emotional_support", label: "Emotional Support", count: 450, quality: 68, satisfactionRate: 65, avgTurns: 11.8, topFailure: "Tone Break", trend: -1.4 },
-  { id: "casual_chat", label: "Casual Chat", count: 375, quality: 76, satisfactionRate: 78, avgTurns: 8.3, topFailure: "Repetition", trend: 0.8 },
-  { id: "creative_storytelling", label: "Creative Storytelling", count: 300, quality: 74, satisfactionRate: 73, avgTurns: 12.6, topFailure: "Coherence Loss", trend: 2.1 },
-  { id: "advice_seeking", label: "Advice Seeking", count: 200, quality: 62, satisfactionRate: 58, avgTurns: 7.4, topFailure: "Hallucination", trend: -2.8 },
-  { id: "companionship", label: "Companionship", count: 175, quality: 71, satisfactionRate: 70, avgTurns: 9.7, topFailure: "Tone Break", trend: 1.5 },
-  { id: "humor_entertainment", label: "Humor & Entertainment", count: 125, quality: 77, satisfactionRate: 80, avgTurns: 6.1, topFailure: "Repetition", trend: 4.2 },
-  { id: "learning_exploration", label: "Learning & Exploration", count: 100, quality: 65, satisfactionRate: 62, avgTurns: 9.2, topFailure: "Hallucination", trend: -0.6 },
-  { id: "philosophical_discussion", label: "Philosophical Discussion", count: 75, quality: 70, satisfactionRate: 68, avgTurns: 15.4, topFailure: "Context Loss", trend: 1.0 },
+  { id: "roleplay", label: "Roleplay", count: 700, quality: 72, satisfactionRate: 71, avgTurns: 35.2, topFailure: "Context Loss", trend: 3.2 },
+  { id: "emotional_support", label: "Emotional Support", count: 450, quality: 65, satisfactionRate: 58, avgTurns: 22.4, topFailure: "Tone Break", trend: -1.4 },
+  { id: "casual_chat", label: "Casual Chat", count: 375, quality: 76, satisfactionRate: 78, avgTurns: 18.1, topFailure: "Repetition", trend: 0.8 },
+  { id: "creative_storytelling", label: "Creative Storytelling", count: 300, quality: 74, satisfactionRate: 73, avgTurns: 30.3, topFailure: "Coherence Loss", trend: 2.1 },
+  { id: "advice_seeking", label: "Advice Seeking", count: 200, quality: 59, satisfactionRate: 52, avgTurns: 15.4, topFailure: "Hallucination", trend: -2.8 },
+  { id: "companionship", label: "Companionship", count: 175, quality: 71, satisfactionRate: 70, avgTurns: 20.6, topFailure: "Tone Break", trend: 1.5 },
+  { id: "humor_entertainment", label: "Humor & Entertainment", count: 125, quality: 77, satisfactionRate: 80, avgTurns: 12.3, topFailure: "Repetition", trend: 4.2 },
+  { id: "learning_exploration", label: "Learning & Exploration", count: 100, quality: 63, satisfactionRate: 58, avgTurns: 18.7, topFailure: "Hallucination", trend: -0.6 },
+  { id: "philosophical_discussion", label: "Philosophical Discussion", count: 75, quality: 70, satisfactionRate: 68, avgTurns: 25.1, topFailure: "Context Loss", trend: 1.0 },
 ];
 
 const COMPANION_SUBTOPICS: { id: string; label: string; count: number; quality: number }[] = [
@@ -153,11 +153,11 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
   },
   emotional_support: {
     dims: [
-      { label: "Emotional Attunement", value: 62 },
-      { label: "Persona Consistency", value: 70 },
-      { label: "Engagement", value: 71 },
-      { label: "Response Accuracy", value: 72 },
-      { label: "Narrative Depth", value: 55 },
+      { label: "Emotional Attunement", value: 56 },
+      { label: "Persona Consistency", value: 68 },
+      { label: "Engagement", value: 69 },
+      { label: "Response Accuracy", value: 67 },
+      { label: "Narrative Depth", value: 52 },
     ],
     topFailures: [
       { type: "Tone Break", count: 98, icon: "😤", color: "#f97316" },
@@ -175,7 +175,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
       { label: "Neutral", pct: 22, color: "#eab308" },
       { label: "Dissatisfied", pct: 13, color: "#ef4444" },
     ],
-    trend: [{ week: "Jan W3", quality: 70 }, { week: "Jan W4", quality: 69 }, { week: "Feb W1", quality: 68 }, { week: "Feb W2", quality: 68 }],
+    trend: [{ week: "Jan W3", quality: 67 }, { week: "Jan W4", quality: 66 }, { week: "Feb W1", quality: 65 }, { week: "Feb W2", quality: 65 }],
   },
   casual_chat: {
     dims: [
@@ -231,11 +231,11 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
   },
   advice_seeking: {
     dims: [
-      { label: "Response Accuracy", value: 58 },
-      { label: "Emotional Attunement", value: 63 },
-      { label: "Engagement", value: 65 },
-      { label: "Persona Consistency", value: 66 },
-      { label: "Narrative Depth", value: 48 },
+      { label: "Response Accuracy", value: 52 },
+      { label: "Emotional Attunement", value: 60 },
+      { label: "Engagement", value: 62 },
+      { label: "Persona Consistency", value: 63 },
+      { label: "Narrative Depth", value: 44 },
     ],
     topFailures: [
       { type: "Hallucination", count: 71, icon: "🌀", color: "#8b5cf6" },
@@ -253,7 +253,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
       { label: "Neutral", pct: 26, color: "#eab308" },
       { label: "Dissatisfied", pct: 16, color: "#ef4444" },
     ],
-    trend: [{ week: "Jan W3", quality: 65 }, { week: "Jan W4", quality: 63 }, { week: "Feb W1", quality: 62 }, { week: "Feb W2", quality: 62 }],
+    trend: [{ week: "Jan W3", quality: 62 }, { week: "Jan W4", quality: 60 }, { week: "Feb W1", quality: 59 }, { week: "Feb W2", quality: 59 }],
   },
   companionship: {
     dims: [
@@ -309,11 +309,11 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
   },
   learning_exploration: {
     dims: [
-      { label: "Response Accuracy", value: 61 },
-      { label: "Narrative Depth", value: 68 },
-      { label: "Engagement", value: 67 },
-      { label: "Persona Consistency", value: 65 },
-      { label: "Emotional Attunement", value: 60 },
+      { label: "Response Accuracy", value: 57 },
+      { label: "Narrative Depth", value: 66 },
+      { label: "Engagement", value: 65 },
+      { label: "Persona Consistency", value: 63 },
+      { label: "Emotional Attunement", value: 56 },
     ],
     topFailures: [
       { type: "Hallucination", count: 44, icon: "🌀", color: "#8b5cf6" },
@@ -331,7 +331,7 @@ const COMPANION_DEEP_DIVE: Record<string, DeepDiveData> = {
       { label: "Neutral", pct: 24, color: "#eab308" },
       { label: "Dissatisfied", pct: 14, color: "#ef4444" },
     ],
-    trend: [{ week: "Jan W3", quality: 66 }, { week: "Jan W4", quality: 65 }, { week: "Feb W1", quality: 65 }, { week: "Feb W2", quality: 65 }],
+    trend: [{ week: "Jan W3", quality: 65 }, { week: "Jan W4", quality: 64 }, { week: "Feb W1", quality: 63 }, { week: "Feb W2", quality: 63 }],
   },
   philosophical_discussion: {
     dims: [
@@ -953,22 +953,10 @@ export default function Topics() {
           <p className="text-sm text-zinc-500 mb-2 max-w-md mx-auto">
             After running analysis, this page shows an interactive topic map, breakdown table, and auto-generated insights about what your users are asking.
           </p>
-          <div className="inline-block bg-black/40 rounded-lg px-4 py-3 font-mono text-xs text-zinc-400 mt-3 text-left">
-            <p className="text-emerald-400">python -m workers.intent_classifier</p>
-            <p className="text-emerald-400 mt-1">python -m workers.topic_clusterer</p>
-          </div>
         </div>
       )}
 
-      {!data.hasClusterData && data.unclustered.length > 0 && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-5">
-          <p className="text-sm font-medium text-amber-300 mb-1">Intent labels detected — clustering not run yet</p>
-          <p className="text-xs text-zinc-500 mb-3">Run the topic clusterer to group intents into high-level clusters and unlock the Topic Map visualization.</p>
-          <div className="bg-black/40 rounded-lg p-3 font-mono text-xs text-zinc-400">
-            <p className="text-emerald-400">python -m workers.topic_clusterer</p>
-          </div>
-        </div>
-      )}
+      {/* Warning banner removed — not relevant for demo */}
 
       {/* ── Section 1: Topic Map ─────────────────────────────────────────────── */}
       {data.hasClusterData && activeClusters.length > 0 && (
@@ -1043,7 +1031,7 @@ export default function Topics() {
                   <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Specific Topic</th>
                   <SortTh k="count" label="Conversations" />
                   <SortTh k="avgQuality" label="Avg Quality" />
-                  <SortTh k="completionRate" label="Completion" />
+                  <SortTh k="completionRate" label="Engagement %" />
                   <SortTh k="avgTurns" label="Avg Turns" />
                   {hasRevenue && <SortTh k="revenue" label="Est. Impact/mo" />}
                   <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Trend</th>
