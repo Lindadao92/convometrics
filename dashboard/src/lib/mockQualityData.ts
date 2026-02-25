@@ -164,6 +164,7 @@ export interface MockConversation {
   user_id:               string;
   model_version:         ModelVersion;
   character_type:        CharacterType;
+  character_name:        string;
   turns:                 number;
   session_status:        SessionStatus;
   scores:                QualityScores;
@@ -200,6 +201,21 @@ const CHAR_TYPE_DIST: { type: CharacterType; cumulative: number }[] = [
   { type: "Historical Figure",   cumulative: 0.97 },
   { type: "Game Character",      cumulative: 1.00 },
 ];
+
+export const CHARACTER_NAMES: Record<CharacterType, string[]> = {
+  "Anime/Fiction":       ["Captain Drake", "Sakura-chan", "Princess Aria", "Shadow Knight Kael"],
+  "Original Character":  ["Luna the Wolf", "Nyx (shadow entity)", "Ember Rose"],
+  "Celebrity":           ["AI Taylor", "AI Elon"],
+  "Therapist/Advisor":   ["Dr. Elena", "Life Coach Sam", "Study Buddy"],
+  "Romantic Partner":    ["Alex (boyfriend)", "Mia (girlfriend)"],
+  "Historical Figure":   ["Marcus Aurelius", "Cleopatra"],
+  "Game Character":      ["Dark Lord Zephyr", "Commander Vex"],
+};
+
+function pickCharacterName(rng: () => number, charType: CharacterType): string {
+  const names = CHARACTER_NAMES[charType];
+  return names[Math.floor(rng() * names.length)];
+}
 
 // ─── Model Distribution ──────────────────────────────────────────────────────
 
@@ -436,6 +452,7 @@ function buildConversations(): MockConversation[] {
 
       const intent         = pickIntent(rng);
       const character_type = pickCharacterType(rng);
+      const character_name = pickCharacterName(rng, character_type);
       const model_version  = pickModel(rng);
       const user_id        = `user-${String(Math.floor(rng() * 200)).padStart(3, "0")}`;
 
@@ -501,6 +518,7 @@ function buildConversations(): MockConversation[] {
         user_id,
         model_version,
         character_type,
+        character_name,
         turns,
         session_status,
         scores:                { ...adjustedDims, overall: adjustedOverall },

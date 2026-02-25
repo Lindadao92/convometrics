@@ -7,7 +7,7 @@
 import {
   MockConversation, FailureTag, FailureType, SatisfactionSignal, InferredSatisfaction,
   ModelVersion, CharacterType, SessionStatus,
-  makeRng, ri, MOCK_CONVERSATIONS, FAILURE_TYPES,
+  makeRng, ri, MOCK_CONVERSATIONS, FAILURE_TYPES, CHARACTER_NAMES,
 } from "./mockQualityData";
 import { DemoSegment } from "./demo-mode-context";
 
@@ -440,6 +440,8 @@ function buildSegmentConversations(
       const user_id = `user-${String(Math.floor(rng() * 200)).padStart(3, "0")}`;
       const model_version = pickModel(rng);
       const character_type = pickCharType(rng);
+      const charNames = CHARACTER_NAMES[character_type];
+      const character_name = charNames[Math.floor(rng() * charNames.length)];
       const turns = genTurns(rng);
 
       // Satisfaction signals
@@ -479,6 +481,7 @@ function buildSegmentConversations(
         user_id,
         model_version,
         character_type,
+        character_name,
         turns,
         session_status,
         scores: { ...dims, overall },
