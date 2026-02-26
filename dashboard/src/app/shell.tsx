@@ -205,7 +205,10 @@ function ShellInner({ children }: { children: ReactNode }) {
         <aside className="w-52 shrink-0 border-r border-white/[0.06] bg-[#0a0b10] flex flex-col overflow-y-auto">
           <nav className="flex flex-col gap-0.5 px-3 py-4">
             {NAV.map(({ href, label, icon }) => {
-              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+              const OVERVIEW_SUBPAGES = ["/retention", "/engagement", "/satisfaction", "/at-risk"];
+              const active = href === "/"
+                ? pathname === "/" || OVERVIEW_SUBPAGES.some(p => pathname.startsWith(p))
+                : pathname.startsWith(href);
               return (
                 <a
                   key={href}
