@@ -1,0 +1,102 @@
+conversation_id,role,message,timestamp
+conv_1001,user,"I want to upgrade to Team but I have 3 months left on annual. Do I keep unused months as credit?",2025-02-14 06:16:00
+conv_1001,assistant,"Great choice! To upgrade, go to Settings → Billing → Change Plan. The Team plan includes collaboration tools!",2025-02-14 06:17:46
+conv_1001,user,"I know how to upgrade. I'm asking what happens to the 3 months I already paid for",2025-02-14 06:19:44
+conv_1001,assistant,"When you upgrade, your new plan starts immediately. You can view billing history in Settings → Billing → History.",2025-02-14 06:20:30
+conv_1001,user,"That doesn't answer my question at all",2025-02-14 06:21:15
+conv_1001,assistant,"I apologize for any confusion! For specific billing inquiries about proration, I'd recommend reaching out to our billing team at billing@flowbase.com.",2025-02-14 06:22:00
+conv_1001,user,"ok thanks",2025-02-14 06:22:30
+conv_1002,user,"I can't log in. I changed my email and now I'm locked out",2025-02-14 07:01:00
+conv_1002,assistant,"I can help! I'll send a verification code to your email on file. Please check your inbox.",2025-02-14 07:01:45
+conv_1002,user,"That's the old email. I can't access it. That's why I'm locked out.",2025-02-14 07:03:00
+conv_1002,assistant,"I understand. For security purposes, we need to verify your identity. I'll send a new code to your registered email address.",2025-02-14 07:03:30
+conv_1002,user,"You're sending it to the email I just told you I can't access",2025-02-14 07:05:00
+conv_1002,assistant,"I apologize for the inconvenience. Please try again in 24 hours or contact our support team.",2025-02-14 07:05:30
+conv_1002,user,"This is your support team. Can I talk to a real person?",2025-02-14 07:06:00
+conv_1003,user,"I want to cancel my subscription",2025-02-14 08:00:00
+conv_1003,assistant,"I'm sorry to hear that! Before you go — we'd like to offer you 3 months at 50% off. Would you like to continue?",2025-02-14 08:00:30
+conv_1003,user,"Maybe. If I take it, can I still cancel after those 3 months without penalty?",2025-02-14 08:01:15
+conv_1003,assistant,"To cancel your subscription, go to Settings → Billing → Cancel Plan. You can cancel at any time.",2025-02-14 08:01:45
+conv_1003,user,"No I was asking about the discount offer. Does it lock me in?",2025-02-14 08:02:30
+conv_1003,assistant,"Our subscription is flexible and you can cancel anytime! Visit Settings → Billing → Cancel Plan.",2025-02-14 08:03:00
+conv_1003,user,"fine whatever",2025-02-14 08:03:30
+conv_1004,user,"Where's my order? I ordered 3 days ago",2025-02-14 09:00:00
+conv_1004,assistant,"I can help you track your order! Please provide your order number and I'll look it up for you.",2025-02-14 09:00:30
+conv_1004,user,"Order #48291",2025-02-14 09:01:00
+conv_1004,assistant,"Your order #48291 was shipped yesterday and is estimated to arrive by February 16. Here's your tracking link: track.example.com/48291",2025-02-14 09:01:30
+conv_1004,user,"Perfect, thanks!",2025-02-14 09:02:00
+conv_1005,user,"How do I reset my password?",2025-02-14 10:00:00
+conv_1005,assistant,"To reset your password, go to the login page and click 'Forgot Password'. Enter your email and we'll send a reset link.",2025-02-14 10:00:30
+conv_1005,user,"Got it, thanks!",2025-02-14 10:01:00
+conv_1006,user,"I want to upgrade my plan but only if I can keep my existing API rate limits until the new ones kick in",2025-02-14 11:00:00
+conv_1006,assistant,"Upgrading is easy! Go to Settings → Plans and select your new plan. Upgraded plans come with higher API rate limits!",2025-02-14 11:00:30
+conv_1006,user,"You're not answering my question. What happens to my EXISTING rate limits during the transition?",2025-02-14 11:01:30
+conv_1006,assistant,"Your upgraded plan includes enhanced API rate limits. For detailed API documentation, visit docs.flowbase.com/api.",2025-02-14 11:02:00
+conv_1006,user,"THAT'S NOT WHAT I ASKED. Do my current limits stay active until the new ones are configured?",2025-02-14 11:03:00
+conv_1006,assistant,"I apologize for any confusion. For specific questions about API rate limit transitions, please contact our technical support team.",2025-02-14 11:03:30
+conv_1006,user,"forget it",2025-02-14 11:04:00
+conv_1007,user,"Can I connect Flowbase to Slack?",2025-02-14 12:00:00
+conv_1007,assistant,"Yes! Go to Settings → Integrations → Slack. Click 'Connect' and authorize the app. You'll get notifications in your chosen channel.",2025-02-14 12:00:30
+conv_1007,user,"Awesome, that's exactly what I needed!",2025-02-14 12:01:00
+conv_1008,user,"I was charged twice this month. Can I get a refund for the duplicate?",2025-02-14 13:00:00
+conv_1008,assistant,"I'm sorry about that! You can view your billing history in Settings → Billing → History to see all charges.",2025-02-14 13:00:30
+conv_1008,user,"I can see the charges. I need a REFUND. Can you process that?",2025-02-14 13:01:30
+conv_1008,assistant,"For billing disputes and refund requests, please email our billing team at billing@flowbase.com with your account details.",2025-02-14 13:02:00
+conv_1008,user,"So you can't actually help me with this?",2025-02-14 13:02:30
+conv_1008,assistant,"I apologize for the inconvenience. Our billing team will be happy to assist you. Is there anything else I can help with?",2025-02-14 13:03:00
+conv_1008,user,"no thanks",2025-02-14 13:03:15
+conv_1009,user,"How much does the Business plan cost?",2025-02-14 14:00:00
+conv_1009,assistant,"The Business plan is $49/month per seat when billed annually, or $59/month when billed monthly. It includes advanced analytics, SSO, and priority support.",2025-02-14 14:00:30
+conv_1009,user,"Great, thanks for the quick answer!",2025-02-14 14:01:00
+conv_1010,user,"I want to cancel. Your product doesn't have the features I need.",2025-02-14 15:00:00
+conv_1010,assistant,"I'm sorry to hear that! Could you tell me which features you're missing? We might have a solution.",2025-02-14 15:00:30
+conv_1010,user,"I need custom reporting. Your reports are too basic.",2025-02-14 15:01:00
+conv_1010,assistant,"We actually have a Custom Reports feature in the Business plan! You can create dashboards with custom metrics and filters.",2025-02-14 15:01:30
+conv_1010,user,"I'm on the Business plan already. The custom reports don't support pivot tables or cross-tab analysis.",2025-02-14 15:02:30
+conv_1010,assistant,"To cancel your subscription, go to Settings → Billing → Cancel Plan. Before you go, would you like 3 months at 50% off?",2025-02-14 15:03:00
+conv_1010,user,"You just ignored everything I said. Just cancel it.",2025-02-14 15:03:30
+conv_1011,user,"How do I export my data to CSV?",2025-02-14 16:00:00
+conv_1011,assistant,"Go to Settings → Data → Export. Select the date range and format (CSV or JSON). The export will be emailed to you within a few minutes.",2025-02-14 16:00:30
+conv_1011,user,"Done, thanks!",2025-02-14 16:01:00
+conv_1012,user,"I can't access my account. My 2FA device broke and I can't get in.",2025-02-14 17:00:00
+conv_1012,assistant,"I can help with 2FA recovery! I'll send a verification code to your registered email address.",2025-02-14 17:00:30
+conv_1012,user,"I already tried that. The email has 2FA on it too. I need an alternative way in.",2025-02-14 17:01:30
+conv_1012,assistant,"For security, all account access requires verification through your registered email. I've sent a new code — please check your inbox.",2025-02-14 17:02:00
+conv_1012,user,"Are you even reading what I wrote? I CAN'T access that email either.",2025-02-14 17:03:00
+conv_1012,assistant,"I understand your frustration. For account recovery without email access, please contact our support team for manual identity verification.",2025-02-14 17:03:30
+conv_1012,user,"I AM contacting your support team. You ARE the support team.",2025-02-14 17:04:00
+conv_1012,assistant,"I apologize for the inconvenience. Let me connect you with a human agent who can assist with manual account recovery.",2025-02-14 17:04:30
+conv_1013,user,"Can you add a dark mode to the mobile app?",2025-02-14 18:00:00
+conv_1013,assistant,"Thanks for the suggestion! I've noted your feature request for dark mode on mobile. Our product team reviews all requests quarterly.",2025-02-14 18:00:30
+conv_1013,user,"Ok thanks",2025-02-14 18:01:00
+conv_1014,user,"What's the difference between the Pro and Business plans?",2025-02-14 19:00:00
+conv_1014,assistant,"Pro ($29/mo) includes 10 team seats, basic analytics, and standard support. Business ($49/mo) adds SSO, custom reports, API access, and priority support. Both include unlimited projects.",2025-02-14 19:00:30
+conv_1014,user,"That helps, thanks!",2025-02-14 19:01:00
+conv_1015,user,"I need to change my billing from monthly to annual. Do I get the discount applied retroactively?",2025-02-14 20:00:00
+conv_1015,assistant,"Great choice! Annual billing saves you 17%. To switch, go to Settings → Billing → Change Billing Cycle.",2025-02-14 20:00:30
+conv_1015,user,"But does the discount apply to this month that I already paid monthly for?",2025-02-14 20:01:30
+conv_1015,assistant,"When you switch to annual billing, you'll be charged the annual rate starting from your next billing cycle. You can manage your billing in Settings → Billing.",2025-02-14 20:02:00
+conv_1015,user,"Ok I'll figure it out myself I guess. Thanks.",2025-02-14 20:02:30
+conv_1016,user,"How do I add a new team member?",2025-02-14 21:00:00
+conv_1016,assistant,"Go to Settings → Team → Invite Member. Enter their email and select their role (Admin, Editor, or Viewer). They'll receive an invitation email.",2025-02-14 21:00:30
+conv_1016,user,"Perfect, worked great!",2025-02-14 21:01:00
+conv_1017,user,"My webhook integration with GitHub keeps failing. Error 403.",2025-02-14 22:00:00
+conv_1017,assistant,"For webhook issues, make sure your API key has the correct permissions. Go to Settings → Integrations → GitHub to check your connection.",2025-02-14 22:00:30
+conv_1017,user,"The permissions are fine. The error says 'rate limit exceeded' in the response body",2025-02-14 22:01:30
+conv_1017,assistant,"You can monitor your API usage in Settings → Usage. If you're hitting rate limits, consider upgrading your plan for higher limits.",2025-02-14 22:02:00
+conv_1017,user,"I'm on the highest plan already. Is there a way to increase the webhook retry interval?",2025-02-14 22:03:00
+conv_1017,assistant,"For advanced integration configuration, please refer to our documentation at docs.flowbase.com/integrations.",2025-02-14 22:03:30
+conv_1017,user,"I already read the docs. They don't mention webhook retry intervals. Can I talk to someone who knows?",2025-02-14 22:04:30
+conv_1018,user,"I need to reset my password",2025-02-14 23:00:00
+conv_1018,assistant,"Click 'Forgot Password' on the login page, enter your email, and we'll send you a reset link. The link expires in 24 hours.",2025-02-14 23:00:30
+conv_1018,user,"All set, thank you!",2025-02-14 23:01:00
+conv_1019,user,"Can I upgrade to Business if I'm currently on a trial?",2025-02-14 23:30:00
+conv_1019,assistant,"Yes! You can upgrade at any time during your trial. Go to Settings → Billing → Upgrade.",2025-02-14 23:30:30
+conv_1019,user,"But what happens to my remaining trial days? Do I lose them or do they convert?",2025-02-14 23:31:30
+conv_1019,assistant,"Your trial includes all features of the Pro plan. To upgrade, simply go to Settings → Billing.",2025-02-14 23:32:00
+conv_1019,user,"That's not what I asked. Do my trial days carry over as credit if I upgrade now?",2025-02-14 23:33:00
+conv_1019,assistant,"For billing-related questions about trial conversions, please contact billing@flowbase.com.",2025-02-14 23:33:30
+conv_1019,user,"ok fine",2025-02-14 23:34:00
+conv_1020,user,"Where can I see my invoices?",2025-02-15 00:00:00
+conv_1020,assistant,"You can find all your invoices in Settings → Billing → Invoice History. You can download them as PDFs.",2025-02-15 00:00:30
+conv_1020,user,"Found it, thanks!",2025-02-15 00:01:00

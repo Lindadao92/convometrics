@@ -8,15 +8,15 @@
 function TopBar() {
   return (
     <header className="sticky top-0 z-50 h-14 shrink-0 border-b border-white/[0.06] bg-[#0a0b10]/90 backdrop-blur-md flex items-center justify-between px-6">
-      <span className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+      <a href="https://convometrics-landing.vercel.app" className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
         IRL AI
-      </span>
-      <button
-        onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
-        className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#8178ff] text-white hover:bg-[#9490ff] hover:shadow-[0_0_20px_rgba(129,120,255,0.3)] transition-all cursor-pointer"
+      </a>
+      <a
+        href="/upload"
+        className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#8178ff] text-white hover:bg-[#9490ff] hover:shadow-[0_0_20px_rgba(129,120,255,0.3)] transition-all"
       >
         Upload Your Data
-      </button>
+      </a>
     </header>
   );
 }
@@ -105,7 +105,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Flowbase AI Support Agent</h1>
             <p className="text-sm text-zinc-400 mb-2">Analysis of 4,832 conversations &middot; Feb 10&ndash;17, 2025</p>
             <p className="text-[11px] text-zinc-600 bg-white/[0.03] border border-white/[0.06] rounded-md px-3 py-1.5 inline-block">
-              Demo analysis &mdash; <a href="#cta" className="text-indigo-400 hover:text-indigo-300 transition-colors">Upload your own data</a> to get your IRL briefing
+              Demo analysis &mdash; <a href="/upload" className="text-indigo-400 hover:text-indigo-300 transition-colors">Upload your own data</a> to get your IRL briefing
             </p>
           </Section>
 
@@ -668,7 +668,7 @@ export default function Home() {
             </p>
             <div className="flex gap-3 justify-center flex-wrap mb-4">
               <a
-                href="mailto:linda@irlai.com"
+                href="/upload"
                 className="px-6 py-2.5 rounded-lg bg-[#8178ff] text-white text-sm font-semibold hover:bg-[#9490ff] hover:shadow-[0_0_24px_rgba(129,120,255,0.35)] transition-all"
               >
                 Upload Your Data
