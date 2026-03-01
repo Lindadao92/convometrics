@@ -55,7 +55,7 @@ def mock_analyze_conversation(conversation_id: str, messages_text: str):
 
 
 def mock_aggregate_dashboard(conversation_results):
-    from utils.llm import Dashboard, DashboardSummary, Action
+    from utils.llm import Dashboard, DashboardSummary, SentimentCounts, ConversationSummary
     return Dashboard(
         summary=DashboardSummary(
             total_conversations=len(conversation_results),
@@ -65,13 +65,13 @@ def mock_aggregate_dashboard(conversation_results):
             gap_explanation="Some conversations ended politely but unresolved.",
         ),
         intent_breakdown=[],
-        sentiment_breakdown={"positive": 2, "neutral": 1, "negative": 0},
+        sentiment_breakdown=SentimentCounts(positive=2, neutral=1, negative=0),
         resolution_rate=0.85,
         polite_churner_rate=0.1,
         handoff_rate=0.05,
         top_issues=[],
         conversations=[
-            {"id": r.id, "intent": r.intent, "outcome": r.outcome, "summary": r.summary}
+            ConversationSummary(id=r.id, intent=r.intent, outcome=r.outcome, summary=r.summary)
             for r in conversation_results
         ],
     )

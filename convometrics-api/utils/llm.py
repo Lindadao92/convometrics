@@ -113,15 +113,28 @@ class DashboardSummary(BaseModel):
     gap_explanation: str
 
 
+class SentimentCounts(BaseModel):
+    positive: int
+    neutral: int
+    negative: int
+
+
+class ConversationSummary(BaseModel):
+    id: str
+    intent: str
+    outcome: str
+    summary: str
+
+
 class Dashboard(BaseModel):
     summary: DashboardSummary
     intent_breakdown: list[IntentSummary]
-    sentiment_breakdown: dict[str, int]
+    sentiment_breakdown: SentimentCounts
     resolution_rate: float
     polite_churner_rate: float
     handoff_rate: float
     top_issues: list[Action]
-    conversations: list[dict]
+    conversations: list[ConversationSummary]
 
 
 AGGREGATION_PROMPT = """\

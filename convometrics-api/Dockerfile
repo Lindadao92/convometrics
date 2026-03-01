@@ -8,6 +8,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENV PORT=8000
-EXPOSE ${PORT}
+ENV WORKER=false
 
-CMD uvicorn main:app --host 0.0.0.0 --port $PORT
+CMD if [ "$WORKER" = "true" ]; then \
+      celery -A workers.analyze worker --loglevel=info --concurrency=4; \
+    else \
+      uvicorn main:app --host 0.0.0.0 --port $PORT; \
+    fi
