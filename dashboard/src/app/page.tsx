@@ -1,5 +1,8 @@
 "use client";
 
+import { useAnalysis } from "@/lib/analysis-context";
+import { formatLabel } from "@/lib/formatLabel";
+
 // ─── ConvoMetrics — Demo Briefing Page ───────────────────────────────────────
 // Single scrollable briefing. No tabs, no sidebar. Dense analyst report.
 
@@ -90,9 +93,241 @@ function IntentBlock({ name, sessions, success, status }: {
   );
 }
 
+// ─── Live Dashboard (shown when uploaded results exist) ─────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function LiveDashboard({ data }: { data: Record<string, any> }) {
+  const summary = data.summary ?? {};
+  const intents = (data.intent_breakdown ?? []) as { name: string; display_name: string; sessions: number; success_rate: number; severity: string; root_cause: string; downstream_impact: string }[];
+  const conversations = (data.conversations ?? []) as { id: string; intent: string; outcome: string; summary: string }[];
+  const topIssues = (data.top_issues ?? []) as { priority: string; title: string; intent: string; effort: string; impact: string; why: string }[];
+  const sentiment = data.sentiment_breakdown ?? { positive: 0, neutral: 0, negative: 0 };
+  const total = summary.total_conversations ?? conversations.length;
+  const reportedRate = Math.round((summary.reported_resolution_rate ?? 0) * 100);
+  const actualRate = Math.round((summary.actual_resolution_rate ?? 0) * 100);
+  const politeChurnerPct = Math.round((data.polite_churner_rate ?? 0) * 100);
+  const handoffPct = Math.round((data.handoff_rate ?? 0) * 100);
+
+  const outcomeCounts: Record<string, number> = {};
+  for (const c of conversations) {
+    outcomeCounts[c.outcome] = (outcomeCounts[c.outcome] ?? 0) + 1;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0a0b10] flex flex-col">
+      <header className="sticky top-0 z-50 h-14 shrink-0 border-b border-white/[0.06] bg-[#0a0b10]/90 backdrop-blur-md flex items-center justify-between px-6">
+        <a href="/" className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          ConvoMetrics
+        </a>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
+            Live Data
+          </span>
+          <a
+            href="/upload"
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#8178ff] text-white hover:bg-[#9490ff] transition-all"
+          >
+            Upload New Data
+          </a>
+        </div>
+      </header>
+      <main className="flex-1">
+        <div className="max-w-[720px] mx-auto px-5">
+
+          {/* ── HEADER ── */}
+          <Section>
+            <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-3">ConvoMetrics Briefing</p>
+            <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Your Conversation Analysis</h1>
+            <p className="text-sm text-zinc-400 mb-2">Analysis of {total.toLocaleString()} conversations</p>
+          </Section>
+
+          {/* ── REALITY CHECK ── */}
+          <Section>
+            <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-6">The Reality Check</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 rounded-xl border border-white/[0.07] overflow-hidden">
+              <div className="bg-[#0e1017] p-5 sm:border-r border-b sm:border-b-0 border-white/[0.07]">
+                <p className="text-[9px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">What your dashboard says</p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] text-zinc-600 mb-0.5">Resolution Rate</p>
+                    <p className="font-mono text-2xl font-semibold text-zinc-500">{reportedRate}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-600 mb-0.5">Total Conversations</p>
+                    <p className="font-mono text-2xl font-semibold text-zinc-500">{total.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-600 mb-0.5">Total Messages</p>
+                    <p className="font-mono text-2xl font-semibold text-zinc-500">{(summary.total_messages ?? 0).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-[#13141b] p-5">
+                <p className="text-[9px] font-mono font-semibold uppercase tracking-widest text-red-400/70 mb-4">What&rsquo;s actually happening</p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[10px] text-zinc-500 mb-0.5">Actual Resolution Rate</p>
+                    <p className="font-mono text-2xl font-bold text-red-400">{actualRate}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 mb-0.5">Polite Churners</p>
+                    <p className="font-mono text-2xl font-bold text-amber-400">{politeChurnerPct}%</p>
+                    <p className="text-[11px] text-zinc-500 leading-snug mt-0.5">Said &ldquo;thanks&rdquo; but didn&rsquo;t get what they needed</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500 mb-0.5">Escalation Rate</p>
+                    <p className="font-mono text-2xl font-bold text-amber-400">{handoffPct}%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {summary.gap_explanation && (
+              <div className="mt-4 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                <p className="text-[11px] text-zinc-400 leading-relaxed">{summary.gap_explanation}</p>
+              </div>
+            )}
+          </Section>
+
+          {/* ── SENTIMENT ── */}
+          <Section>
+            <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Sentiment Breakdown</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Positive", count: sentiment.positive, color: "text-emerald-400", bg: "bg-emerald-400/[0.06] border-emerald-400/[0.12]" },
+                { label: "Neutral", count: sentiment.neutral, color: "text-zinc-400", bg: "bg-zinc-500/[0.06] border-zinc-500/[0.12]" },
+                { label: "Negative", count: sentiment.negative, color: "text-red-400", bg: "bg-red-400/[0.06] border-red-400/[0.12]" },
+              ].map((s) => (
+                <div key={s.label} className={`rounded-lg border p-3 text-center ${s.bg}`}>
+                  <p className={`font-mono text-xl font-bold ${s.color}`}>{s.count}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* ── INTENT MAP ── */}
+          {intents.length > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Intent Breakdown</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {intents.map((i) => (
+                  <IntentBlock
+                    key={i.name}
+                    name={formatLabel(i.display_name || i.name)}
+                    sessions={i.sessions}
+                    success={Math.round(i.success_rate * 100)}
+                    status={i.severity === "critical" ? "critical" : i.severity === "warning" ? "warning" : "good"}
+                  />
+                ))}
+              </div>
+              {/* Root causes */}
+              <div className="mt-6 space-y-3">
+                {intents.filter((i) => i.severity === "critical").map((i) => (
+                  <div key={i.name} className="rounded-lg border border-red-400/10 bg-red-400/[0.03] p-3">
+                    <p className="text-[11px] font-semibold text-red-400 mb-1">{formatLabel(i.display_name || i.name)}</p>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed">{i.root_cause}</p>
+                    {i.downstream_impact && (
+                      <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">{i.downstream_impact}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* ── OUTCOME BREAKDOWN ── */}
+          <Section>
+            <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Outcome Breakdown</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Object.entries(outcomeCounts).map(([outcome, count]) => {
+                const colors: Record<string, string> = {
+                  success: "text-emerald-400", failed: "text-red-400",
+                  abandoned: "text-amber-400", escalated: "text-blue-400",
+                };
+                return (
+                  <div key={outcome} className="rounded-lg border border-white/[0.07] bg-[#13141b] p-3 text-center">
+                    <p className={`font-mono text-xl font-bold ${colors[outcome] ?? "text-zinc-400"}`}>{count}</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5 capitalize">{outcome}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* ── TOP ISSUES / RECOMMENDATIONS ── */}
+          {topIssues.length > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Top Actions</p>
+              <div className="space-y-3">
+                {topIssues.map((issue, i) => (
+                  <div key={i} className="rounded-lg border border-white/[0.07] bg-[#13141b] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-[10px] font-mono font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded shrink-0">
+                        {issue.priority}
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-white mb-1">{issue.title}</p>
+                        <p className="text-[11px] text-zinc-400 leading-relaxed">{issue.why}</p>
+                        <div className="flex items-center gap-3 mt-2">
+                          <span className="text-[10px] font-mono text-zinc-500">{formatLabel(issue.intent)}</span>
+                          <span className="text-[10px] font-mono text-zinc-600">{issue.effort} effort</span>
+                          <span className="text-[10px] font-mono text-emerald-400">{issue.impact}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* ── CONVERSATIONS SAMPLE ── */}
+          {conversations.length > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">
+                Conversation Summaries ({conversations.length})
+              </p>
+              <div className="space-y-2">
+                {conversations.slice(0, 20).map((c) => {
+                  const outcomeColors: Record<string, string> = {
+                    success: "text-emerald-400 bg-emerald-400/10",
+                    failed: "text-red-400 bg-red-400/10",
+                    abandoned: "text-amber-400 bg-amber-400/10",
+                    escalated: "text-blue-400 bg-blue-400/10",
+                  };
+                  return (
+                    <div key={c.id} className="rounded-lg border border-white/[0.06] bg-[#13141b] p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded ${outcomeColors[c.outcome] ?? "text-zinc-400 bg-white/[0.05]"}`}>
+                          {c.outcome}
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-500">{formatLabel(c.intent)}</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">{c.summary}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
+        </div>
+      </main>
+      <footer className="border-t border-white/[0.05] py-4 text-center">
+        <p className="text-[11px] text-zinc-700">&copy; 2025 ConvoMetrics</p>
+      </footer>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const { results } = useAnalysis();
+
+  if (results) {
+    return <LiveDashboard data={results.data} />;
+  }
   return (
     <div className="min-h-screen bg-[#0a0b10] flex flex-col">
       <TopBar />

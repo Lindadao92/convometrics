@@ -8,6 +8,7 @@ import {
 import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
 import { FAILURE_TYPES } from "@/lib/mockQualityData";
 import { formatLabel } from "@/lib/formatLabel";
 
@@ -438,7 +439,8 @@ export default function Topics() {
   const { selectedPlatform, profile } = useProductProfile();
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
-  const isCompanion = segment === "ai_companion";
+  const { results } = useAnalysis();
+  const isCompanion = segment === "ai_companion" && !results;
 
   const [data, setData] = useState<ApiData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -464,6 +466,41 @@ export default function Topics() {
   const effectivePlatform = selectedPlatform !== "all" ? selectedPlatform : localPlatform;
 
   useEffect(() => {
+    // If we have uploaded analysis results, transform and use them
+    if (results) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d = results.data as any;
+      const intents = (d.intent_breakdown ?? []) as { name: string; display_name: string; sessions: number; success_rate: number; severity: string }[];
+      const total = d.summary?.total_conversations ?? (d.conversations ?? []).length;
+      const unclustered = intents.map((i) => ({
+        label: i.display_name || i.name || "unknown",
+        count: i.sessions ?? 0,
+        avgQuality: Math.round((i.success_rate ?? 0) * 100),
+        failureRate: Math.round((1 - (i.success_rate ?? 0)) * 100),
+        completionRate: Math.round((i.success_rate ?? 0) * 100),
+        avgTurns: null,
+        topPlatform: null,
+        firstSeen: null,
+        isEmerging: false,
+      }));
+      setData({
+        clusters: [],
+        emergingTopics: [],
+        unclustered,
+        hasClusterData: false,
+        totalConversations: total,
+        uniqueTopicsCount: unclustered.length,
+        topicInsights: {
+          mostDiscussed: unclustered.length > 0 ? { name: unclustered[0].label, count: unclustered[0].count } : null,
+          biggestQualityGap: null,
+          fastestGrowing: null,
+          platformSpecialization: [],
+        },
+      });
+      setLoading(false);
+      return;
+    }
+
     if (isCompanion) return;
     setLoading(true);
     setSelectedCluster(null);
@@ -477,7 +514,7 @@ export default function Topics() {
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [effectivePlatform, segment, isCompanion, effectiveDays]);
+  }, [effectivePlatform, segment, isCompanion, effectiveDays, results]);
 
   useEffect(() => {
     if (isCompanion) return;

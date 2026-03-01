@@ -4,6 +4,8 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
+import { transformToConversations } from "@/lib/transform-results";
 import {
   DIMENSIONS, DimensionKey, QualityScores, computeDimensionsFromScore, dimColor,
   SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
@@ -416,6 +418,7 @@ export default function Conversations() {
   const { selectedPlatform, profile } = useProductProfile();
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
+  const { results: analysisResults } = useAnalysis();
 
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [total, setTotal] = useState(0);
@@ -471,6 +474,16 @@ export default function Conversations() {
   const serverSortBy: ServerSortField = isDimKey(sortBy) ? "quality_score" : sortBy as ServerSortField;
 
   const fetchData = useCallback(() => {
+    // If we have uploaded analysis results, use those
+    if (analysisResults) {
+      const transformed = transformToConversations(analysisResults.data);
+      setConvos(transformed.conversations as Conversation[]);
+      setTotal(transformed.total);
+      setIntents(transformed.intents);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), sort: serverSortBy, order, days: String(effectiveDays) });
     if (segment) {
@@ -493,7 +506,7 @@ export default function Conversations() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment, effectiveDays]);
+  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment, effectiveDays, analysisResults]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

@@ -7,7 +7,7 @@ import { useAnalysis } from "@/lib/analysis-context";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").trim();
 const POLL_INTERVAL = 3000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
