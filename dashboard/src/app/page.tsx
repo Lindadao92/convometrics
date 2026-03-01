@@ -1,6 +1,6 @@
 "use client";
 
-// ─── IRL AI — Demo Briefing Page ─────────────────────────────────────────────
+// ─── ConvoMetrics — Demo Briefing Page ───────────────────────────────────────
 // Single scrollable briefing. No tabs, no sidebar. Dense analyst report.
 
 // ─── Top Bar ─────────────────────────────────────────────────────────────────
@@ -9,7 +9,7 @@ function TopBar() {
   return (
     <header className="sticky top-0 z-50 h-14 shrink-0 border-b border-white/[0.06] bg-[#0a0b10]/90 backdrop-blur-md flex items-center justify-between px-6">
       <a href="https://convometrics-landing.vercel.app" className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-        IRL AI
+        ConvoMetrics
       </a>
       <a
         href="/upload"
@@ -101,11 +101,11 @@ export default function Home() {
 
           {/* ── SECTION 1: BRIEFING HEADER ── */}
           <Section>
-            <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-3">IRL Briefing</p>
+            <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-3">ConvoMetrics Briefing</p>
             <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Flowbase AI Support Agent</h1>
             <p className="text-sm text-zinc-400 mb-2">Analysis of 4,832 conversations &middot; Feb 10&ndash;17, 2025</p>
             <p className="text-[11px] text-zinc-600 bg-white/[0.03] border border-white/[0.06] rounded-md px-3 py-1.5 inline-block">
-              Demo analysis &mdash; <a href="/upload" className="text-indigo-400 hover:text-indigo-300 transition-colors">Upload your own data</a> to get your IRL briefing
+              Demo analysis &mdash; <a href="/upload" className="text-indigo-400 hover:text-indigo-300 transition-colors">Upload your own data</a> to get your ConvoMetrics briefing
             </p>
           </Section>
 
@@ -545,7 +545,7 @@ export default function Home() {
               <p className="font-mono text-[11px] text-zinc-500 mb-5">23% of all failed conversations</p>
 
               <p className="text-[13px] text-zinc-400 leading-relaxed mb-5">
-                In 23% of failures, users rephrased their question 3&ndash;6 times. The AI gave a slightly different but equally unhelpful response each time. Your analytics platform logs these as &ldquo;high engagement&rdquo; sessions with 8+ messages. IRL, they&rsquo;re your most frustrated users.
+                In 23% of failures, users rephrased their question 3&ndash;6 times. The AI gave a slightly different but equally unhelpful response each time. Your analytics platform logs these as &ldquo;high engagement&rdquo; sessions with 8+ messages. In reality, they&rsquo;re your most frustrated users.
               </p>
 
               <div className="bg-[#0e1017] border border-white/[0.07] rounded-lg p-4 mb-4">
@@ -664,7 +664,7 @@ export default function Home() {
           <section id="cta" className="py-16 text-center">
             <p className="text-[13px] text-zinc-500 leading-relaxed max-w-md mx-auto mb-8">
               This is a demo analysis of a fictional AI support agent.<br />
-              Want to see what IRL finds in <span className="text-white font-semibold">your</span> conversations?
+              Want to see what ConvoMetrics finds in <span className="text-white font-semibold">your</span> conversations?
             </p>
             <div className="flex gap-3 justify-center flex-wrap mb-4">
               <a
@@ -674,7 +674,7 @@ export default function Home() {
                 Upload Your Data
               </a>
               <a
-                href="mailto:linda@irlai.com"
+                href="mailto:linda@convometrics.com"
                 className="px-6 py-2.5 rounded-lg border border-white/[0.08] text-sm text-zinc-400 hover:text-white hover:border-white/[0.15] transition-colors"
               >
                 Book a Call
@@ -688,7 +688,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-white/[0.05] py-4 text-center">
-        <p className="text-[11px] text-zinc-700">&copy; 2025 IRL AI</p>
+        <p className="text-[11px] text-zinc-700">&copy; 2025 ConvoMetrics</p>
       </footer>
     </div>
   );

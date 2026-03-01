@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FailureType } from "@/lib/mockQualityData";
 import { getSegmentConversations, getSegmentFailureTypes } from "@/lib/mockSegmentData";
+import { formatLabel } from "@/lib/formatLabel";
 
 export const dynamic = "force-dynamic";
-
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 // 4 weekly buckets (most recent last)
 const WEEK_LABELS = ["4w ago", "3w ago", "Last week", "This week"];
@@ -84,7 +83,7 @@ export async function GET(req: NextRequest) {
     }
   }
   const intentCrossTab = Object.entries(intentMap)
-    .map(([int, counts]) => ({ intent: int, label: cap(int), ...counts }))
+    .map(([int, counts]) => ({ intent: int, label: formatLabel(int), ...counts }))
     .sort((a, b) => (b.total as number) - (a.total as number))
     .slice(0, 10);
 

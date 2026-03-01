@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -544,7 +545,7 @@ export default function Report() {
                     <span className="text-zinc-600 text-xs">/100</span>
                   </td>
                   <td className="px-5 py-3 text-zinc-400 font-mono">{m.satisfaction}</td>
-                  <td className="px-5 py-3 text-zinc-400 text-xs capitalize">{m.topIntent.replace(/_/g, " ")}</td>
+                  <td className="px-5 py-3 text-zinc-400 text-xs">{formatLabel(m.topIntent)}</td>
                   <td className="px-5 py-3 text-xs text-zinc-500">{m.note}</td>
                 </tr>
               ))}
@@ -630,7 +631,7 @@ export default function Report() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <code className="text-[10px] font-mono text-zinc-600">{conv.id}</code>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-zinc-400 capitalize">{conv.intent.replace(/_/g, " ")}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-zinc-400">{formatLabel(conv.intent)}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-zinc-400">{conv.model}</span>
                   </div>
                   <span className="font-mono text-xs font-bold" style={{ color: qualityColor(conv.quality) }}>

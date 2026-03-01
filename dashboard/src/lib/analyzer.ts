@@ -1,5 +1,7 @@
-// ─── IRL AI — Conversation Analyzer ─────────────────────────────────────────
+// ─── ConvoMetrics — Conversation Analyzer ────────────────────────────────────
 // Client-side keyword/heuristic analysis engine. No external AI APIs.
+
+import { formatLabel } from "./formatLabel";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -526,7 +528,7 @@ function generateActions(intents: IntentResult[]): ActionResult[] {
     .map((intent) => ({
       title:
         ACTION_TITLES[intent.name] ||
-        `Improve handling for ${intent.name.replace(/_/g, " ")}`,
+        `Improve handling for ${formatLabel(intent.name)}`,
       intent: intent.displayName,
       effort: intent.successRate < 0.2 ? ("medium" as const) : ("low" as const),
       impact: `~${Math.round(intent.sessions * (1 - intent.successRate))} failures addressable`,
@@ -579,7 +581,7 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
       id,
       intent,
       intentDisplayName:
-        INTENT_DISPLAY_NAMES[intent] || intent.replace(/_/g, " "),
+        INTENT_DISPLAY_NAMES[intent] || formatLabel(intent),
       outcome,
       patterns,
       messageCount: normalized.length,
@@ -617,7 +619,7 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
       return {
         name,
         displayName:
-          INTENT_DISPLAY_NAMES[name] || name.replace(/_/g, " "),
+          INTENT_DISPLAY_NAMES[name] || formatLabel(name),
         sessions,
         successRate,
         severity,
@@ -665,7 +667,7 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
   const patterns: PatternResult[] = Array.from(patternCounts.entries())
     .map(([name, convos]) => ({
       name,
-      label: PATTERN_META[name]?.label || name.replace(/_/g, " "),
+      label: PATTERN_META[name]?.label || formatLabel(name),
       count: convos.length,
       description:
         PATTERN_META[name]?.description ||

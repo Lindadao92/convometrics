@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
 import { getSegmentConversations, getUserLtv, getConversationOutcome, computeChurnRiskUsers } from "@/lib/mockSegmentData";
+import { formatLabel } from "@/lib/formatLabel";
 
 export const dynamic = "force-dynamic";
-
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 const MOCK_FIRST_MESSAGES: Record<string, string> = {
   // AI Assistant
@@ -87,7 +86,7 @@ export async function GET(req: NextRequest) {
       messages: [],
       created_at: c.timestamp,
       turns: c.turns ?? 15,
-      firstUserMessage: MOCK_FIRST_MESSAGES[c.intent] ?? `User asked about ${cap(c.intent).toLowerCase()}.`,
+      firstUserMessage: MOCK_FIRST_MESSAGES[c.intent] ?? `User asked about ${formatLabel(c.intent).toLowerCase()}.`,
       churnRisk: churnRiskSet.has(c.user_id),
       ltv: getUserLtv(c.user_id),
       outcome: getConversationOutcome(c.id, c.scores.overall),

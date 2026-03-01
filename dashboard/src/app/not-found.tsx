@@ -29,7 +29,7 @@ export default function NotFound() {
         
         <div className="mt-12 text-center">
           <Link href="/" className="text-xs text-zinc-600 hover:text-zinc-500 transition-colors">
-            &larr; Back to IRL AI
+            &larr; Back to ConvoMetrics
           </Link>
         </div>
       </div>

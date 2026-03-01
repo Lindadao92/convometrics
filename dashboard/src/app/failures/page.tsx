@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,6 @@ interface ApiData { byFailure: FailureRow[]; lowQuality: LowQRow[]; fixFirst: Fi
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function cap(s: string) { return s.replace(/_/g, " "); }
 function fmt(n: number) { return n.toLocaleString(); }
 
 function ImpactBar({ value, max }: { value: number; max: number }) {
@@ -179,7 +179,7 @@ export default function FailureAnalysis() {
                   <div key={row.intent} className="flex items-center gap-4 py-2 border-b border-white/[0.04] last:border-0">
                     <span className="text-lg font-bold text-zinc-700 w-6 text-center tabular-nums">{i + 1}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-zinc-200 capitalize truncate">{cap(row.intent)}</p>
+                      <p className="text-sm text-zinc-200 truncate">{formatLabel(row.intent)}</p>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-zinc-600">
                         <span>{fmt(row.count)} convos</span>
                         <span className="text-red-400">{row.failureRate}% fail</span>
@@ -221,7 +221,7 @@ export default function FailureAnalysis() {
                           <td className="px-3 py-2.5">
                             <span className="flex items-center gap-2">
                               <span className="text-zinc-600 text-xs w-4 text-right">{i + 1}</span>
-                              <span className="text-zinc-200 capitalize">{cap(row.intent)}</span>
+                              <span className="text-zinc-200">{formatLabel(row.intent)}</span>
                             </span>
                           </td>
                           <td className="px-3 py-2.5 text-red-400 font-mono tabular-nums">{fmt(row.failedCount)}</td>
@@ -291,7 +291,7 @@ export default function FailureAnalysis() {
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {data.lowQuality.map((row) => (
                   <div key={row.intent} className="bg-white/[0.03] rounded-lg p-3.5 border border-white/[0.05]">
-                    <p className="text-sm text-zinc-200 capitalize font-medium mb-2">{cap(row.intent)}</p>
+                    <p className="text-sm text-zinc-200 font-medium mb-2">{formatLabel(row.intent)}</p>
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
                         <div className="h-full rounded-full bg-red-500" style={{ width: `${row.avgQuality}%` }} />

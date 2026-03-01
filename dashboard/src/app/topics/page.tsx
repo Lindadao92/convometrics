@@ -9,6 +9,7 @@ import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
 import { FAILURE_TYPES } from "@/lib/mockQualityData";
+import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -369,7 +370,6 @@ const TOOLTIP_STYLE = {
 };
 
 function fmt(n: number) { return n.toLocaleString(); }
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 function qualityColor(q: number | null): string {
   if (q === null) return "#3f3f46";
@@ -1050,7 +1050,7 @@ export default function Topics() {
                       <td className="px-4 py-2.5">
                         <span className="text-[10px] text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded capitalize">{row.clusterName}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-zinc-200 capitalize max-w-[200px] truncate">{cap(row.label)}</td>
+                      <td className="px-4 py-2.5 text-zinc-200 max-w-[200px] truncate">{formatLabel(row.label)}</td>
                       <td className="px-4 py-2.5 text-zinc-400 font-mono">{fmt(row.count)}</td>
                       <td className="px-4 py-2.5">
                         {row.avgQuality !== null
@@ -1121,7 +1121,7 @@ export default function Topics() {
                   <p className="text-xs font-semibold text-zinc-300">Biggest Quality Gap</p>
                 </div>
                 <p className="text-sm text-zinc-400">
-                  <span className="text-white font-medium capitalize">{cap(data.topicInsights.biggestQualityGap.label)}</span>
+                  <span className="text-white font-medium">{formatLabel(data.topicInsights.biggestQualityGap.label)}</span>
                   {" "}has high volume ({fmt(data.topicInsights.biggestQualityGap.count)} convos) but low quality{" "}
                   <span className="text-red-400 font-mono">{data.topicInsights.biggestQualityGap.avgQuality}/100</span>
                   {" "}— users ask a lot but AI struggles.
@@ -1135,7 +1135,7 @@ export default function Topics() {
                   <p className="text-xs font-semibold text-zinc-300">Fastest Growing</p>
                 </div>
                 <p className="text-sm text-zinc-400">
-                  <span className="text-white font-medium capitalize">{cap(data.topicInsights.fastestGrowing.label)}</span>
+                  <span className="text-white font-medium">{formatLabel(data.topicInsights.fastestGrowing.label)}</span>
                   {" "}is a new emerging topic with{" "}
                   <span className="text-white font-mono">{fmt(data.topicInsights.fastestGrowing.count)}</span> conversations in the last 14 days
                   {data.topicInsights.fastestGrowing.clusterName ? ` (cluster: ${data.topicInsights.fastestGrowing.clusterName})` : ""}.
@@ -1168,7 +1168,7 @@ export default function Topics() {
                 <p className="text-sm text-zinc-400">
                   <span className="text-white font-mono">{data.emergingTopics.length}</span> new topic
                   {data.emergingTopics.length !== 1 ? "s" : ""} emerged in the last 14 days, including{" "}
-                  <span className="text-white capitalize">{cap(data.emergingTopics[0].label)}</span>.
+                  <span className="text-white">{formatLabel(data.emergingTopics[0].label)}</span>.
                 </p>
               </div>
             )}
@@ -1232,7 +1232,7 @@ export default function Topics() {
                               <div key={i} className="rounded-lg p-3 bg-white/[0.02] border border-white/[0.05]">
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <span className="text-[9px] font-mono text-zinc-600">{ex.convId}</span>
-                                  <span className="text-[10px] text-zinc-500 capitalize bg-white/[0.04] px-1.5 py-0.5 rounded">{cap(ex.intent)}</span>
+                                  <span className="text-[10px] text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded">{formatLabel(ex.intent)}</span>
                                   <span className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold"
                                     style={{ color: ft.color, backgroundColor: ft.color + "15" }}>
                                     Turn {ex.turn}
@@ -1307,7 +1307,7 @@ export default function Topics() {
                       const maxInRow = Math.max(1, ...FAILURE_TYPES.map((ft) => (row[ft.key] as number) ?? 0));
                       return (
                         <tr key={row.intent} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                          <td className="px-3 py-2.5 text-zinc-300 capitalize font-medium truncate max-w-[11rem]">{cap(row.intent)}</td>
+                          <td className="px-3 py-2.5 text-zinc-300 font-medium truncate max-w-[11rem]">{formatLabel(row.intent)}</td>
                           {FAILURE_TYPES.map((ft) => {
                             const count = (row[ft.key] as number) ?? 0;
                             const opacity = count > 0 ? 0.12 + (count / maxInRow) * 0.55 : 0;
@@ -1361,7 +1361,7 @@ export default function Topics() {
               {data.unclustered.map((row, i) => (
                 <tr key={row.label} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                   <td className="px-4 py-2.5 text-zinc-600 text-xs">{i + 1}</td>
-                  <td className="px-4 py-2.5 text-zinc-200 capitalize">{cap(row.label)}</td>
+                  <td className="px-4 py-2.5 text-zinc-200">{formatLabel(row.label)}</td>
                   <td className="px-4 py-2.5 text-zinc-400 font-mono tabular-nums">{fmt(row.count)}</td>
                   <td className="px-4 py-2.5">
                     {row.avgQuality !== null

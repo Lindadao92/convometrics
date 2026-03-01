@@ -61,7 +61,7 @@ function TopBar({ onNewAnalysis, showNew }: { onNewAnalysis: () => void; showNew
   return (
     <header className="sticky top-0 z-50 h-14 shrink-0 border-b border-white/[0.06] bg-[#0a0b10]/90 backdrop-blur-md flex items-center justify-between px-6">
       <a href="https://convometrics-landing.vercel.app" className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-        IRL AI
+        ConvoMetrics
       </a>
       {showNew && (
         <button onClick={onNewAnalysis} className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#8178ff] text-white hover:bg-[#9490ff] hover:shadow-[0_0_20px_rgba(129,120,255,0.3)] transition-all cursor-pointer">
@@ -149,6 +149,7 @@ function UploadView({ onFileLoaded, onSampleData }: { onFileLoaded: (file: File,
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingSample, setLoadingSample] = useState(false);
 
   const handleFile = useCallback((f: File) => {
     setError(null);
@@ -172,11 +173,96 @@ function UploadView({ onFileLoaded, onSampleData }: { onFileLoaded: (file: File,
     if (f) handleFile(f);
   }, [handleFile]);
 
+  const handleDownloadSample = useCallback(() => {
+    const a = document.createElement("a");
+    a.href = "/sample.csv";
+    a.download = "convometrics-sample.csv";
+    a.click();
+  }, []);
+
+  const handleTrySample = useCallback(() => {
+    setLoadingSample(true);
+    setTimeout(() => {
+      onSampleData();
+    }, 2500);
+  }, [onSampleData]);
+
   return (
-    <main className="flex-1 flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-lg" style={{ animation: "fade-in-up 0.3s ease-out" }}>
+    <main className="flex-1 flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-2xl" style={{ animation: "fade-in-up 0.3s ease-out" }}>
         <h1 className="text-xl font-bold text-white text-center mb-2">Upload Your Conversations</h1>
         <p className="text-sm text-zinc-500 text-center mb-8">Drop a CSV export of your AI conversations. We&rsquo;ll show you what&rsquo;s actually happening.</p>
+
+        {/* CSV Format Guide */}
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5 mb-6">
+          <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-500 mb-3">CSV Format Guide</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <p className="text-[11px] font-semibold text-zinc-300 mb-1.5">Required columns</p>
+              <div className="space-y-1">
+                {["conversation_id", "timestamp", "role (user/assistant)", "message"].map((col) => (
+                  <div key={col} className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                    <code className="text-[11px] font-mono text-zinc-400">{col}</code>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-zinc-300 mb-1.5">Optional columns</p>
+              <div className="space-y-1">
+                {["user_id", "session_id", "sentiment", "metadata"].map((col) => (
+                  <div key={col} className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                    <code className="text-[11px] font-mono text-zinc-500">{col}</code>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/[0.06] overflow-hidden">
+            <table className="w-full text-[11px] font-mono">
+              <thead><tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                <th className="px-3 py-1.5 text-left text-zinc-500 font-medium">conversation_id</th>
+                <th className="px-3 py-1.5 text-left text-zinc-500 font-medium">timestamp</th>
+                <th className="px-3 py-1.5 text-left text-zinc-500 font-medium">role</th>
+                <th className="px-3 py-1.5 text-left text-zinc-500 font-medium">message</th>
+              </tr></thead>
+              <tbody>
+                <tr className="border-b border-white/[0.03]">
+                  <td className="px-3 py-1.5 text-zinc-400">conv_001</td>
+                  <td className="px-3 py-1.5 text-zinc-500">2025-02-14 09:00</td>
+                  <td className="px-3 py-1.5 text-blue-400">user</td>
+                  <td className="px-3 py-1.5 text-zinc-400 truncate max-w-[200px]">How do I upgrade my plan?</td>
+                </tr>
+                <tr className="border-b border-white/[0.03]">
+                  <td className="px-3 py-1.5 text-zinc-400">conv_001</td>
+                  <td className="px-3 py-1.5 text-zinc-500">2025-02-14 09:01</td>
+                  <td className="px-3 py-1.5 text-purple-400">assistant</td>
+                  <td className="px-3 py-1.5 text-zinc-400 truncate max-w-[200px]">Go to Settings &rarr; Billing to upgrade.</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-1.5 text-zinc-400">conv_002</td>
+                  <td className="px-3 py-1.5 text-zinc-500">2025-02-14 10:15</td>
+                  <td className="px-3 py-1.5 text-blue-400">user</td>
+                  <td className="px-3 py-1.5 text-zinc-400 truncate max-w-[200px]">I can&rsquo;t reset my password</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-[10px] text-zinc-600">Column names are auto-detected. Common aliases (e.g. &ldquo;thread_id&rdquo;, &ldquo;content&rdquo;) are supported.</p>
+            <button
+              onClick={handleDownloadSample}
+              className="shrink-0 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" /></svg>
+              Download Sample CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Upload area */}
         <div
           onDrop={onDrop}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -190,10 +276,22 @@ function UploadView({ onFileLoaded, onSampleData }: { onFileLoaded: (file: File,
           <p className="text-xs text-zinc-600">or click to browse &middot; .csv, max 50MB</p>
         </div>
         {error && <p className="mt-4 text-sm text-red-400 text-center">{error}</p>}
+
+        {/* Try with sample data */}
         <div className="mt-8 text-center">
-          <button onClick={onSampleData} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer">
-            or <span className="underline underline-offset-2">try with sample data</span>
-          </button>
+          {loadingSample ? (
+            <div className="inline-flex items-center gap-2.5 text-sm text-zinc-400">
+              <svg className="w-4 h-4 animate-spin text-indigo-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Analyzing 847 conversations...
+            </div>
+          ) : (
+            <button onClick={handleTrySample} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer">
+              or <span className="underline underline-offset-2">try with sample data</span>
+            </button>
+          )}
         </div>
       </div>
     </main>
@@ -276,7 +374,7 @@ function PreviewView({
 
 const PROCESSING_STEPS = [
   { label: "Parsing conversations..." },
-  { label: "Sending to IRL analyst..." },
+  { label: "Running ConvoMetrics analysis..." },
   { label: "Reading every conversation..." },
   { label: "Classifying intents and outcomes..." },
   { label: "Detecting hidden patterns..." },
@@ -444,7 +542,7 @@ function BriefingView({ data, fileName, analysisError }: { data: BriefingData | 
 
         {/* HEADER */}
         <Section>
-          <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-3">IRL Briefing</p>
+          <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-3">ConvoMetrics Briefing</p>
           <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Your AI Conversations</h1>
           <p className="text-sm text-zinc-400 mb-2">
             Analysis of {summary.totalConversations.toLocaleString()} conversations &middot; {summary.dateRange.start} &ndash; {summary.dateRange.end}
@@ -618,7 +716,7 @@ function BriefingView({ data, fileName, analysisError }: { data: BriefingData | 
             This analysis was generated from your uploaded data.<br />
             Want to discuss the findings?
           </p>
-          <a href="mailto:linda@irlai.com" className="px-6 py-2.5 rounded-lg border border-white/[0.08] text-sm text-zinc-400 hover:text-white hover:border-white/[0.15] transition-colors">
+          <a href="mailto:linda@convometrics.com" className="px-6 py-2.5 rounded-lg border border-white/[0.08] text-sm text-zinc-400 hover:text-white hover:border-white/[0.15] transition-colors">
             Book a Call
           </a>
         </section>
@@ -990,7 +1088,7 @@ export default function UploadPage() {
       )}
 
       <footer className="border-t border-white/[0.05] py-6 text-center">
-        <p className="text-[10px] text-zinc-700">IRL AI &middot; See what&rsquo;s actually happening</p>
+        <p className="text-[10px] text-zinc-700">ConvoMetrics &middot; Mixpanel for AI Conversations</p>
       </footer>
     </div>
   );

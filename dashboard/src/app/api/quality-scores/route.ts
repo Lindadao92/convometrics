@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DIMENSIONS, DimensionKey, MockConversation } from "@/lib/mockQualityData";
 import { getSegmentConversations } from "@/lib/mockSegmentData";
+import { formatLabel } from "@/lib/formatLabel";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +9,6 @@ function avg(arr: MockConversation[], key: DimensionKey | "overall"): number | n
   if (arr.length === 0) return null;
   return Math.round(arr.reduce((s, c) => s + c.scores[key], 0) / arr.length);
 }
-
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -123,8 +122,8 @@ export async function GET(req: NextRequest) {
       .filter((x): x is { intent: string; score: number } => x.score !== null)
       .sort((a, b) => a.score - b.score);
 
-    const bestIntent  = byIntent.length > 0 ? cap(byIntent[byIntent.length - 1].intent) : "—";
-    const worstIntent = byIntent.length > 0 ? cap(byIntent[0].intent) : "—";
+    const bestIntent  = byIntent.length > 0 ? formatLabel(byIntent[byIntent.length - 1].intent) : "—";
+    const worstIntent = byIntent.length > 0 ? formatLabel(byIntent[0].intent) : "—";
 
     return {
       key: dim.key, label: dim.label, weight: dim.weight,

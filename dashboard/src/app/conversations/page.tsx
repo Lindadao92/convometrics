@@ -10,6 +10,7 @@ import {
   FAILURE_TYPES, FailureType, FailureTag, computeFailuresFromScore,
 } from "@/lib/mockQualityData";
 import { getConversationSafetyScore } from "@/lib/mockSegmentData";
+import { formatLabel } from "@/lib/formatLabel";
 
 const FAILURE_TYPE_MAP = Object.fromEntries(FAILURE_TYPES.map((f) => [f.key, f]));
 
@@ -46,7 +47,6 @@ type SortField = ServerSortField | DimensionKey;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toLocaleString(); }
-function cap(s: string) { return s.replace(/_/g, " "); }
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
@@ -129,9 +129,9 @@ function StatusBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-zinc-600 text-xs">—</span>;
   const color = STATUS_COLORS[status] ?? "#a1a1aa";
   return (
-    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium capitalize"
+    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium"
       style={{ color, backgroundColor: color + "20" }}>
-      {cap(status)}
+      {formatLabel(status)}
     </span>
   );
 }
@@ -242,8 +242,8 @@ function ConversationDrawer({
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.07] shrink-0">
           <div className="flex items-center gap-3">
             <PlatformBadge platform={conv.platform} />
-            <span className="text-sm text-zinc-300 capitalize">
-              {conv.intent ? cap(conv.intent) : <span className="italic text-zinc-600">Not analyzed</span>}
+            <span className="text-sm text-zinc-300">
+              {conv.intent ? formatLabel(conv.intent) : <span className="italic text-zinc-600">Not analyzed</span>}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -293,7 +293,7 @@ function ConversationDrawer({
           <div className="w-56 shrink-0 border-l border-white/[0.06] bg-[#0f101a] px-4 py-4 overflow-y-auto space-y-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1">Intent</p>
-              <p className="text-xs text-zinc-300 capitalize">{conv.intent ? cap(conv.intent) : "—"}</p>
+              <p className="text-xs text-zinc-300">{conv.intent ? formatLabel(conv.intent) : "—"}</p>
             </div>
 
             {/* Detected Failures */}
@@ -650,13 +650,13 @@ export default function Conversations() {
 
             <select value={filterIntent} onChange={(e) => { setFilterIntent(e.target.value); setPage(0); }} className={SELECT_CLS}>
               <option value="">All Topics</option>
-              {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
+              {intents.map((i) => <option key={i} value={i}>{formatLabel(i)}</option>)}
             </select>
 
             <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }} className={SELECT_CLS}>
               <option value="">All Statuses</option>
               {["completed", "failed", "abandoned", "in_progress"].map((s) => (
-                <option key={s} value={s}>{cap(s)}</option>
+                <option key={s} value={s}>{formatLabel(s)}</option>
               ))}
             </select>
 
@@ -804,8 +804,8 @@ export default function Conversations() {
                         >
                           {isMultiPlatform && <td className="px-4 py-3"><PlatformBadge platform={conv.platform} /></td>}
                           <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">{fmtDate(conv.created_at)}</td>
-                          <td className="px-4 py-3 text-zinc-300 capitalize max-w-[160px] truncate">
-                            {conv.intent ? cap(conv.intent) : <span className="text-zinc-600 italic text-xs">Not analyzed</span>}
+                          <td className="px-4 py-3 text-zinc-300 max-w-[160px] truncate">
+                            {conv.intent ? formatLabel(conv.intent) : <span className="text-zinc-600 italic text-xs">Not analyzed</span>}
                           </td>
                           <td className="px-4 py-3">
                             {conv.quality_score !== null ? (

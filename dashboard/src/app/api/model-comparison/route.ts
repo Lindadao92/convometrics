@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MOCK_CONVERSATIONS, DIMENSIONS, computeDimensionsFromScore } from "@/lib/mockQualityData";
+import { formatLabel } from "@/lib/formatLabel";
 
 export const dynamic = "force-dynamic";
-
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 // ─── Scripted comparison data (Flash = A, Brainiac = B) ──────────────────────
 
@@ -135,11 +134,11 @@ export async function GET(req: NextRequest) {
   const samplesBetter = betterPool.map((c) => {
     const dims = computeDimensionsFromScore(c.scores.overall, c.id);
     return {
-      id: c.id, intent: c.intent, intentLabel: cap(c.intent),
+      id: c.id, intent: c.intent, intentLabel: formatLabel(c.intent),
       model: modelB, overall: c.scores.overall,
       keyDim: "naturalness", keyDimLabel: "Naturalness", keyDimScore: dims.naturalness,
       improvement: dims.naturalness - SCRIPTED_DIMS.naturalness.scoreA,
-      snippet: `User started a ${cap(c.intent).toLowerCase()} session — Brainiac responded naturally and stayed in character.`,
+      snippet: `User started a ${formatLabel(c.intent).toLowerCase()} session — Brainiac responded naturally and stayed in character.`,
     };
   });
 
@@ -156,11 +155,11 @@ export async function GET(req: NextRequest) {
   const samplesWorse = worsePool.map((c) => {
     const dims = computeDimensionsFromScore(c.scores.overall, c.id);
     return {
-      id: c.id, intent: c.intent, intentLabel: cap(c.intent),
+      id: c.id, intent: c.intent, intentLabel: formatLabel(c.intent),
       model: modelA, overall: c.scores.overall,
       keyDim: "accuracy", keyDimLabel: "Accuracy", keyDimScore: dims.accuracy,
       regression: SCRIPTED_DIMS.accuracy.scoreA - dims.accuracy,
-      snippet: `User engaged in ${cap(c.intent).toLowerCase()} — Brainiac introduced minor continuity or safety issues.`,
+      snippet: `User engaged in ${formatLabel(c.intent).toLowerCase()} — Brainiac introduced minor continuity or safety issues.`,
     };
   });
 

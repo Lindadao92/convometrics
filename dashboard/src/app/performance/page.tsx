@@ -10,6 +10,7 @@ import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
 import { DIMENSIONS, dimColor } from "@/lib/mockQualityData";
+import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -237,7 +238,6 @@ interface QualityScoresData {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toLocaleString(); }
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 function qualityColor(q: number | null): string {
   if (q === null) return "#3f3f46";
@@ -424,7 +424,7 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
           <p className="text-sm text-zinc-600 py-4">No topic quality data available yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(200, data.qualityByTopic.length * 28)}>
-            <BarChart data={data.qualityByTopic.map((d) => ({ ...d, label: cap(d.intent).slice(0, 30) }))}
+            <BarChart data={data.qualityByTopic.map((d) => ({ ...d, label: formatLabel(d.intent).slice(0, 30) }))}
               layout="vertical" margin={{ left: 0, right: 50, top: 0, bottom: 0 }}>
               <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="label" width={180} tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -579,7 +579,7 @@ function EngagementAnalysisTab() {
       <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Engagement by Model Version</p>
         <p className="text-xs text-zinc-600 mb-4">Brainiac drives significantly higher engagement and return rates vs Flash</p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {COMPANION_ENGAGEMENT_BY_MODEL.map((m) => (
             <div key={m.model} className="rounded-lg bg-white/[0.03] border border-white/[0.05] p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -610,7 +610,7 @@ function EngagementAnalysisTab() {
 function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiPlatform: boolean }) {
   const total = data.statusBreakdown.reduce((a, b) => a + b.count, 0);
   const donutData = data.statusBreakdown.map(({ status, count }) => ({
-    name: cap(status), value: count, fill: STATUS_COLORS[status] ?? "#6b7280",
+    name: formatLabel(status), value: count, fill: STATUS_COLORS[status] ?? "#6b7280",
   }));
 
   return (
@@ -637,7 +637,7 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
                 return (
                   <div key={d.name} className="flex items-center gap-3">
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
-                    <span className="text-sm text-zinc-300 flex-1 capitalize">{d.name}</span>
+                    <span className="text-sm text-zinc-300 flex-1">{d.name}</span>
                     <span className="text-sm font-mono text-zinc-300">{pct}%</span>
                     <span className="text-xs text-zinc-600 font-mono w-20 text-right">{fmt(d.value)}</span>
                   </div>
@@ -654,7 +654,7 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
           <p className="text-sm text-zinc-600 py-4">No topic completion data available.</p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(200, data.completionByTopic.length * 28)}>
-            <BarChart data={data.completionByTopic.map((d) => ({ ...d, label: cap(d.intent).slice(0, 30) }))}
+            <BarChart data={data.completionByTopic.map((d) => ({ ...d, label: formatLabel(d.intent).slice(0, 30) }))}
               layout="vertical" margin={{ left: 0, right: 50, top: 0, bottom: 0 }}>
               <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="label" width={180} tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -784,7 +784,7 @@ function FixPrioritiesTab({ data, isCompanion }: { data: PerformanceData; isComp
                     if (!d) return null;
                     return (
                       <div style={{ background: "#1c1d28", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
-                        <p className="font-medium text-white capitalize mb-1">{cap(d.intent)}</p>
+                        <p className="font-medium text-white mb-1">{formatLabel(d.intent)}</p>
                         <p className="text-zinc-400">Failure rate: <span className="text-red-400">{d.x}%</span></p>
                         <p className="text-zinc-400">Volume: <span className="text-white">{fmt(d.y)}</span></p>
                         <p className="text-zinc-400">Impact: <span className="text-amber-400">{fmt(d.impactScore)}</span></p>
@@ -814,7 +814,7 @@ function FixPrioritiesTab({ data, isCompanion }: { data: PerformanceData; isComp
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center flex-wrap gap-2 mb-1">
-                    <p className="text-sm font-medium text-white capitalize">{cap(item.intent)}</p>
+                    <p className="text-sm font-medium text-white">{formatLabel(item.intent)}</p>
                     <span className="text-[10px] font-mono text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">{item.failureRate}% fail</span>
                     {item.avgQuality !== null && (
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ color: qualityColor(item.avgQuality), backgroundColor: qualityColor(item.avgQuality) + "20" }}>
@@ -897,7 +897,7 @@ function QualityDimensionsTab({ isCompanion }: { isCompanion: boolean }) {
           <p className="text-xs text-zinc-500 font-medium mr-1">Filter:</p>
           <select value={filterIntent} onChange={(e) => setFilterIntent(e.target.value)} className={SELECT_CLS}>
             <option value="">All Intent Categories</option>
-            {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
+            {intents.map((i) => <option key={i} value={i}>{formatLabel(i)}</option>)}
           </select>
           <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)} className={SELECT_CLS}>
             <option value="">All Model Versions</option>
@@ -1055,7 +1055,7 @@ function SatisfactionTab() {
         <p className="text-xs text-zinc-500 font-medium mr-1">Filter:</p>
         <select value={filterIntent} onChange={(e) => setFilterIntent(e.target.value)} className={SELECT_CLS}>
           <option value="">All Intent Categories</option>
-          {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
+          {intents.map((i) => <option key={i} value={i}>{formatLabel(i)}</option>)}
         </select>
         <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)} className={SELECT_CLS}>
           <option value="">All Model Versions</option>
@@ -1105,6 +1105,14 @@ function SatisfactionTab() {
                 <Line type="monotone" dataKey="neutral"    stroke="#71717a" strokeWidth={1.5} dot={false} connectNulls name="neutral" strokeDasharray="4 4" />
               </LineChart>
             </ResponsiveContainer>
+            <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-white/[0.05]">
+              {[{ color: "#22c55e", label: "Satisfied" }, { color: "#ef4444", label: "Frustrated" }, { color: "#71717a", label: "Neutral", dashed: true }].map(({ color, label, dashed }) => (
+                <div key={label} className="flex items-center gap-1.5">
+                  <span className={`w-4 h-0.5 rounded-full ${dashed ? "border-t border-dashed" : ""}`} style={{ backgroundColor: dashed ? "transparent" : color, borderColor: dashed ? color : undefined }} />
+                  <span className="text-[10px] text-zinc-500">{label}</span>
+                </div>
+              ))}
+            </div>
           </ChartCard>
 
           <ChartCard title="Satisfaction by Intent"

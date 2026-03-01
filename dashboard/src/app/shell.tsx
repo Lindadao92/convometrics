@@ -176,7 +176,7 @@ function ShellInner({ children }: { children: ReactNode }) {
           rel="noopener noreferrer"
           className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity shrink-0"
         >
-          Convometrics
+          ConvoMetrics
         </a>
         <span className="text-[10px] text-zinc-600 font-medium">Character.ai Dashboard</span>
 

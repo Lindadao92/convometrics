@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { formatLabel } from "@/lib/formatLabel";
 
 export const dynamic = "force-dynamic";
 
@@ -151,7 +152,7 @@ export async function GET() {
         }))
         .sort((a, b) => b.pct - a.pct);
       if (pTopics[0]) {
-        platformSpecialization.push({ platform: p, bestTopic: pTopics[0].intent.replace(/_/g, " ") });
+        platformSpecialization.push({ platform: p, bestTopic: formatLabel(pTopics[0].intent) });
       }
     }
   }
@@ -181,18 +182,18 @@ export async function GET() {
       : null;
 
   // ── Key findings (auto-generated) ────────────────────────────────────────────
-  const topThreeTopics = topTopics.slice(0, 3).map((x) => x.intent.replace(/_/g, " ")).join(", ");
+  const topThreeTopics = topTopics.slice(0, 3).map((x) => formatLabel(x.intent)).join(", ");
   const keyFindings: string[] = [];
   if (topThreeTopics) keyFindings.push(`Users primarily ask about: ${topThreeTopics}.`);
   if (overallCompletion !== null) keyFindings.push(`AI succeeds ${overallCompletion}% of the time overall.`);
   if (worstTopic) {
-    keyFindings.push(`The #1 failure point is "${worstTopic.intent.replace(/_/g, " ")}" with a ${worstTopic.failureRate}% failure rate affecting ${worstTopic.count.toLocaleString()} conversations.`);
+    keyFindings.push(`The #1 failure point is "${formatLabel(worstTopic.intent)}" with a ${worstTopic.failureRate}% failure rate affecting ${worstTopic.count.toLocaleString()} conversations.`);
   }
   if (bestPlatform && activePlatforms.length > 1) {
     keyFindings.push(`${bestPlatform.label} leads in quality with an average score of ${bestPlatform.avgQuality}/100.`);
   }
   if (bestTopic) {
-    keyFindings.push(`The strongest topic is "${bestTopic.intent.replace(/_/g, " ")}" with ${bestTopic.completionRate}% completion and quality ${bestTopic.avgQuality}/100.`);
+    keyFindings.push(`The strongest topic is "${formatLabel(bestTopic.intent)}" with ${bestTopic.completionRate}% completion and quality ${bestTopic.avgQuality}/100.`);
   }
 
   // ── Recommendations ──────────────────────────────────────────────────────────
@@ -200,7 +201,7 @@ export async function GET() {
   topFailures.slice(0, 3).forEach((topic, i) => {
     recommendations.push({
       priority: i + 1,
-      title: `Improve "${topic.intent.replace(/_/g, " ")}"`,
+      title: `Improve "${formatLabel(topic.intent)}"`,
       description: `${topic.failureRate}% failure rate with ${topic.count.toLocaleString()} conversations affected. Focus on training data and response quality for this topic.`,
       metric: `${topic.failureRate}% failure rate`,
     });
@@ -226,11 +227,11 @@ export async function GET() {
     keyFindings,
     topTopics: topTopics.map((t) => ({
       ...t,
-      intentLabel: t.intent.replace(/_/g, " "),
+      intentLabel: formatLabel(t.intent),
     })),
     topFailures: topFailures.map((t) => ({
       ...t,
-      intentLabel: t.intent.replace(/_/g, " "),
+      intentLabel: formatLabel(t.intent),
       examples: failureExamples[t.intent] ?? [],
     })),
     recommendations,

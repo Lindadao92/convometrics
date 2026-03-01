@@ -4,10 +4,9 @@ import {
   InferredSatisfaction, SatisfactionSignal, MockConversation,
 } from "@/lib/mockQualityData";
 import { getSegmentConversations } from "@/lib/mockSegmentData";
+import { formatLabel } from "@/lib/formatLabel";
 
 export const dynamic = "force-dynamic";
-
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 const SAT_ORDER: InferredSatisfaction[] = ["satisfied", "neutral", "frustrated", "abandoned"];
 
@@ -74,7 +73,7 @@ export async function GET(req: NextRequest) {
     .slice(0, 5)
     .map(([key, count]) => ({
       key,
-      label: sigMeta[key]?.label ?? cap(key),
+      label: sigMeta[key]?.label ?? formatLabel(key),
       emoji: sigMeta[key]?.emoji ?? "⚠️",
       color: sigMeta[key]?.color ?? "#f59e0b",
       count,
@@ -117,7 +116,7 @@ export async function GET(req: NextRequest) {
       const frustratedPct = n > 0 ? Math.round(((counts.frustrated + counts.abandoned) / n) * 100) : 0;
       return {
         intent,
-        label:         cap(intent),
+        label:         formatLabel(intent),
         satisfiedPct:  n > 0 ? Math.round((counts.satisfied  / n) * 100) : 0,
         neutralPct:    n > 0 ? Math.round((counts.neutral    / n) * 100) : 0,
         frustratedPct: n > 0 ? Math.round((counts.frustrated / n) * 100) : 0,
