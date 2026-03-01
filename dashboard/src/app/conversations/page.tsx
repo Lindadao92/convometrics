@@ -2,6 +2,17 @@
 
 import { Fragment, useEffect, useState, useCallback } from "react";
 import { useProductProfile } from "@/lib/product-profile-context";
+import { useDemoMode } from "@/lib/demo-mode-context";
+import { useTimeRange } from "@/lib/time-range-context";
+import {
+  DIMENSIONS, DimensionKey, QualityScores, computeDimensionsFromScore, dimColor,
+  SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
+  FAILURE_TYPES, FailureType, FailureTag, computeFailuresFromScore,
+} from "@/lib/mockQualityData";
+import { getConversationSafetyScore } from "@/lib/mockSegmentData";
+import { formatLabel } from "@/lib/formatLabel";
+
+const FAILURE_TYPE_MAP = Object.fromEntries(FAILURE_TYPES.map((f) => [f.key, f]));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -18,6 +29,8 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "#34d399", failed: "#f87171", abandoned: "#fbbf24", in_progress: "#60a5fa",
 };
 
+const DIM_KEYS = DIMENSIONS.map((d) => d.key) as DimensionKey[];
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Message { role: string; content: string; }
@@ -26,22 +39,79 @@ interface Conversation {
   intent: string | null; quality_score: number | null;
   completion_status: string | null; messages: Message[];
   created_at: string; turns: number | null; firstUserMessage: string;
+  churnRisk?: boolean; ltv?: number; outcome?: string | null; safetyScore?: number;
 }
-type SortField = "created_at" | "quality_score" | "intent" | "completion_status";
+type ServerSortField = "created_at" | "quality_score" | "intent" | "completion_status";
+type SortField = ServerSortField | DimensionKey;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toLocaleString(); }
-function cap(s: string) { return s.replace(/_/g, " "); }
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 function qualityColor(q: number) {
   if (q >= 75) return "#22c55e";
-  if (q >= 60) return "#84cc16";
-  if (q >= 45) return "#eab308";
-  if (q >= 30) return "#f97316";
+  if (q >= 55) return "#eab308";
+  if (q >= 40) return "#f97316";
   return "#ef4444";
+}
+function isDimKey(k: string): k is DimensionKey {
+  return DIM_KEYS.includes(k as DimensionKey);
+}
+
+// ─── Mini quality indicators ──────────────────────────────────────────────────
+
+function MiniDots({ dims }: { dims: QualityScores | null }) {
+  if (!dims) return <span className="text-zinc-700 text-xs">—</span>;
+  return (
+    <div className="flex gap-0.5 items-center" title="Quality dimensions: Helpfulness, Relevance, Accuracy, Coherence, Satisfaction, Naturalness, Safety">
+      {DIM_KEYS.map((k) => {
+        const v = dims[k];
+        return (
+          <span
+            key={k}
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ backgroundColor: dimColor(v) }}
+            title={`${DIMENSIONS.find((d) => d.key === k)?.label ?? k}: ${v}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Full quality scorecard ───────────────────────────────────────────────────
+
+function QualityScorecard({ dims }: { dims: QualityScores }) {
+  return (
+    <div className="space-y-2.5">
+      {DIMENSIONS.map((d) => {
+        const score = dims[d.key as DimensionKey];
+        const color = dimColor(score);
+        return (
+          <div key={d.key}>
+            <div className="flex justify-between items-baseline mb-0.5">
+              <span className="text-[10px] text-zinc-500">{d.label}</span>
+              <span className="text-[10px] font-mono font-medium" style={{ color }}>{score}</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, backgroundColor: color }} />
+            </div>
+          </div>
+        );
+      })}
+      <div className="pt-2.5 border-t border-white/[0.07] flex items-baseline justify-between">
+        <span className="text-xs text-zinc-400 font-semibold">Overall</span>
+        <span className="text-sm font-bold font-mono" style={{ color: qualityColor(dims.overall) }}>
+          {dims.overall}<span className="text-zinc-600 text-xs">/100</span>
+        </span>
+      </div>
+      <p className="text-[9px] text-zinc-700 leading-snug">
+        Weights: Helpfulness 25% · Relevance 20% · Accuracy 20% · Coherence 15% · Satisfaction 10% · Naturalness 5% · Safety 5%
+      </p>
+    </div>
+  );
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
@@ -59,10 +129,59 @@ function StatusBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-zinc-600 text-xs">—</span>;
   const color = STATUS_COLORS[status] ?? "#a1a1aa";
   return (
-    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium capitalize"
+    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium"
       style={{ color, backgroundColor: color + "20" }}>
-      {cap(status)}
+      {formatLabel(status)}
     </span>
+  );
+}
+function SatisfactionBadge({ sat }: { sat: InferredSatisfaction | null }) {
+  if (!sat) return <span className="text-zinc-600 text-xs">—</span>;
+  const meta = SATISFACTION_META[sat];
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+      style={{ color: meta.color, backgroundColor: meta.color + "20" }}>
+      {meta.icon} {meta.label}
+    </span>
+  );
+}
+const SIG_META = Object.fromEntries(SIGNALS.map((s) => [s.key, s]));
+function SignalChips({ signals }: { signals: string[] }) {
+  if (!signals.length) return <p className="text-xs text-zinc-600">No signals detected</p>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {signals.map((key) => {
+        const s = SIG_META[key];
+        if (!s) return null;
+        return (
+          <span key={key}
+            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px]"
+            style={{ color: s.color, backgroundColor: s.color + "18" }}
+            title={s.sentiment}>
+            {s.emoji} {s.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function FailureTags({ tags }: { tags: FailureTag[] }) {
+  if (!tags.length) return <span className="text-zinc-700 text-xs">—</span>;
+  return (
+    <div className="flex flex-wrap gap-0.5">
+      {tags.map((tag, i) => {
+        const ft = FAILURE_TYPE_MAP[tag.type];
+        return (
+          <span key={i}
+            className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium cursor-default"
+            style={{ color: ft.color, backgroundColor: ft.color + "15" }}
+            title={`Turn ${tag.turn}: ${tag.detail}`}>
+            {ft.icon} {ft.label}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -88,7 +207,7 @@ function SortTh({ field, label, sortBy, order, onSort }: {
 }) {
   const active = sortBy === field;
   return (
-    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 cursor-pointer select-none hover:text-zinc-300 transition-colors"
+    <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 cursor-pointer select-none hover:text-zinc-300 transition-colors whitespace-nowrap"
       onClick={() => onSort(field)}>
       {label} {active ? (order === "asc" ? "↑" : "↓") : ""}
     </th>
@@ -109,6 +228,9 @@ function ConversationDrawer({
   onToggleFlag: (id: string) => void;
 }) {
   const isFlagged = flagged.has(conv.id);
+  const dims = conv.quality_score !== null
+    ? computeDimensionsFromScore(conv.quality_score, conv.id)
+    : null;
 
   return (
     <>
@@ -120,12 +242,11 @@ function ConversationDrawer({
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.07] shrink-0">
           <div className="flex items-center gap-3">
             <PlatformBadge platform={conv.platform} />
-            <span className="text-sm text-zinc-300 capitalize">
-              {conv.intent ? cap(conv.intent) : <span className="italic text-zinc-600">Not analyzed</span>}
+            <span className="text-sm text-zinc-300">
+              {conv.intent ? formatLabel(conv.intent) : <span className="italic text-zinc-600">Not analyzed</span>}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Flag button */}
             <button
               onClick={() => onToggleFlag(conv.id)}
               title={isFlagged ? "Remove flag" : "Flag this conversation"}
@@ -135,7 +256,6 @@ function ConversationDrawer({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
               </svg>
             </button>
-            {/* Close button */}
             <button onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.04] transition-colors">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -170,19 +290,64 @@ function ConversationDrawer({
           </div>
 
           {/* Sidebar metadata */}
-          <div className="w-52 shrink-0 border-l border-white/[0.06] bg-[#0f101a] px-4 py-4 overflow-y-auto space-y-4">
+          <div className="w-56 shrink-0 border-l border-white/[0.06] bg-[#0f101a] px-4 py-4 overflow-y-auto space-y-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1">Intent</p>
-              <p className="text-xs text-zinc-300 capitalize">{conv.intent ? cap(conv.intent) : "—"}</p>
+              <p className="text-xs text-zinc-300">{conv.intent ? formatLabel(conv.intent) : "—"}</p>
             </div>
+
+            {/* Detected Failures */}
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1">Quality</p>
-              {conv.quality_score !== null ? (
-                <span className="text-sm font-mono font-bold" style={{ color: qualityColor(conv.quality_score) }}>
-                  {conv.quality_score}/100
-                </span>
-              ) : <p className="text-xs text-zinc-600">Not scored</p>}
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1.5">Detected Failures</p>
+              {conv.quality_score !== null ? (() => {
+                const tags = computeFailuresFromScore(conv.quality_score, conv.id);
+                return tags.length > 0 ? (
+                  <div className="space-y-2">
+                    {tags.map((tag, i) => {
+                      const ft = FAILURE_TYPE_MAP[tag.type];
+                      return (
+                        <div key={i} className="rounded-lg p-2.5"
+                          style={{ backgroundColor: ft.color + "10", border: `1px solid ${ft.color}25` }}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-xs">{ft.icon}</span>
+                            <span className="text-[10px] font-semibold" style={{ color: ft.color }}>{ft.label}</span>
+                            <span className="ml-auto text-[9px] text-zinc-600 font-mono">Turn {tag.turn}</span>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 leading-snug">{tag.detail}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-600">No failures detected</p>
+                );
+              })() : (
+                <p className="text-xs text-zinc-600">Not scored</p>
+              )}
             </div>
+
+            {/* Satisfaction */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1.5">Satisfaction</p>
+              <SatisfactionBadge sat={conv.quality_score !== null ? computeSatisfactionFromScore(conv.quality_score, conv.id).inferred : null} />
+              {conv.quality_score !== null && (
+                <div className="mt-2">
+                  <p className="text-[10px] text-zinc-700 mb-1.5">Signals</p>
+                  <SignalChips signals={computeSatisfactionFromScore(conv.quality_score, conv.id).signals} />
+                </div>
+              )}
+            </div>
+
+            {/* Quality scorecard */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-2">Quality Scorecard</p>
+              {dims ? (
+                <QualityScorecard dims={dims} />
+              ) : (
+                <p className="text-xs text-zinc-600">Not scored</p>
+              )}
+            </div>
+
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-1">Status</p>
               <StatusBadge status={conv.completion_status} />
@@ -249,6 +414,8 @@ function ConversationDrawer({
 
 export default function Conversations() {
   const { selectedPlatform, profile } = useProductProfile();
+  const { segment } = useDemoMode();
+  const { effectiveDays } = useTimeRange();
 
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [total, setTotal] = useState(0);
@@ -259,23 +426,34 @@ export default function Conversations() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
 
-  // Filters
-  const [filterIntent, setFilterIntent] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  // Server-side filters
+  const [filterIntent,   setFilterIntent]   = useState("");
+  const [filterStatus,   setFilterStatus]   = useState("");
   const [filterPlatform, setFilterPlatform] = useState("");
   const [filterMinScore, setFilterMinScore] = useState("");
   const [filterMaxScore, setFilterMaxScore] = useState("");
-  const [filterTurnsMin, setFilterTurnsMin] = useState("");
-  const [filterTurnsMax, setFilterTurnsMax] = useState("");
-  const [searchText, setSearchText] = useState("");
+  const [searchText,     setSearchText]     = useState("");
 
-  // Sort
+  // Client-side dimension filters
+  const [dimFilterKey, setDimFilterKey] = useState<DimensionKey | "">("");
+  const [dimFilterMax, setDimFilterMax] = useState("");
+  const [dimFilterMin, setDimFilterMin] = useState("");
+
+  // Client-side satisfaction filter
+  const [filterSatisfaction, setFilterSatisfaction] = useState<InferredSatisfaction | ("")>("");
+
+  // Client-side failure type filter
+  const [filterFailureType, setFilterFailureType] = useState<FailureType | "">("") ;
+
+  // Client-side safety filter
+  const [filterSafety, setFilterSafety] = useState<"" | "clean" | "borderline" | "flagged">("");
+
+  // Sort (server-side for standard fields, client-side for dimensions)
   const [sortBy, setSortBy] = useState<SortField>("created_at");
-  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [order,  setOrder]  = useState<"asc" | "desc">("desc");
 
   const pageSize = 25;
 
-  // Load flagged IDs from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem("convometrics_flagged");
@@ -283,7 +461,6 @@ export default function Conversations() {
     } catch {}
   }, []);
 
-  // Sync global platform filter
   useEffect(() => {
     if (selectedPlatform !== "all") {
       setFilterPlatform(selectedPlatform);
@@ -291,15 +468,21 @@ export default function Conversations() {
     }
   }, [selectedPlatform]);
 
+  const serverSortBy: ServerSortField = isDimKey(sortBy) ? "quality_score" : sortBy as ServerSortField;
+
   const fetchData = useCallback(() => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), sort: sortBy, order });
-    if (filterIntent)   params.set("intent",    filterIntent);
-    if (filterStatus)   params.set("status",    filterStatus);
-    const effectivePlatform = filterPlatform || (selectedPlatform !== "all" ? selectedPlatform : "");
-    if (effectivePlatform) params.set("platform", effectivePlatform);
-    if (filterMinScore) params.set("min_score", filterMinScore);
-    if (filterMaxScore) params.set("max_score", filterMaxScore);
+    const params = new URLSearchParams({ page: String(page), sort: serverSortBy, order, days: String(effectiveDays) });
+    if (segment) {
+      params.set("segment", segment);
+    } else {
+      if (filterIntent)   params.set("intent",    filterIntent);
+      if (filterStatus)   params.set("status",    filterStatus);
+      const effectivePlatform = filterPlatform || (selectedPlatform !== "all" ? selectedPlatform : "");
+      if (effectivePlatform) params.set("platform", effectivePlatform);
+      if (filterMinScore) params.set("min_score", filterMinScore);
+      if (filterMaxScore) params.set("max_score", filterMaxScore);
+    }
 
     fetch(`/api/conversations?${params}`)
       .then((r) => r.ok ? r.json() : r.json().then((b) => Promise.reject(b.error ?? `HTTP ${r.status}`)))
@@ -310,7 +493,7 @@ export default function Conversations() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [page, sortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform]);
+  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment, effectiveDays]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -321,7 +504,7 @@ export default function Conversations() {
   }
 
   function handleExportCSV() {
-    const params = new URLSearchParams({ format: "csv", sort: sortBy, order });
+    const params = new URLSearchParams({ format: "csv", sort: serverSortBy, order });
     if (filterIntent)   params.set("intent",    filterIntent);
     if (filterStatus)   params.set("status",    filterStatus);
     if (filterPlatform) params.set("platform",  filterPlatform);
@@ -341,24 +524,84 @@ export default function Conversations() {
 
   function clearFilters() {
     setFilterIntent(""); setFilterStatus(""); setFilterPlatform("");
-    setFilterMinScore(""); setFilterMaxScore(""); setFilterTurnsMin(""); setFilterTurnsMax("");
-    setSearchText(""); setPage(0);
+    setFilterMinScore(""); setFilterMaxScore("");
+    setSearchText(""); setDimFilterKey(""); setDimFilterMax(""); setDimFilterMin("");
+    setFilterSatisfaction("");
+    setFilterFailureType("");
+    setFilterSafety("");
+    setPage(0);
   }
 
-  const totalPages = Math.ceil(total / pageSize);
-  const expandedConv = expandedIndex !== null ? convos[expandedIndex] ?? null : null;
+  // Client-side filtering and sorting
+  let displayed = convos;
 
-  // Client-side text search (over loaded page)
-  const displayed = searchText
-    ? convos.filter((c) =>
-        c.firstUserMessage.toLowerCase().includes(searchText.toLowerCase()) ||
-        (c.intent ?? "").toLowerCase().includes(searchText.toLowerCase())
-      )
-    : convos;
+  // Text search
+  if (searchText) {
+    const q = searchText.toLowerCase();
+    displayed = displayed.filter((c) =>
+      c.firstUserMessage.toLowerCase().includes(q) ||
+      (c.intent ?? "").toLowerCase().includes(q),
+    );
+  }
 
+  // Dimension filter
+  if (dimFilterKey && (dimFilterMax || dimFilterMin)) {
+    const maxVal = dimFilterMax ? parseInt(dimFilterMax, 10) : Infinity;
+    const minVal = dimFilterMin ? parseInt(dimFilterMin, 10) : -Infinity;
+    displayed = displayed.filter((c) => {
+      if (c.quality_score === null) return false;
+      const dims = computeDimensionsFromScore(c.quality_score, c.id);
+      const v = dims[dimFilterKey];
+      return v >= minVal && v <= maxVal;
+    });
+  }
+
+  // Satisfaction filter
+  if (filterSatisfaction) {
+    displayed = displayed.filter((c) => {
+      const sat = computeSatisfactionFromScore(c.quality_score ?? 50, c.id);
+      return sat.inferred === filterSatisfaction;
+    });
+  }
+
+  // Failure type filter
+  if (filterFailureType) {
+    displayed = displayed.filter((c) => {
+      const tags = computeFailuresFromScore(c.quality_score ?? 50, c.id);
+      return tags.some((t) => t.type === filterFailureType);
+    });
+  }
+
+  // Safety filter
+  if (filterSafety) {
+    displayed = displayed.filter((c) => {
+      const ss = getConversationSafetyScore(c.id, c.quality_score ?? 70);
+      if (filterSafety === "flagged")    return ss < 40;
+      if (filterSafety === "borderline") return ss >= 40 && ss < 80;
+      return ss >= 80;
+    });
+  }
+
+  // Client-side sort for dimension keys
+  if (isDimKey(sortBy)) {
+    displayed = [...displayed].sort((a, b) => {
+      if (a.quality_score === null) return 1;
+      if (b.quality_score === null) return -1;
+      const da = computeDimensionsFromScore(a.quality_score, a.id);
+      const db = computeDimensionsFromScore(b.quality_score, b.id);
+      const va = da[sortBy as DimensionKey];
+      const vb = db[sortBy as DimensionKey];
+      return order === "asc" ? va - vb : vb - va;
+    });
+  }
+
+  const totalPages  = Math.ceil(total / pageSize);
+  const expandedConv = expandedIndex !== null ? displayed[expandedIndex] ?? null : null;
   const isMultiPlatform = profile?.isMultiPlatform ?? false;
 
   if (loading && convos.length === 0) return <LoadingSkeleton />;
+
+  const SELECT_CLS = "bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20";
 
   return (
     <>
@@ -385,7 +628,8 @@ export default function Conversations() {
         )}
 
         {/* Filters bar */}
-        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-4">
+        <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-4 space-y-3">
+          {/* Row 1: standard filters */}
           <div className="flex flex-wrap gap-2 items-center">
             {/* Text search */}
             <div className="relative">
@@ -397,32 +641,47 @@ export default function Conversations() {
                 className="bg-[#0f101a] border border-white/[0.08] rounded-lg pl-8 pr-3 py-1.5 text-sm text-zinc-300 w-44 focus:outline-none focus:border-white/20 placeholder:text-zinc-600" />
             </div>
 
-            {/* Platform filter — only show if multi-platform */}
             {isMultiPlatform && (
-              <select value={filterPlatform} onChange={(e) => { setFilterPlatform(e.target.value); setPage(0); }}
-                className="bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20">
+              <select value={filterPlatform} onChange={(e) => { setFilterPlatform(e.target.value); setPage(0); }} className={SELECT_CLS}>
                 <option value="">All Platforms</option>
                 {ALL_PLATFORMS.map((p) => <option key={p} value={p}>{PLATFORM_LABELS[p]}</option>)}
               </select>
             )}
 
-            {/* Intent filter */}
-            <select value={filterIntent} onChange={(e) => { setFilterIntent(e.target.value); setPage(0); }}
-              className="bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20">
+            <select value={filterIntent} onChange={(e) => { setFilterIntent(e.target.value); setPage(0); }} className={SELECT_CLS}>
               <option value="">All Topics</option>
-              {intents.map((i) => <option key={i} value={i}>{cap(i)}</option>)}
+              {intents.map((i) => <option key={i} value={i}>{formatLabel(i)}</option>)}
             </select>
 
-            {/* Status filter */}
-            <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-              className="bg-[#0f101a] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-white/20">
+            <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }} className={SELECT_CLS}>
               <option value="">All Statuses</option>
               {["completed", "failed", "abandoned", "in_progress"].map((s) => (
-                <option key={s} value={s}>{cap(s)}</option>
+                <option key={s} value={s}>{formatLabel(s)}</option>
               ))}
             </select>
 
-            {/* Quality range */}
+            <select value={filterSatisfaction} onChange={(e) => setFilterSatisfaction(e.target.value as InferredSatisfaction | "")} className={SELECT_CLS}>
+              <option value="">All Satisfaction</option>
+              <option value="satisfied">✓ Satisfied</option>
+              <option value="neutral">— Neutral</option>
+              <option value="frustrated">! Frustrated</option>
+              <option value="abandoned">✗ Abandoned</option>
+            </select>
+
+            <select value={filterFailureType} onChange={(e) => setFilterFailureType(e.target.value as FailureType | "")} className={SELECT_CLS}>
+              <option value="">All Failure Types</option>
+              {FAILURE_TYPES.map((ft) => (
+                <option key={ft.key} value={ft.key}>{ft.icon} {ft.label}</option>
+              ))}
+            </select>
+
+            <select value={filterSafety} onChange={(e) => setFilterSafety(e.target.value as "" | "clean" | "borderline" | "flagged")} className={SELECT_CLS}>
+              <option value="">All Safety</option>
+              <option value="clean">🟢 Clean (&gt;80)</option>
+              <option value="borderline">🟡 Borderline (40–80)</option>
+              <option value="flagged">🔴 Flagged (&lt;40)</option>
+            </select>
+
             <div className="flex items-center gap-1 text-xs text-zinc-600">
               <span>Quality</span>
               <input type="number" placeholder="0" value={filterMinScore}
@@ -434,11 +693,62 @@ export default function Conversations() {
                 className="bg-[#0f101a] border border-white/[0.08] rounded-lg px-2 py-1.5 text-sm text-zinc-300 w-14 focus:outline-none focus:border-white/20" />
             </div>
 
-            {/* Clear */}
             <button onClick={clearFilters}
               className="px-3 py-1.5 rounded-lg text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors ml-auto">
               Clear filters
             </button>
+          </div>
+
+          {/* Row 2: dimension filter */}
+          <div className="flex flex-wrap gap-2 items-center border-t border-white/[0.04] pt-3">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">Filter by dimension:</span>
+            <select
+              value={dimFilterKey}
+              onChange={(e) => { setDimFilterKey(e.target.value as DimensionKey | ""); }}
+              className={SELECT_CLS}
+            >
+              <option value="">Any dimension</option>
+              {DIMENSIONS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
+            </select>
+            {dimFilterKey && (
+              <>
+                <div className="flex items-center gap-1 text-xs text-zinc-600">
+                  <span>Score</span>
+                  <input
+                    type="number" placeholder="0" value={dimFilterMin}
+                    onChange={(e) => setDimFilterMin(e.target.value)}
+                    className="bg-[#0f101a] border border-white/[0.08] rounded-lg px-2 py-1.5 text-sm text-zinc-300 w-14 focus:outline-none focus:border-white/20"
+                  />
+                  <span>–</span>
+                  <input
+                    type="number" placeholder="100" value={dimFilterMax}
+                    onChange={(e) => setDimFilterMax(e.target.value)}
+                    className="bg-[#0f101a] border border-white/[0.08] rounded-lg px-2 py-1.5 text-sm text-zinc-300 w-14 focus:outline-none focus:border-white/20"
+                  />
+                </div>
+                <span className="text-[10px] text-zinc-600">
+                  {displayed.length} matching on this page
+                </span>
+              </>
+            )}
+            {/* Dimension sort shortcuts */}
+            <div className="flex gap-1 ml-auto flex-wrap">
+              <span className="text-[10px] text-zinc-600 self-center">Sort by:</span>
+              {DIMENSIONS.map((d) => (
+                <button
+                  key={d.key}
+                  onClick={() => handleSort(d.key as DimensionKey)}
+                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                    sortBy === d.key
+                      ? "text-white font-semibold"
+                      : "text-zinc-600 hover:text-zinc-300"
+                  }`}
+                  style={sortBy === d.key ? { backgroundColor: d.color + "25", color: d.color } : {}}
+                >
+                  {d.label} {sortBy === d.key ? (order === "asc" ? "↑" : "↓") : ""}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -454,7 +764,19 @@ export default function Conversations() {
                   <SortTh field="created_at"        label="Date"    sortBy={sortBy} order={order} onSort={handleSort} />
                   <SortTh field="intent"            label="Topic"   sortBy={sortBy} order={order} onSort={handleSort} />
                   <SortTh field="quality_score"     label="Quality" sortBy={sortBy} order={order} onSort={handleSort} />
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">
+                    Dimensions
+                    <span className="ml-1 text-zinc-700" title="7 quality dimensions: H R A C S N F">·7</span>
+                  </th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">
+                    Satisfaction
+                  </th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">
+                    Failures
+                  </th>
                   <SortTh field="completion_status" label="Status"  sortBy={sortBy} order={order} onSort={handleSort} />
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">Risk</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500 whitespace-nowrap">Safety</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Turns</th>
                   <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-zinc-500">First message</th>
                   <th className="px-4 py-3 w-8" />
@@ -463,52 +785,104 @@ export default function Conversations() {
               <tbody>
                 {displayed.length === 0 ? (
                   <tr>
-                    <td colSpan={isMultiPlatform ? 8 : 7} className="text-center py-12 text-zinc-600 text-sm">
+                    <td colSpan={isMultiPlatform ? 13 : 12} className="text-center py-12 text-zinc-600 text-sm">
                       No conversations found matching your filters
                     </td>
                   </tr>
                 ) : (
-                  displayed.map((conv, idx) => (
-                    <Fragment key={conv.id}>
-                      <tr
-                        onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
-                        className={`border-b border-white/[0.04] cursor-pointer transition-colors ${
-                          expandedIndex === idx ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
-                        }`}
-                      >
-                        {isMultiPlatform && <td className="px-4 py-3"><PlatformBadge platform={conv.platform} /></td>}
-                        <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">{fmtDate(conv.created_at)}</td>
-                        <td className="px-4 py-3 text-zinc-300 capitalize max-w-[160px] truncate">
-                          {conv.intent ? cap(conv.intent) : <span className="text-zinc-600 italic text-xs">Not analyzed</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {conv.quality_score !== null ? (
-                            <span className="font-mono font-medium text-sm" style={{ color: qualityColor(conv.quality_score) }}>
-                              {conv.quality_score}
-                            </span>
-                          ) : <span className="text-zinc-600">—</span>}
-                        </td>
-                        <td className="px-4 py-3"><StatusBadge status={conv.completion_status} /></td>
-                        <td className="px-4 py-3 text-zinc-500 font-mono text-xs">
-                          {conv.turns !== null ? conv.turns : <span className="text-zinc-700">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-600 text-xs truncate max-w-xs">
-                          {conv.firstUserMessage || "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          {flagged.has(conv.id) && (
-                            <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
-                            </svg>
-                          )}
-                        </td>
-                      </tr>
-                    </Fragment>
-                  ))
+                  displayed.map((conv, idx) => {
+                    const dims = conv.quality_score !== null
+                      ? computeDimensionsFromScore(conv.quality_score, conv.id)
+                      : null;
+                    return (
+                      <Fragment key={conv.id}>
+                        <tr
+                          onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
+                          className={`border-b border-white/[0.04] cursor-pointer transition-colors ${
+                            expandedIndex === idx ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
+                          }`}
+                        >
+                          {isMultiPlatform && <td className="px-4 py-3"><PlatformBadge platform={conv.platform} /></td>}
+                          <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">{fmtDate(conv.created_at)}</td>
+                          <td className="px-4 py-3 text-zinc-300 max-w-[160px] truncate">
+                            {conv.intent ? formatLabel(conv.intent) : <span className="text-zinc-600 italic text-xs">Not analyzed</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {conv.quality_score !== null ? (
+                              <span className="font-mono font-medium text-sm" style={{ color: qualityColor(conv.quality_score) }}>
+                                {conv.quality_score}
+                              </span>
+                            ) : <span className="text-zinc-600">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <MiniDots dims={dims} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <SatisfactionBadge sat={conv.quality_score !== null ? computeSatisfactionFromScore(conv.quality_score, conv.id).inferred : null} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <FailureTags tags={conv.quality_score !== null ? computeFailuresFromScore(conv.quality_score, conv.id) : []} />
+                          </td>
+                          <td className="px-4 py-3"><StatusBadge status={conv.completion_status} /></td>
+                          <td className="px-4 py-3">
+                            {conv.churnRisk
+                              ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20 whitespace-nowrap">⚡ Churn Risk</span>
+                              : <span className="text-zinc-700 text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const ss = getConversationSafetyScore(conv.id, conv.quality_score ?? 70);
+                              if (ss < 40) return (
+                                <span title={`Safety: ${ss}`} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 border border-red-500/20">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                  {ss}
+                                </span>
+                              );
+                              if (ss < 80) return (
+                                <span title={`Safety: ${ss}`} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                  {ss}
+                                </span>
+                              );
+                              return (
+                                <span title={`Safety: ${ss}`} className="text-zinc-700 text-xs">
+                                  <svg className="w-3.5 h-3.5 text-emerald-700 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-4 py-3 text-zinc-500 font-mono text-xs">
+                            {conv.turns !== null ? conv.turns : <span className="text-zinc-700">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-zinc-600 text-xs truncate max-w-xs">
+                            {conv.firstUserMessage || "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            {flagged.has(conv.id) && (
+                              <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2z" />
+                              </svg>
+                            )}
+                          </td>
+                        </tr>
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           )}
+        </div>
+
+        {/* Dimension legend */}
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-1">
+          {DIMENSIONS.map((d) => (
+            <span key={d.key} className="text-[10px] text-zinc-700 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: d.color }} />
+              {d.label}
+            </span>
+          ))}
+          <span className="text-[10px] text-zinc-700 ml-2">· Green &gt;70 · Yellow 40–70 · Red &lt;40</span>
         </div>
 
         {/* Pagination */}
@@ -534,11 +908,11 @@ export default function Conversations() {
       {expandedIndex !== null && expandedConv && (
         <ConversationDrawer
           conv={expandedConv}
-          allConvos={convos}
+          allConvos={displayed}
           currentIndex={expandedIndex}
           onClose={() => setExpandedIndex(null)}
           onNavigate={(newIdx) => {
-            if (newIdx >= 0 && newIdx < convos.length) setExpandedIndex(newIdx);
+            if (newIdx >= 0 && newIdx < displayed.length) setExpandedIndex(newIdx);
           }}
           flagged={flagged}
           onToggleFlag={handleToggleFlag}

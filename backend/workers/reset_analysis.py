@@ -37,14 +37,27 @@ def run():
 
     # 1. Fetch all distinct intent labels (including __unclassifiable__)
     logger.info("Fetching all analyzed intent labels...")
-    result = (
-        sb.table("conversations")
-        .select("intent")
-        .not_.is_("intent", "null")
-        .limit(500000)
-        .execute()
-    )
-    labels = list({row["intent"] for row in result.data if row.get("intent")})
+    all_labels: set[str] = set()
+    page_size = 1000
+    offset = 0
+    while True:
+        result = (
+            sb.table("conversations")
+            .select("intent")
+            .not_.is_("intent", "null")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = result.data or []
+        for row in rows:
+            label = row.get("intent")
+            if label:
+                all_labels.add(label)
+        if len(rows) < page_size:
+            break
+        offset += page_size
+        logger.info("Fetched %d rows so far...", offset)
+    labels = list(all_labels)
     logger.info("Found %d distinct intent labels across analyzed conversations", len(labels))
 
     if not labels:

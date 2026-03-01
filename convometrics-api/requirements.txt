@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+boto3
+celery[redis]
+redis
+pandas
+openai
+python-multipart
+python-dotenv

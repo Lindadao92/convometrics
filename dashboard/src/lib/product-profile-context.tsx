@@ -34,9 +34,9 @@ const ProductProfileContext = createContext<ProductProfileContextValue>({
   selectedPlatform: "all",
   setSelectedPlatform: () => {},
   loading: true,
-  editableName: "ShareChat Dataset",
+  editableName: "Character.ai",
   editableDescription:
-    "146,644 real conversations across 5 AI platforms: ChatGPT, Claude, Gemini, Grok, Perplexity. Sourced from tucnguyen/ShareChat on HuggingFace.",
+    "2,500 companion conversations analyzed across roleplay, emotional support, casual chat, and 6 other intents.",
   setEditableName: () => {},
   setEditableDescription: () => {},
 });
@@ -47,9 +47,9 @@ export function ProductProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProductProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPlatform, setSelectedPlatform] = useState("all");
-  const [editableName, setEditableNameState] = useState("ShareChat Dataset");
+  const [editableName, setEditableNameState] = useState("Character.ai");
   const [editableDescription, setEditableDescriptionState] = useState(
-    "146,644 real conversations across 5 AI platforms: ChatGPT, Claude, Gemini, Grok, Perplexity. Sourced from tucnguyen/ShareChat on HuggingFace."
+    "2,500 companion conversations analyzed across roleplay, emotional support, casual chat, and 6 other intents."
   );
 
   // Load persisted values from localStorage on mount

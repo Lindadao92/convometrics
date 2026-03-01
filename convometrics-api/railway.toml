@@ -1,0 +1,7 @@
+# Railway configuration is set per-service in the dashboard.
+# See Dockerfile (api) and Dockerfile.worker (worker).
+#
+# Required environment variables (set in Railway dashboard):
+#   OPENAI_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+#   S3_BUCKET_NAME, REDIS_URL (auto from Redis plugin),
+#   FRONTEND_URL

@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { computeMockPerformanceStats } from "@/lib/mockSegmentData";
+import { formatLabel } from "@/lib/formatLabel";
 
 export const dynamic = "force-dynamic";
 
 const PLATFORMS = ["chatgpt", "claude", "gemini", "grok", "perplexity"] as const;
 
 export async function GET(req: NextRequest) {
+  const segment = req.nextUrl.searchParams.get("segment") ?? "";
+  const days = parseInt(req.nextUrl.searchParams.get("days") ?? "30", 10);
+
+  // Demo mode: return mock performance data
+  if (segment) {
+    return NextResponse.json(computeMockPerformanceStats(segment, days));
+  }
+
   const sb = getSupabaseServer();
   const platform = req.nextUrl.searchParams.get("platform");
 
@@ -208,7 +218,7 @@ export async function GET(req: NextRequest) {
   // Auto-insight: fix priority
   const topFix = fixFirst[0];
   const fixInsight = topFix
-    ? `Fixing "${topFix.intent.replace(/_/g, " ")}" (${topFix.failureRate}% failure rate, ${topFix.count.toLocaleString()} conversations) would have the highest impact on overall quality.`
+    ? `Fixing "${formatLabel(topFix.intent)}" (${topFix.failureRate}% failure rate, ${topFix.count.toLocaleString()} conversations) would have the highest impact on overall quality.`
     : null;
 
   return NextResponse.json({

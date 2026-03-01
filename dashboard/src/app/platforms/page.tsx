@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie,
 } from "recharts";
+import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,6 @@ interface ApiData {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toLocaleString(); }
-function cap(s: string) { return s.replace(/_/g, " "); }
 
 function PlatformBadge({ platform }: { platform: string }) {
   return (
@@ -225,8 +225,8 @@ export default function PlatformComparison() {
                         </span>
                       ) : <span className="text-zinc-600 text-xs">—</span>}
                     </td>
-                    <td className="px-4 py-3.5 text-zinc-400 capitalize text-xs">
-                      {p.topIntent ? cap(p.topIntent) : <span className="text-zinc-600">—</span>}
+                    <td className="px-4 py-3.5 text-zinc-400 text-xs">
+                      {p.topIntent ? formatLabel(p.topIntent) : <span className="text-zinc-600">—</span>}
                     </td>
                   </tr>
                 ))}

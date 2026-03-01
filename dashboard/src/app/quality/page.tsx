@@ -5,6 +5,7 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip,
   ResponsiveContainer, ReferenceLine, Cell,
 } from "recharts";
+import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,6 @@ interface ApiData { intents: IntentData[]; maxBucket: number; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function cap(s: string) { return s.replace(/_/g, " "); }
 function fmt(n: number) { return n.toLocaleString(); }
 
 function Bone({ className = "" }: { className?: string }) {
@@ -53,7 +53,7 @@ function ScatterTooltip({ active, payload }: { active?: boolean; payload?: { pay
   const d = payload[0].payload;
   return (
     <div className="bg-[#1c1d28] border border-white/[0.08] rounded-xl p-3 text-xs space-y-1 shadow-2xl">
-      <p className="font-semibold text-white capitalize">{cap(d.intent)}</p>
+      <p className="font-semibold text-white">{formatLabel(d.intent)}</p>
       <p className="text-zinc-400">Quality: <span className="text-white font-mono">{d.avgScore ?? "—"}</span></p>
       <p className="text-zinc-400">Completion: <span className="text-white font-mono">{d.completionRate}%</span></p>
       <p className="text-zinc-400">Volume: <span className="text-white font-mono">{fmt(d.count)}</span></p>
@@ -233,9 +233,9 @@ export default function QualityIntent() {
                   return (
                     <tr key={row.intent} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                       <td className="px-4 py-2.5 text-zinc-600 text-xs">{i + 1}</td>
-                      <td className="px-4 py-2.5 text-zinc-200 capitalize">{cap(row.intent)}</td>
+                      <td className="px-4 py-2.5 text-zinc-200">{formatLabel(row.intent)}</td>
                       <td className="px-4 py-2.5">
-                        <span className={`font-mono font-medium ${(row.avgScore ?? 0) >= 70 ? "text-emerald-400" : (row.avgScore ?? 0) >= 50 ? "text-amber-400" : "text-red-400"}`}>
+                        <span className={`font-mono font-medium ${(row.avgScore ?? 0) >= 75 ? "text-emerald-400" : (row.avgScore ?? 0) >= 55 ? "text-amber-400" : (row.avgScore ?? 0) >= 40 ? "text-orange-400" : "text-red-400"}`}>
                           {row.avgScore}
                         </span>
                       </td>
@@ -268,7 +268,7 @@ export default function QualityIntent() {
                   .flatMap((d) => d.sampleFailed.slice(0, 1).map((s) => ({ ...s, intent: d.intent })))
                   .map((s) => (
                     <div key={s.id} className="bg-white/[0.03] rounded-lg p-3 border border-white/[0.05]">
-                      <p className="text-xs text-zinc-500 capitalize mb-1">{cap(s.intent)}</p>
+                      <p className="text-xs text-zinc-500 mb-1">{formatLabel(s.intent)}</p>
                       <p className="text-xs text-zinc-400 line-clamp-3 italic">&ldquo;{s.preview}&rdquo;</p>
                     </div>
                   ))}
