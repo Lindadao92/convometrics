@@ -10,10 +10,16 @@ from workers.analyze import analyze_csv
 
 router = APIRouter()
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-_redis = redis.from_url(REDIS_URL)
-
 ALLOWED_CONTENT_TYPES = {"text/csv", "application/vnd.ms-excel"}
+
+_redis_client = None
+
+
+def _redis():
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    return _redis_client
 
 
 @router.post("/", status_code=202)
@@ -35,7 +41,7 @@ async def upload_file(file: UploadFile = File(...)):
     upload_fileobj(file.file, s3_key)
 
     # Record job status in Redis
-    _redis.set(f"job:{job_id}:status", "pending")
+    _redis().set(f"job:{job_id}:status", "pending")
 
     # Dispatch Celery task
     analyze_csv.delay(job_id)
