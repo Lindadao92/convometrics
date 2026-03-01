@@ -1,0 +1,32 @@
+# ── API service ────────────────────────────────────────────────────
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+healthcheckPath = "/health"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# ── Worker service ─────────────────────────────────────────────────
+# Create a second Railway service pointing at the same repo,
+# then override these settings in its service config:
+#
+#   Build:
+#     builder       = "DOCKERFILE"
+#     dockerfilePath = "Dockerfile.worker"
+#
+#   Deploy:
+#     startCommand = "celery -A workers.analyze worker --loglevel=info --concurrency=4"
+#     numReplicas  = 1
+#
+# ── Shared environment variables (set in Railway dashboard) ────────
+#
+#   OPENAI_API_KEY        – OpenAI API key
+#   AWS_ACCESS_KEY_ID     – AWS credentials for S3
+#   AWS_SECRET_ACCESS_KEY – AWS credentials for S3
+#   S3_BUCKET_NAME        – S3 bucket (e.g. convometrics-uploads)
+#   REDIS_URL             – Injected automatically by the Railway Redis plugin
+#                           (Add Redis via: New → Plugin → Redis)
+#   FRONTEND_URL          – Frontend origin for CORS (e.g. https://app.convometrics.com)
