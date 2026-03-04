@@ -1,17 +1,19 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import type { AnalysisResponse } from "./analyzer";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface AnalysisResults {
   job_id: string;
-  data: Record<string, unknown>;
+  data: AnalysisResponse;
 }
 
 interface AnalysisContextValue {
   results: AnalysisResults | null;
   setResults: (r: AnalysisResults | null) => void;
+  hasUploadedData: boolean;
   clear: () => void;
 }
 
@@ -24,7 +26,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => setResults(null), []);
 
   return (
-    <AnalysisContext.Provider value={{ results, setResults, clear }}>
+    <AnalysisContext.Provider value={{ results, setResults, hasUploadedData: results !== null, clear }}>
       {children}
     </AnalysisContext.Provider>
   );

@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { useAnalysis } from "@/lib/analysis-context";
 import { formatLabel } from "@/lib/formatLabel";
+import type { AnalysisResponse } from "@/lib/analyzer";
 
 // ─── ConvoMetrics — Demo Briefing Page ───────────────────────────────────────
 // Single scrollable briefing. No tabs, no sidebar. Dense analyst report.
@@ -112,7 +114,7 @@ function QualityBar({ score, size = "sm" }: { score: number; size?: "sm" | "md" 
   );
 }
 
-function LiveDashboard({ data }: { data: AnyData }) {
+function LiveDashboard({ data, onBackToDemo }: { data: AnyData; onBackToDemo?: () => void }) {
   const summary = data.summary ?? {};
   const intents = (data.intent_breakdown ?? []) as AnyData[];
   const conversations = (data.conversations ?? []) as AnyData[];
@@ -153,6 +155,17 @@ function LiveDashboard({ data }: { data: AnyData }) {
 
   return (
     <div className="min-h-screen bg-[#0a0b10] flex flex-col">
+      {onBackToDemo && (
+        <div className="bg-indigo-500/[0.08] border-b border-indigo-500/20 px-6 py-3 flex items-center justify-between">
+          <p className="text-sm text-indigo-300">Showing analysis of your uploaded data</p>
+          <button
+            onClick={onBackToDemo}
+            className="px-3 py-1 rounded-lg text-xs font-medium text-zinc-400 bg-white/[0.06] hover:bg-white/[0.1] transition-colors"
+          >
+            Back to demo
+          </button>
+        </div>
+      )}
       <header className="sticky top-0 z-50 h-14 shrink-0 border-b border-white/[0.06] bg-[#0a0b10]/90 backdrop-blur-md flex items-center justify-between px-6">
         <a href="/" className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
           ConvoMetrics
@@ -790,13 +803,126 @@ function LiveDashboard({ data }: { data: AnyData }) {
   );
 }
 
+// ─── Transform AnalysisResponse → LiveDashboard shape ────────────────────────
+
+function transformAnalysisResponse(data: AnalysisResponse): AnyData {
+  const conversations = data.conversations ?? [];
+  const intents = data.intents ?? [];
+  const total = data.summary?.totalConversations ?? conversations.length;
+  const totalMessages = data.summary?.totalMessages ?? 0;
+
+  // Outcome counts
+  const outcomeCounts: Record<string, number> = {};
+  for (const c of conversations) {
+    outcomeCounts[c.outcome] = (outcomeCounts[c.outcome] ?? 0) + 1;
+  }
+  const successes = outcomeCounts["success"] ?? 0;
+  const escalated = outcomeCounts["escalated"] ?? 0;
+
+  // Build intent_breakdown from AnalysisResponse intents
+  const intent_breakdown = intents.map((i) => ({
+    name: i.name,
+    display_name: i.displayName,
+    sessions: i.sessions,
+    success_rate: i.successRate,
+    severity: i.severity,
+    root_cause: i.rootCause ?? "",
+    downstream_impact: i.downstreamImpact ?? "",
+    top_failure_types: (i.failureBreakdown ?? []).map((f) => f.label),
+    avg_quality: Math.round((i.successRate ?? 0) * 100),
+  }));
+
+  // Build conversations for LiveDashboard
+  const mappedConversations = conversations.map((c) => ({
+    id: c.id,
+    intent: c.intent,
+    outcome: c.outcome,
+    sentiment: "neutral",
+    summary: c.summary ?? "",
+    quality_score: null,
+    first_user_message: "",
+    key_excerpt: "",
+    failure_tags: [],
+    satisfaction_signals: [],
+    message_count: c.messageCount,
+  }));
+
+  // Sentiment from conversations
+  const positive = conversations.filter((c) => c.outcome === "success").length;
+  const negative = conversations.filter(
+    (c) => c.outcome === "failed" || c.outcome === "escalated"
+  ).length;
+  const neutral = total - positive - negative;
+
+  // Patterns
+  const patterns = (data.patterns ?? []).map((p) => ({
+    name: p.name,
+    label: p.label,
+    count: p.count,
+    severity: p.severity,
+    description: p.description,
+    insight: p.insight,
+    affected_intents: (p.examples ?? []).map((e) => e.conversationId),
+  }));
+
+  // Top issues
+  const top_issues = (data.actions ?? []).map((a) => ({
+    priority: a.priority,
+    title: a.title,
+    intent: a.intent,
+    effort: a.effort,
+    impact: a.impact,
+    why: a.why,
+    estimated_improvement: "",
+  }));
+
+  const reported = total > 0 ? (total - escalated) / total : 0;
+  const actual = total > 0 ? successes / total : 0;
+
+  return {
+    summary: {
+      total_conversations: total,
+      total_messages: totalMessages,
+      reported_resolution_rate: data.summary?.reportedResolutionRate
+        ? data.summary.reportedResolutionRate / 100
+        : reported,
+      actual_resolution_rate: data.summary?.actualResolutionRate
+        ? data.summary.actualResolutionRate / 100
+        : actual,
+      gap_explanation: data.summary?.gapExplanation ?? "",
+      key_insight: data.summary?.gapExplanation ?? "",
+      briefing: [],
+    },
+    intent_breakdown,
+    topic_clusters: [],
+    sentiment_breakdown: { positive, neutral, negative },
+    quality_breakdown: {},
+    resolution_rate: actual,
+    polite_churner_rate:
+      (data.patterns ?? []).find((p) => p.name === "polite_churner")
+        ? ((data.patterns ?? []).find((p) => p.name === "polite_churner")!.count) / Math.max(total, 1)
+        : 0,
+    false_positive_rate: 0,
+    handoff_rate: total > 0 ? escalated / total : 0,
+    patterns,
+    failure_breakdown: [],
+    top_issues,
+    conversations: mappedConversations,
+  };
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const { results } = useAnalysis();
+  const { results, hasUploadedData, setResults } = useAnalysis();
 
-  if (results) {
-    return <LiveDashboard data={results.data} />;
+  const liveData = useMemo(() => {
+    if (!hasUploadedData || !results) return null;
+    return transformAnalysisResponse(results.data);
+  }, [hasUploadedData, results]);
+
+  if (liveData) {
+    return <LiveDashboard data={liveData} onBackToDemo={() => setResults(null)} />;
   }
   return (
     <div className="min-h-screen bg-[#0a0b10] flex flex-col">
