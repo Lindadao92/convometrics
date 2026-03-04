@@ -17,13 +17,20 @@ export async function GET(req: NextRequest) {
   const FAILURE_TYPES = getSegmentFailureTypes(segment);
   const MOCK_CONVERSATIONS = getSegmentConversations(segment);
 
-  const now      = Date.now();
-  const cutoffMs = now - days * 86400000;
+  // Calculate cutoff at start of day (00:00:00) for consistent timezone handling
+  const now = new Date();
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const cutoffMs = cutoffDate.getTime();
 
   // ── Filter ────────────────────────────────────────────────────────────────
-  let convos = MOCK_CONVERSATIONS.filter(
-    (c) => new Date(c.timestamp).getTime() >= cutoffMs,
-  );
+  let convos = MOCK_CONVERSATIONS.filter((c) => {
+    try {
+      return new Date(c.timestamp).getTime() >= cutoffMs;
+    } catch (e) {
+      console.warn('Invalid timestamp format:', c.timestamp);
+      return false; // Exclude conversations with invalid timestamps
+    }
+  });
   if (intent) convos = convos.filter((c) => c.intent === intent);
 
   const intents = [...new Set(MOCK_CONVERSATIONS.map((c) => c.intent))].sort();
