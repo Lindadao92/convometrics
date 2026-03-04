@@ -3,14 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ConvoMetrics — Analytics for AI Conversations</title>
-  <meta name="description" content="Mixpanel for AI Conversations. Upload your AI conversations. Get a weekly briefing that tells you what's broken, why, and what to fix first." />
-  <meta property="og:title" content="ConvoMetrics — Analytics for AI Conversations" />
-  <meta property="og:description" content="Mixpanel for AI Conversations. See where your AI conversations fail — and what to fix first." />
-  <meta property="og:type" content="website" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="ConvoMetrics — Analytics for AI Conversations" />
-  <meta name="twitter:description" content="Mixpanel for AI Conversations. See where your AI conversations fail — and what to fix first." />
+  <title>ConvoMetrics — Your AI resolves 70% of tickets. How many are customers just giving up?</title>
+  <meta name="description" content="Upload your support conversations. Get a weekly briefing that shows you what your AI agent is actually resolving, what it's silently botching, and what to fix this sprint." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -498,7 +492,7 @@
       letter-spacing: -0.03em;
       line-height: 1.2;
       margin-bottom: 48px;
-      max-width: 520px;
+      max-width: 560px;
     }
 
     .pain-points {
@@ -716,6 +710,9 @@
       font-size: 1rem;
       color: var(--muted2);
       margin-bottom: 32px;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .cta-actions {
@@ -740,6 +737,15 @@
       border-top: 1px solid var(--border);
       font-size: 0.75rem;
       color: var(--muted);
+    }
+
+    .footer-tagline {
+      display: block;
+      margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
     }
 
     /* ── Animations ── */
@@ -801,11 +807,11 @@
 <!-- ── Hero ── -->
 <section id="hero">
   <div class="hero-inner">
-    <div class="hero-tag">for AI product teams</div>
-    <h1>See where your AI conversations fail</h1>
-    <p class="hero-sub">Upload your conversations. Get a weekly briefing that tells you what's broken, why, and what to fix first.</p>
+    <div class="hero-tag">for AI customer support teams</div>
+    <h1>Your AI resolves 70% of tickets. How many of those are customers just giving up?</h1>
+    <p class="hero-sub">Upload your support conversations. Get a weekly briefing that shows you what your AI agent is actually resolving, what it&rsquo;s silently botching, and what to fix this sprint.</p>
     <div class="hero-actions">
-      <a href="https://dashboard-xi-taupe-75.vercel.app" class="btn-primary">Upload Conversations</a>
+      <a href="https://dashboard-xi-taupe-75.vercel.app/upload" class="btn-primary">Upload Your Support Conversations</a>
       <a href="#how" class="btn-ghost">How it works</a>
     </div>
   </div>
@@ -817,26 +823,26 @@
       <!-- Header -->
       <div class="briefing-header">
         <div class="briefing-header-top">
-          <div class="briefing-title">&#9889; Weekly AI Briefing &mdash; AI Support Agent</div>
+          <div class="briefing-title">&#9889; Weekly AI Briefing &mdash; AI Customer Support Agent</div>
         </div>
-        <div class="briefing-subtitle">Feb 10 &ndash; Feb 17, 2025 &middot; 4,832 conversations analyzed</div>
+        <div class="briefing-subtitle">Feb 10 &ndash; Feb 17, 2026 &middot; 6,241 support conversations analyzed</div>
       </div>
 
       <!-- 3 KPI cards -->
       <div class="briefing-kpis-3">
         <div class="briefing-kpi kpi-disputed">
           <div class="briefing-kpi-label">Reported Resolution Rate</div>
-          <div class="briefing-kpi-value">72%</div>
+          <div class="briefing-kpi-value">74%</div>
           <div class="briefing-kpi-delta text-muted">what your dashboard says</div>
         </div>
         <div class="briefing-kpi kpi-hero">
           <div class="briefing-kpi-label">Actual Resolution Rate</div>
-          <div class="briefing-kpi-value">54%</div>
-          <div class="briefing-kpi-delta">18% of &ldquo;resolved&rdquo; reopened within 72hrs</div>
+          <div class="briefing-kpi-value">51%</div>
+          <div class="briefing-kpi-delta">23% of &ldquo;resolved&rdquo; tickets reopened within 72hrs</div>
         </div>
         <div class="briefing-kpi kpi-transfer">
           <div class="briefing-kpi-label">Frustration Transfer Score</div>
-          <div class="kpi-vs"><span class="kpi-bad">2.1</span><span class="kpi-sep"> vs </span><span class="kpi-good">4.2</span></div>
+          <div class="kpi-vs"><span class="kpi-bad">1.9</span><span class="kpi-sep"> vs </span><span class="kpi-good">4.3</span></div>
           <div class="briefing-kpi-delta text-muted">CSAT after AI fail vs direct human</div>
         </div>
       </div>
@@ -844,7 +850,7 @@
       <!-- Narrative -->
       <div class="briefing-section">
         <div class="narrative">
-          Your AI closes conversations when the user stops responding &mdash; but <span class="hl-danger">18% of the time, they stopped because they gave up</span>, not because they were helped. <strong>847 conversations</strong> this week were marked &ldquo;resolved&rdquo; but the user returned within 72 hours with the same issue. Your reported 72% resolution rate is actually <span class="hl-danger">54%</span>.
+          Your AI agent closes tickets when the customer stops responding &mdash; but <span class="hl-danger">23% of the time, they stopped because they gave up</span>, not because they were helped. <strong>1,437 tickets</strong> this week were marked &ldquo;resolved&rdquo; but the customer came back within 72 hours with the same issue. Your reported 74% resolution rate is actually <span class="hl-danger">51%</span>. Your customers&rsquo; customers are churning, and your client doesn&rsquo;t know why.
         </div>
       </div>
 
@@ -854,11 +860,11 @@
 
         <div class="intent-card">
           <div class="intent-card-header">
-            <div class="intent-name">plan_upgrade_with_conditions</div>
-            <div class="intent-stats">341 sessions &middot; <span class="stat-danger">11% success</span></div>
+            <div class="intent-name">billing_dispute_with_context</div>
+            <div class="intent-stats">412 sessions &middot; <span class="stat-danger">14% first contact resolution</span></div>
           </div>
           <div class="root-cause-tag">Why it fails</div>
-          <p class="intent-cause">Users ask <strong>&ldquo;if I upgrade, do I keep my credits / do seats transfer / does my discount carry over?&rdquo;</strong> The AI answers the general upgrade flow perfectly &mdash; but misses the conditional question entirely. It answers a question they didn&rsquo;t ask. 89% of these users then escalate to human support opening with <strong>&ldquo;your chatbot gave me wrong information.&rdquo;</strong></p>
+          <p class="intent-cause">Customers ask <strong>&ldquo;I was charged $49 but I downgraded last week &mdash; where&rsquo;s my refund?&rdquo;</strong> Your AI answers the generic billing FAQ perfectly &mdash; but misses the contextual dispute entirely. It answers a question they didn&rsquo;t ask. 87% of these customers then demand a human agent, opening with <strong>&ldquo;your bot gave me wrong information.&rdquo;</strong> Your client&rsquo;s ticket deflection numbers look great. Their CSAT is cratering.</p>
         </div>
 
         <!-- Pattern: polite_churner -->
@@ -866,10 +872,10 @@
           <div class="pattern-label">&#128269; Hidden Pattern</div>
           <div class="intent-card-header">
             <div class="intent-name">polite_churner</div>
-            <div class="intent-stats">217 sessions &middot; <span class="stat-danger">silent churn risk</span></div>
+            <div class="intent-stats">283 sessions &middot; <span class="stat-danger">silent churn risk</span></div>
             <span class="intent-badge badge-alert">&#9888; churn alert</span>
           </div>
-          <p class="intent-cause">217 users ended failed conversations with <strong>&ldquo;ok thanks&rdquo;</strong> or <strong>&ldquo;that&rsquo;s fine.&rdquo;</strong> AI marked all as resolved with positive sentiment. <span class="hl-danger">34 cancelled their subscription within 7 days.</span> Polite disengagement is your highest-risk failure mode &mdash; these users never complained. They just left.</p>
+          <p class="intent-cause">283 customers ended failed conversations with <strong>&ldquo;ok thanks&rdquo;</strong> or <strong>&ldquo;that&rsquo;s fine.&rdquo;</strong> Your AI agent marked all as resolved with positive sentiment. <span class="hl-danger">47 of their end-users cancelled or stopped engaging within 7 days.</span> Polite disengagement is the highest-risk failure mode &mdash; these customers never complained. They just left. And your client&rsquo;s dashboard never flagged it.</p>
         </div>
 
         <!-- Pattern: frustration_transfer -->
@@ -877,9 +883,9 @@
           <div class="pattern-label">&#128269; Hidden Pattern</div>
           <div class="intent-card-header">
             <div class="intent-name">frustration_transfer</div>
-            <div class="intent-stats">pattern across 847 escalations</div>
+            <div class="intent-stats">pattern across 1,437 escalations</div>
           </div>
-          <p class="intent-cause">Users who reach a human agent after an AI failure rate the human <strong class="text-danger">2.1/5 CSAT</strong>. Users who go directly to human get <strong class="text-success">4.2/5</strong> &mdash; for the same issues. Your AI isn&rsquo;t just failing to resolve. <strong>It&rsquo;s making users so frustrated that they punish the human agent who helps them next.</strong></p>
+          <p class="intent-cause">Customers who reach a human agent after an AI failure rate the human <strong class="text-danger">1.9/5 CSAT</strong>. Customers who go directly to human get <strong class="text-success">4.3/5</strong> &mdash; for the same issues. Your AI isn&rsquo;t just failing to resolve. <strong>It&rsquo;s making customers so frustrated that they punish the human agent who helps them next.</strong> Your client sees &ldquo;human agent CSAT dropped&rdquo; and blames their team &mdash; not your AI.</p>
         </div>
       </div>
 
@@ -887,7 +893,7 @@
       <div class="briefing-section">
         <div class="action-box">
           <div class="action-tag">Recommended this sprint</div>
-          <p>Fix conditional-logic handling for plan_upgrade_with_conditions. 341 sessions/week at 11% success &mdash; and it&rsquo;s the #1 driver of frustration transfer to your human team. Estimated impact: ~160 fewer escalations/week, projected human CSAT recovery of +0.4 points.</p>
+          <p>Fix contextual billing dispute handling for billing_dispute_with_context. 412 sessions/week at 14% FCR &mdash; and it&rsquo;s the #1 driver of frustration transfer to human agents. Estimated impact: ~200 fewer escalations/week, projected human CSAT recovery of +0.5 points. This is the insight your client needs to see in their next QBR.</p>
         </div>
       </div>
 
@@ -899,19 +905,19 @@
 <section id="problem" class="fade-up">
   <div class="container">
     <div class="section-label">The problem</div>
-    <h2 class="section-heading">You're shipping AI without knowing where it breaks.</h2>
+    <h2 class="section-heading">You&rsquo;re shipping an AI support agent without knowing where it actually breaks.</h2>
     <div class="pain-points">
       <div class="pain-point">
         <div class="pain-number">01</div>
-        <div class="pain-text">Your dashboard shows <em>72% resolution rate</em>. It counts silence as success. The real number is 54%.</div>
+        <div class="pain-text">Your dashboard shows <em>74% resolution rate</em> and your clients love it. But it counts silence as success. A customer who says &ldquo;ok whatever&rdquo; and hangs up? Resolved. A customer who gives up and calls the 1-800 number instead? Resolved. The real number is <em>51%</em>.</div>
       </div>
       <div class="pain-point">
         <div class="pain-number">02</div>
-        <div class="pain-text"><em>97% of users never give feedback.</em> The ones who say &ldquo;ok thanks&rdquo; after a failed interaction? Your system thinks they&rsquo;re happy.</div>
+        <div class="pain-text"><em>96% of support customers never leave feedback.</em> The ones who say &ldquo;thanks anyway&rdquo; after a failed interaction? Your AI flags them as satisfied. Your client reports that number in their board deck. Meanwhile, their end-users are quietly switching to competitors.</div>
       </div>
       <div class="pain-point">
         <div class="pain-number">03</div>
-        <div class="pain-text">Your team reads conversation logs manually. <em>That doesn&rsquo;t scale</em> past 50 conversations a week.</div>
+        <div class="pain-text">Your team reads conversation logs manually to QA your agent. <em>That doesn&rsquo;t scale</em> past 100 conversations a week. You&rsquo;re shipping updates based on the 2% of conversations you actually reviewed.</div>
       </div>
     </div>
   </div>
@@ -921,23 +927,23 @@
 <section id="how" class="fade-up">
   <div class="container">
     <div class="section-label">How it works</div>
-    <h2 class="section-heading">Three steps. One briefing.</h2>
+    <h2 class="section-heading">Three steps. One briefing. The truth about your AI agent.</h2>
 
     <div class="steps">
       <div class="step">
         <div class="step-number">01</div>
-        <div class="step-title">Upload your conversations</div>
-        <div class="step-desc">Export a CSV from your database, logging platform, or support tool. One row per message.</div>
+        <div class="step-title">Upload your support conversations</div>
+        <div class="step-desc">Export a CSV from your logging platform, Intercom, Zendesk, or your custom pipeline. One row per message. We handle the rest.</div>
       </div>
       <div class="step">
         <div class="step-number">02</div>
         <div class="step-title">AI classifies every conversation</div>
-        <div class="step-desc">Each conversation is tagged by user intent and outcome: success, failure, or abandoned. No manual labeling.</div>
+        <div class="step-desc">Each conversation is tagged by customer intent and real outcome: actually resolved, false-positive resolved, abandoned, or escalated. No manual labeling. No tagging taxonomy to maintain.</div>
       </div>
       <div class="step">
         <div class="step-number">03</div>
         <div class="step-title">Get your briefing</div>
-        <div class="step-desc">A weekly report that tells you what's failing, why it's failing, and what to fix first. Delivered to your inbox or dashboard.</div>
+        <div class="step-desc">A weekly report that tells you what&rsquo;s failing, why it&rsquo;s failing, and what to fix first. Show it to your engineering team. Show it to your clients. Delivered to your inbox or dashboard.</div>
       </div>
     </div>
 
@@ -947,7 +953,7 @@
         <div class="csv-dot"></div>
         <div class="csv-dot"></div>
         <div class="csv-dot"></div>
-        <div class="csv-filename">conversations_export.csv</div>
+        <div class="csv-filename">support_conversations_export.csv</div>
       </div>
       <div class="csv-body">
         <table>
@@ -961,33 +967,33 @@
           </thead>
           <tbody>
             <tr>
-              <td>conv_8a2f</td>
-              <td>user</td>
-              <td>I want to upgrade but do my credits carry over?</td>
-              <td>2025-02-14 09:14:32</td>
+              <td>tkt_8a2f</td>
+              <td>customer</td>
+              <td>I was charged $49 but I downgraded to free last Tuesday</td>
+              <td>2026-02-14 09:14:32</td>
             </tr>
             <tr>
-              <td>conv_8a2f</td>
-              <td>assistant</td>
-              <td>Great choice! To upgrade, go to Settings &gt; Plan...</td>
-              <td>2025-02-14 09:14:33</td>
+              <td>tkt_8a2f</td>
+              <td>ai_agent</td>
+              <td>I can help with billing! Your current plan is Free...</td>
+              <td>2026-02-14 09:14:33</td>
             </tr>
             <tr>
-              <td>conv_8a2f</td>
-              <td>user</td>
-              <td>That's not what I asked. Do my CREDITS transfer?</td>
-              <td>2025-02-14 09:15:12</td>
+              <td>tkt_8a2f</td>
+              <td>customer</td>
+              <td>I KNOW I'm on free. I'm asking about the $49 CHARGE.</td>
+              <td>2026-02-14 09:15:12</td>
             </tr>
             <tr>
-              <td>conv_9c3e</td>
-              <td>user</td>
-              <td>ok thanks</td>
-              <td>2025-02-14 09:22:08</td>
+              <td>tkt_9c3e</td>
+              <td>customer</td>
+              <td>ok thanks I guess</td>
+              <td>2026-02-14 09:22:08</td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div class="csv-fade">+ 4,828 more rows</div>
+      <div class="csv-fade">+ 6,237 more rows</div>
     </div>
 
   </div>
@@ -997,28 +1003,28 @@
 <section id="insights" class="fade-up">
   <div class="container">
     <div class="section-label">Insights, not dashboards</div>
-    <h2 class="section-heading">Questions your current tools can&rsquo;t answer.</h2>
+    <h2 class="section-heading">Insights your current analytics can&rsquo;t surface. Questions your clients will ask at the next QBR.</h2>
 
     <div class="faq-grid">
       <div class="faq-item">
-        <div class="faq-q">&ldquo;What&rsquo;s our actual resolution rate?&rdquo;</div>
-        <div class="faq-a">Your dashboard says 72%. But <strong>847 conversations</strong> marked &ldquo;resolved&rdquo; were reopened within 72 hours. Actual resolution: <span class="mono-hl">54%</span>. Your AI counts silence as success.</div>
+        <div class="faq-q">&ldquo;What&rsquo;s our actual resolution rate &mdash; not the one we show clients?&rdquo;</div>
+        <div class="faq-a">Your dashboard says 74%. But <strong>1,437 tickets</strong> marked &ldquo;resolved&rdquo; were reopened within 72 hours. Actual resolution: <span class="mono-hl">51%</span>. Your AI counts silence as success. Your client is reporting that 74% to their board.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">&ldquo;Why did human agent CSAT drop this month?&rdquo;</div>
-        <div class="faq-a">It didn&rsquo;t &mdash; not really. Users who hit a human after an AI failure rate them <span class="mono-hl">2.1/5</span>. Direct-to-human users rate <strong>4.2/5</strong>, same issues. Your AI is poisoning downstream human scores.</div>
+        <div class="faq-q">&ldquo;Why did our client&rsquo;s human agent CSAT drop this month?&rdquo;</div>
+        <div class="faq-a">It didn&rsquo;t &mdash; not really. Customers who hit a human after your AI fails rate them <span class="mono-hl">1.9/5</span>. Direct-to-human customers rate <strong>4.3/5</strong>, same issues. Your AI is poisoning downstream human CSAT, and your client blames their own team.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">&ldquo;Which failures are costing us the most?&rdquo;</div>
-        <div class="faq-a"><strong>plan_upgrade_with_conditions</strong> &mdash; 341 sessions/week at <span class="mono-hl">11% success</span>. These users escalate angry because the AI sounded confident while answering the wrong question. It&rsquo;s driving 160+ avoidable human escalations weekly.</div>
+        <div class="faq-q">&ldquo;Which failures are driving the most escalations?&rdquo;</div>
+        <div class="faq-a"><strong>billing_dispute_with_context</strong> &mdash; 412 sessions/week at <span class="mono-hl">14% FCR</span>. These customers escalate angry because your AI confidently answered the generic billing FAQ while ignoring their specific dispute. It&rsquo;s driving 200+ avoidable escalations weekly and cratering your client&rsquo;s ticket deflection metrics.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">&ldquo;Are we catching at-risk users before they churn?&rdquo;</div>
-        <div class="faq-a">No. 217 users this week said &ldquo;ok thanks&rdquo; to a failed AI response. Your system flagged positive sentiment. <strong>34 of them cancelled within a week.</strong> Polite disengagement is invisible to sentiment analysis.</div>
+        <div class="faq-q">&ldquo;Are we catching at-risk end-users before they churn?&rdquo;</div>
+        <div class="faq-a">No. 283 customers this week said &ldquo;ok thanks&rdquo; to a failed AI response. Your agent flagged positive sentiment. <strong>47 of them cancelled or stopped engaging within a week.</strong> Polite disengagement is invisible to sentiment analysis &mdash; and your client&rsquo;s dashboard never flagged it.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">&ldquo;If we fix one thing this sprint, what matters most?&rdquo;</div>
-        <div class="faq-a">Add conditional logic to <strong>plan_upgrade_with_conditions</strong>. Highest volume, lowest success, biggest downstream damage. Estimated: <strong>160 fewer escalations/week</strong> and +0.4 CSAT recovery on human agents.</div>
+        <div class="faq-q">&ldquo;What do we show the client at the next QBR?&rdquo;</div>
+        <div class="faq-a">Fix contextual handling for <strong>billing_dispute_with_context</strong>. Highest volume, lowest FCR, biggest downstream damage. Estimated: <strong>200 fewer escalations/week</strong> and +0.5 CSAT recovery on human agents. That&rsquo;s the story your client needs to hear &mdash; and the proof your team is improving their product.</div>
       </div>
     </div>
   </div>
@@ -1027,18 +1033,19 @@
 <!-- ── CTA ── -->
 <section id="cta" class="fade-up">
   <div class="container">
-    <h2 class="cta-heading">Stop guessing.<br>Start reading your briefing.</h2>
-    <p class="cta-sub">See what your AI conversations are actually telling you.</p>
+    <h2 class="cta-heading">Stop guessing what your AI agent is getting wrong.<br>Start reading your briefing.</h2>
+    <p class="cta-sub">Upload your support conversations and see what your AI is missing. Find the silent failures, the polite churners, and the frustration transfer your dashboard can&rsquo;t see.</p>
     <div class="cta-actions">
-      <a href="https://dashboard-xi-taupe-75.vercel.app" class="btn-primary">Upload Your Conversations</a>
+      <a href="https://dashboard-xi-taupe-75.vercel.app/upload" class="btn-primary">Upload Your Support Conversations</a>
       <a href="mailto:linda@convometrics.com" class="btn-ghost">Talk to Us</a>
     </div>
-    <p class="cta-note">Free to try &middot; No credit card required &middot; Works with any AI product</p>
+    <p class="cta-note">Free to try &middot; No credit card required &middot; Works with any AI support agent</p>
   </div>
 </section>
 
 <footer>
-  ConvoMetrics &middot; Mixpanel for AI Conversations
+  &copy; 2026 ConvoMetrics
+  <span class="footer-tagline">Mixpanel for AI Conversations</span>
 </footer>
 
 <script>

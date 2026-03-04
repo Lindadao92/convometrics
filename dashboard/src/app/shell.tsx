@@ -1,13 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import Link from "next/link";
 import { ReactNode, useState, useRef, useEffect } from "react";
 import { ProductProfileProvider } from "@/lib/product-profile-context";
-import { DemoModeProvider, useDemoMode, DEMO_SEGMENT_META } from "@/lib/demo-mode-context";
+import { DemoModeProvider } from "@/lib/demo-mode-context";
 import { TimeRangeProvider, useTimeRange, TIME_RANGE_PRESETS, TimeRangePreset } from "@/lib/time-range-context";
-import { FilterProvider } from "@/lib/filter-context";
-import { FilterBar } from "@/components/FilterBar";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -106,12 +103,12 @@ function TimeRangeSelector() {
 
   return (
     <div className="relative flex items-center gap-2" ref={dropdownRef}>
-      <div className="hidden sm:flex items-center gap-0.5 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.07] p-0.5">
+      <div className="flex items-center gap-0.5 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.07] p-0.5">
         {TIME_RANGE_PRESETS.map((p) => (
           <button
             key={p.key}
             onClick={() => { setPreset(p.key); setShowCustom(false); }}
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
               timeRange.preset === p.key
                 ? "bg-indigo-600 text-white shadow-sm"
                 : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
@@ -122,7 +119,7 @@ function TimeRangeSelector() {
         ))}
         <button
           onClick={() => setShowCustom(!showCustom)}
-          className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+          className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
             timeRange.preset === "custom"
               ? "bg-indigo-600 text-white shadow-sm"
               : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
@@ -132,19 +129,8 @@ function TimeRangeSelector() {
         </button>
       </div>
 
-      {/* Mobile: compact selector */}
-      <select
-        className="sm:hidden bg-indigo-500/[0.07] border border-indigo-500/20 rounded-lg px-2 py-1.5 text-[11px] text-zinc-300 appearance-none cursor-pointer"
-        value={timeRange.preset}
-        onChange={(e) => setPreset(e.target.value as TimeRangePreset)}
-      >
-        {TIME_RANGE_PRESETS.map((p) => (
-          <option key={p.key} value={p.key}>{p.label}</option>
-        ))}
-      </select>
-
       {isShowingAllData && (
-        <span className="hidden md:inline text-[10px] text-zinc-600 whitespace-nowrap">Showing all available data (30 days)</span>
+        <span className="text-[10px] text-zinc-600 whitespace-nowrap">Showing all available data (30 days)</span>
       )}
 
       {showCustom && (
@@ -174,7 +160,7 @@ function TimeRangeSelector() {
           <button
             onClick={applyCustom}
             disabled={!customFrom || !customTo}
-            className="w-full py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="w-full py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Apply
           </button>
@@ -188,9 +174,6 @@ function TimeRangeSelector() {
 
 function ShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { segment } = useDemoMode();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const segmentMeta = DEMO_SEGMENT_META[segment];
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0b10]">
@@ -215,37 +198,14 @@ function ShellInner({ children }: { children: ReactNode }) {
           className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity shrink-0"
         >
           ConvoMetrics
-        </Link>
-        <span className="hidden sm:inline text-[10px] text-zinc-600 font-medium">
-          {segmentMeta.emoji} {segmentMeta.name} Dashboard
-        </span>
+        </a>
+        <span className="text-[10px] text-zinc-600 font-medium">Character.ai Dashboard</span>
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Time range selector */}
         <TimeRangeSelector />
-
-        {/* Upload button */}
-        <Link
-          href="/upload"
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#8178ff] text-white hover:bg-[#9490ff] hover:shadow-[0_0_20px_rgba(129,120,255,0.3)] transition-all hidden sm:inline-flex items-center gap-1.5"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" />
-          </svg>
-          Upload Data
-        </Link>
-        {/* Mobile upload icon */}
-        <Link
-          href="/upload"
-          className="sm:hidden w-8 h-8 flex items-center justify-center rounded-lg bg-[#8178ff] text-white"
-          title="Upload Data"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12" />
-          </svg>
-        </Link>
 
         {/* Gear icon → Settings */}
         <Link
@@ -282,8 +242,9 @@ function ShellInner({ children }: { children: ReactNode }) {
         `}>
           <nav className="flex flex-col gap-0.5 px-3 py-4">
             {NAV.map(({ href, label, icon }) => {
+              const OVERVIEW_SUBPAGES = ["/retention", "/engagement", "/satisfaction", "/at-risk"];
               const active = href === "/"
-                ? pathname === "/"
+                ? pathname === "/" || OVERVIEW_SUBPAGES.some(p => pathname.startsWith(p))
                 : pathname.startsWith(href);
               return (
                 <Link
@@ -303,7 +264,7 @@ function ShellInner({ children }: { children: ReactNode }) {
             })}
           </nav>
           <div className="mt-auto px-5 py-4 border-t border-white/[0.06]">
-            <p className="text-xs text-zinc-600">v0.5.0</p>
+            <p className="text-xs text-zinc-600">v0.4.0</p>
           </div>
         </aside>
 
@@ -327,9 +288,7 @@ export default function Shell({ children }: { children: ReactNode }) {
     <DemoModeProvider>
       <ProductProfileProvider>
         <TimeRangeProvider>
-          <FilterProvider>
-            <ShellInner>{children}</ShellInner>
-          </FilterProvider>
+          <ShellInner>{children}</ShellInner>
         </TimeRangeProvider>
       </ProductProfileProvider>
     </DemoModeProvider>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 // ─── Analysis prompt ────────────────────────────────────────────────────────
@@ -228,13 +229,16 @@ export async function POST(req: NextRequest) {
 
   try {
     // Use streaming to keep the connection alive and avoid Vercel timeout
+    const totalConversations = limited.length;
+
     const stream = client.messages.stream({
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
+      temperature: 0,
       messages: [
         {
           role: "user",
-          content: `${ANALYSIS_PROMPT}\n\n<conversations>\n${formatted}\n</conversations>\n\n<metadata>\nTotal conversations: ${limited.length}\nTotal messages: ${totalMessages}\nDate range: ${(metadata as Record<string, unknown>)?.dateRange ? JSON.stringify((metadata as Record<string, unknown>).dateRange) : "unknown"}\nSource file: ${(metadata as Record<string, unknown>)?.fileName || "unknown"}\n</metadata>\n\nAnalyze these conversations now. Return ONLY the JSON object, no other text.`,
+          content: `${ANALYSIS_PROMPT}\n\nIMPORTANT COUNTS (use these exact numbers, do not recount):\n- Total conversations: ${totalConversations}\n- Total messages: ${totalMessages}\n\n<conversations>\n${formatted}\n</conversations>\n\n<metadata>\nTotal conversations: ${totalConversations}\nTotal messages: ${totalMessages}\nDate range: ${(metadata as Record<string, unknown>)?.dateRange ? JSON.stringify((metadata as Record<string, unknown>).dateRange) : "unknown"}\nSource file: ${(metadata as Record<string, unknown>)?.fileName || "unknown"}\n</metadata>\n\nAnalyze these conversations now. Return ONLY the JSON object, no other text.`,
         },
       ],
     });

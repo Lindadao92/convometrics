@@ -552,7 +552,7 @@ export function computeMockOverviewStats(segment: string, days?: number) {
   const n = convos.length;
 
   let qualitySum = 0, qualityCount = 0;
-  let completedCount = 0, failedCount = 0, abandonedCount = 0;
+  let completedCount = 0, abandonedCount = 0;
   const intentCounts: Record<string, { count: number; qualitySum: number; qualityCount: number; failCount: number; completeCount: number }> = {};
   const qualityBuckets: Record<string, number> = { "0–20": 0, "21–40": 0, "41–60": 0, "61–80": 0, "81–100": 0 };
   const statusCounts: Record<string, number> = {};
@@ -561,14 +561,10 @@ export function computeMockOverviewStats(segment: string, days?: number) {
     const q = c.scores.overall;
     qualitySum += q; qualityCount++;
 
-    // Derive completion status from inferred satisfaction — consistent across all APIs
-    const status =
-      c.inferred_satisfaction === "abandoned" ? "abandoned" :
-      c.inferred_satisfaction === "frustrated" ? "failed" :
-      "completed"; // satisfied + neutral = completed
+    // Derive completion status from inferred satisfaction
+    const status = c.inferred_satisfaction === "abandoned" ? "abandoned" : c.inferred_satisfaction === "satisfied" ? "completed" : "completed";
     statusCounts[status] = (statusCounts[status] ?? 0) + 1;
     if (status === "completed") completedCount++;
-    if (status === "failed") failedCount++;
     if (status === "abandoned") abandonedCount++;
 
     if (q <= 20) qualityBuckets["0–20"]++;
@@ -581,14 +577,13 @@ export function computeMockOverviewStats(segment: string, days?: number) {
     const ic = intentCounts[c.intent];
     ic.count++;
     ic.qualitySum += q; ic.qualityCount++;
-    // Use same inferred_satisfaction logic for per-intent stats
-    if (c.inferred_satisfaction === "frustrated" || c.inferred_satisfaction === "abandoned") ic.failCount++;
+    if (c.failure_tags.length > 0) ic.failCount++;
     if (status === "completed") ic.completeCount++;
   }
 
   const avgQuality = qualityCount > 0 ? Math.round(qualitySum / qualityCount) : null;
   const completionRate = n > 0 ? Math.round((completedCount / n) * 1000) / 10 : null;
-  const failureRate = n > 0 ? Math.round(((failedCount + abandonedCount) / n) * 1000) / 10 : null;
+  const failureRate = n > 0 ? Math.round((abandonedCount / n) * 1000) / 10 : null;
 
   const intentArr = Object.entries(intentCounts).map(([intent, g]) => ({
     intent, count: g.count,
@@ -744,8 +739,8 @@ export function computeMockTopicsStats(segment: string, days?: number) {
     byIntent[c.intent] ??= { qualitySum: 0, qualityCount: 0, failCount: 0, completeCount: 0, count: 0, firstSeen: c.timestamp };
     const g = byIntent[c.intent];
     g.count++; g.qualitySum += c.scores.overall; g.qualityCount++;
-    if (c.inferred_satisfaction === "frustrated" || c.inferred_satisfaction === "abandoned") g.failCount++;
-    if (c.inferred_satisfaction === "satisfied" || c.inferred_satisfaction === "neutral") g.completeCount++;
+    if (c.failure_tags.length > 0) g.failCount++;
+    if (c.inferred_satisfaction !== "abandoned") g.completeCount++;
     if (c.timestamp < g.firstSeen) g.firstSeen = c.timestamp;
   }
 

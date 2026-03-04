@@ -10,7 +10,7 @@ from workers.analyze import analyze_csv
 
 router = APIRouter()
 
-ALLOWED_CONTENT_TYPES = {"text/csv", "application/vnd.ms-excel"}
+ALLOWED_CONTENT_TYPES = {"text/csv", "application/vnd.ms-excel", "application/octet-stream"}
 
 _redis_client = None
 

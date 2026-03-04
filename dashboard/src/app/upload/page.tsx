@@ -1,18 +1,110 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import { useAnalysis } from "@/lib/analysis-context";
-
-// ─── Config ──────────────────────────────────────────────────────────────────
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const POLL_INTERVAL = 3000;
+import type { AnalysisResponse } from "@/lib/analyzer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type UploadState = "idle" | "uploading" | "processing" | "complete" | "error";
+type UploadState = "idle" | "parsing" | "analyzing" | "error";
+
+interface ConversationInput {
+  id: string;
+  messages: { role: string; text: string }[];
+}
+
+// ─── CSV Parsing ─────────────────────────────────────────────────────────────
+
+function parseCSVRow(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        fields.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
+function parseCSV(text: string): Record<string, string>[] {
+  // Split handling multi-line quoted fields
+  const rows: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (const ch of text) {
+    if (ch === '"') inQuotes = !inQuotes;
+    if (ch === "\n" && !inQuotes) {
+      if (current.trim()) rows.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) rows.push(current);
+
+  if (rows.length < 2) return [];
+
+  const headers = parseCSVRow(rows[0]).map((h) => h.toLowerCase().trim());
+  const records: Record<string, string>[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const fields = parseCSVRow(rows[i]);
+    const record: Record<string, string> = {};
+    for (let j = 0; j < headers.length; j++) {
+      record[headers[j]] = fields[j] ?? "";
+    }
+    records.push(record);
+  }
+  return records;
+}
+
+function groupConversations(records: Record<string, string>[]): ConversationInput[] {
+  // Sort by conversation_id then timestamp
+  const sorted = [...records].sort((a, b) => {
+    const cmp = (a.conversation_id ?? "").localeCompare(b.conversation_id ?? "");
+    if (cmp !== 0) return cmp;
+    return (a.timestamp ?? "").localeCompare(b.timestamp ?? "");
+  });
+
+  const groups = new Map<string, { role: string; text: string }[]>();
+  for (const row of sorted) {
+    const id = row.conversation_id;
+    if (!id) continue;
+    if (!groups.has(id)) groups.set(id, []);
+    const role = row.role ?? "unknown";
+    const text = row.message ?? row.text ?? "";
+    if (text) groups.get(id)!.push({ role, text });
+  }
+
+  return Array.from(groups.entries())
+    .filter(([, msgs]) => msgs.length > 0)
+    .map(([id, messages]) => ({ id, messages }));
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -21,124 +113,135 @@ export default function UploadPage() {
   const { setResults } = useAnalysis();
 
   const [state, setState] = useState<UploadState>("idle");
-  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [statusText, setStatusText] = useState<string>("");
 
-  // ── Cleanup polling on unmount ──────────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
-
-  // ── Upload file ─────────────────────────────────────────────────────────────
-  const uploadFile = useCallback(
+  // ── Process file ─────────────────────────────────────────────────────────
+  const processFile = useCallback(
     async (file: File) => {
       setFileName(file.name);
-      setState("uploading");
+      setState("parsing");
       setError(null);
+      setStatusText("Parsing CSV...");
 
       try {
-        const form = new FormData();
-        form.append("file", file);
+        // 1. Read and parse CSV
+        const text = await file.text();
+        const records = parseCSV(text);
 
-        const res = await fetch(`${API_BASE}/api/upload/`, {
+        if (records.length === 0) {
+          throw new Error("CSV file is empty or could not be parsed.");
+        }
+
+        // 2. Validate required columns
+        const columns = Object.keys(records[0]);
+        if (!columns.includes("conversation_id")) {
+          throw new Error(
+            "Missing required column: conversation_id. Found columns: " +
+              columns.join(", ")
+          );
+        }
+
+        // 3. Group by conversation_id
+        const conversations = groupConversations(records);
+
+        if (conversations.length < 3) {
+          throw new Error(
+            `Found only ${conversations.length} conversation(s). Upload at least 3 for a meaningful analysis.`
+          );
+        }
+
+        setStatusText(
+          `Found ${conversations.length} conversations. Sending to Claude for analysis...`
+        );
+        setState("analyzing");
+
+        // 4. Send to /api/analyze
+        const totalMessages = conversations.reduce(
+          (sum, c) => sum + c.messages.length,
+          0
+        );
+        const res = await fetch("/api/analyze", {
           method: "POST",
-          body: form,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversations,
+            metadata: {
+              fileName: file.name,
+              totalConversations: conversations.length,
+              totalMessages,
+            },
+          }),
         });
 
         if (!res.ok) {
           const body = await res.json().catch(() => null);
-          throw new Error(body?.detail || `Upload failed (${res.status})`);
+          throw new Error(
+            body?.error || `Analysis failed (${res.status})`
+          );
         }
 
-        const { job_id } = await res.json();
-        setJobId(job_id);
-        setState("processing");
-        startPolling(job_id);
+        // 5. Stream and collect response
+        setStatusText("Claude is analyzing your conversations...");
+        const responseText = await res.text();
+
+        // 6. Strip markdown fences if present
+        let jsonText = responseText.trim();
+        if (jsonText.startsWith("```")) {
+          jsonText = jsonText
+            .replace(/^```(?:json)?\s*\n?/, "")
+            .replace(/\n?```\s*$/, "");
+        }
+
+        // 7. Parse JSON
+        let analysisData: AnalysisResponse;
+        try {
+          analysisData = JSON.parse(jsonText);
+        } catch {
+          throw new Error(
+            "Failed to parse analysis response. The AI returned invalid JSON."
+          );
+        }
+
+        // 8. Store in context and navigate
+        setResults({
+          job_id: "upload-" + Date.now(),
+          data: analysisData,
+        });
+        router.push("/");
       } catch (err) {
         setState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [setResults, router]
   );
 
-  // ── Poll for status ─────────────────────────────────────────────────────────
-  function startPolling(id: string) {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    intervalRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/jobs/${id}/status`);
-        if (!res.ok) throw new Error("Failed to fetch job status");
-
-        const { status } = await res.json();
-
-        if (status === "complete") {
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
-          await fetchResults(id);
-        } else if (status === "failed") {
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
-          setState("error");
-          setError("Analysis failed. Please try again.");
-        }
-        // "pending" / "processing" → keep polling
-      } catch {
-        clearInterval(intervalRef.current!);
-        intervalRef.current = null;
-        setState("error");
-        setError("Lost connection while checking status.");
-      }
-    }, POLL_INTERVAL);
-  }
-
-  // ── Fetch results and navigate ──────────────────────────────────────────────
-  async function fetchResults(id: string) {
-    try {
-      const res = await fetch(`${API_BASE}/api/jobs/${id}/results`);
-      if (!res.ok) throw new Error("Failed to fetch results");
-
-      const data = await res.json();
-      setResults({ job_id: id, data });
-      setState("complete");
-      router.push("/");
-    } catch {
-      setState("error");
-      setError("Failed to load analysis results.");
-    }
-  }
-
-  // ── Dropzone ────────────────────────────────────────────────────────────────
+  // ── Dropzone ────────────────────────────────────────────────────────────
   const onDrop = useCallback(
     (accepted: File[]) => {
-      if (accepted.length > 0) uploadFile(accepted[0]);
+      if (accepted.length > 0) processFile(accepted[0]);
     },
-    [uploadFile],
+    [processFile]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "text/csv": [".csv"] },
     maxFiles: 1,
-    disabled: state === "uploading" || state === "processing",
+    disabled: state === "parsing" || state === "analyzing",
   });
 
-  // ── Reset ───────────────────────────────────────────────────────────────────
+  // ── Reset ───────────────────────────────────────────────────────────────
   function reset() {
-    if (intervalRef.current) clearInterval(intervalRef.current);
     setState("idle");
-    setJobId(null);
     setError(null);
     setFileName(null);
+    setStatusText("");
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0a0b10] flex items-center justify-center p-6">
       <div className="w-full max-w-lg">
@@ -191,7 +294,7 @@ export default function UploadPage() {
           </div>
         )}
 
-        {(state === "uploading" || state === "processing") && (
+        {(state === "parsing" || state === "analyzing") && (
           <div className="border border-white/[0.08] rounded-2xl p-10 text-center">
             <div className="flex flex-col items-center gap-5">
               {/* Spinner */}
@@ -202,21 +305,19 @@ export default function UploadPage() {
 
               <div>
                 <p className="text-sm text-white font-medium">
-                  {state === "uploading"
-                    ? "Uploading..."
-                    : "Analyzing your conversations with AI..."}
+                  {state === "parsing"
+                    ? "Parsing your CSV..."
+                    : "Analyzing your conversations with Claude..."}
                 </p>
                 {fileName && (
                   <p className="text-xs text-zinc-500 mt-1">{fileName}</p>
                 )}
-                {jobId && (
-                  <p className="text-[10px] text-zinc-700 mt-2 font-mono">
-                    Job: {jobId}
-                  </p>
+                {statusText && (
+                  <p className="text-xs text-zinc-400 mt-2">{statusText}</p>
                 )}
               </div>
 
-              {state === "processing" && (
+              {state === "analyzing" && (
                 <div className="w-full max-w-xs">
                   <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
                     <div className="h-full rounded-full bg-indigo-500/60 animate-pulse w-2/3" />

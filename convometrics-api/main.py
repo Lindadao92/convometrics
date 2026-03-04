@@ -12,15 +12,12 @@ app = FastAPI(title="ConvoMetrics API")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-ALLOWED_ORIGINS = [
-    FRONTEND_URL,
-    "https://dashboard-xi-taupe-75.vercel.app",
-    "https://convometrics.vercel.app",
-]
+# Support comma-separated origins for multiple Vercel domains
+_origins = [u.strip() for u in FRONTEND_URL.split(",") if u.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
