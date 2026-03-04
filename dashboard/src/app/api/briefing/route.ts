@@ -69,14 +69,25 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!rows?.length) return NextResponse.json({ error: "No data" }, { status: 500 });
 
-  const now = Date.now();
-  const t7  = now - 7  * MS_DAY;
-  const t14 = now - 14 * MS_DAY;
+  // Calculate cutoffs at start of day for consistent timezone handling
+  const now = new Date();
+  const t7  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).getTime();
+  const t14 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14).getTime();
 
-  const allTs = (rows as Row[]).map((r) => ({
-    ...r,
-    _ts: new Date(r.created_at).getTime(),
-  }));
+  const allTs = (rows as Row[]).map((r) => {
+    try {
+      return {
+        ...r,
+        _ts: new Date(r.created_at).getTime(),
+      };
+    } catch (e) {
+      console.warn('Invalid timestamp format:', r.created_at);
+      return {
+        ...r,
+        _ts: 0, // Exclude from time-based filtering
+      };
+    }
+  }).filter(r => r._ts > 0); // Remove entries with invalid timestamps
 
   // Only count conversations that have been analyzed (workers have run on them)
   const analyzedTs = allTs.filter((r) => r.completion_status !== null);
