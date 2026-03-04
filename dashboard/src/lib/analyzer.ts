@@ -10,6 +10,12 @@ export interface RawMessage {
   role: string;
   message: string;
   timestamp?: string;
+  intent?: string;
+  sentiment?: string;
+  resolution_status?: string;
+  metadata?: string; // JSON string with channel, product, plan_tier
+  user_id?: string;
+  session_id?: string;
 }
 
 export interface ClassifiedConversation {
@@ -20,6 +26,15 @@ export interface ClassifiedConversation {
   patterns: string[];
   messageCount: number;
   messages: { role: "user" | "ai"; text: string }[];
+  sentimentTrajectory?: "worsened" | "improved" | "stable";
+  channel?: string;
+  product?: string;
+  planTier?: string;
+  csvResolutionStatus?: string;
+  csvIntent?: string;
+  resolutionMismatch?: boolean;
+  isFalsePositive?: boolean;
+  frustrationTriggers?: string[];
 }
 
 export interface IntentBreakdown {
@@ -66,6 +81,38 @@ export interface BriefingData {
   patterns: PatternResult[];
   actions: ActionResult[];
   conversations: ClassifiedConversation[];
+  // New dimensions
+  sentimentTrajectory: { worsened: number; improved: number; stable: number };
+  resolutionBreakdown: Record<string, number>;
+  channelBreakdown: {
+    channel: string;
+    conversations: number;
+    resolutionRate: number;
+    escalationRate: number;
+  }[];
+  productBreakdown: {
+    product: string;
+    conversations: number;
+    resolutionRate: number;
+  }[];
+  planTierBreakdown: {
+    tier: string;
+    conversations: number;
+    badOutcomeRate: number;
+  }[];
+  churnRisk: {
+    total: number;
+    cancellationSaveRate: number;
+    complaintResolutionRate: number;
+    refundResolutionRate: number;
+  };
+  falsePositiveRate: number;
+  aiFailurePatterns: { trigger: string; count: number }[];
+  duplicateResponseCount: number;
+  revenueRisk: {
+    highValueCustomers: number;
+    highValueBadOutcomeRate: number;
+  };
 }
 
 // ─── Claude API response types ──────────────────────────────────────────────
@@ -430,6 +477,86 @@ function detectPatterns(
   return patterns;
 }
 
+// ─── Frustration trigger extraction ─────────────────────────────────────────
+
+function extractFrustrationTriggers(
+  messages: { role: string; text: string }[]
+): string[] {
+  const triggers: string[] = [];
+  const userMsgs = messages.filter((m) => m.role === "user");
+
+  for (const msg of userMsgs) {
+    const lower = msg.text.toLowerCase();
+    for (const phrase of FRUSTRATION_PHRASES) {
+      if (lower.includes(phrase)) {
+        triggers.push(phrase);
+      }
+    }
+    // ALL CAPS detection
+    if (/[A-Z]{4,}/.test(msg.text)) {
+      triggers.push("ALL CAPS usage");
+    }
+  }
+
+  return [...new Set(triggers)];
+}
+
+// ─── Sentiment trajectory from CSV sentiments ───────────────────────────────
+
+function computeSentimentTrajectoryForConvo(
+  sentiments: string[]
+): "worsened" | "improved" | "stable" {
+  if (sentiments.length < 2) return "stable";
+
+  const toScore = (s: string): number => {
+    const lower = s.toLowerCase();
+    if (lower === "positive" || lower === "satisfied") return 1;
+    if (lower === "neutral") return 0;
+    if (lower === "negative" || lower === "frustrated" || lower === "angry") return -1;
+    return 0;
+  };
+
+  const firstHalf = sentiments.slice(0, Math.ceil(sentiments.length / 2));
+  const secondHalf = sentiments.slice(Math.ceil(sentiments.length / 2));
+
+  const avgFirst =
+    firstHalf.reduce((s, v) => s + toScore(v), 0) / firstHalf.length;
+  const avgSecond =
+    secondHalf.reduce((s, v) => s + toScore(v), 0) / secondHalf.length;
+
+  if (avgSecond < avgFirst - 0.3) return "worsened";
+  if (avgSecond > avgFirst + 0.3) return "improved";
+  return "stable";
+}
+
+// ─── False positive detection ───────────────────────────────────────────────
+
+function detectFalsePositive(
+  csvResolutionStatus: string | undefined,
+  outcome: "success" | "failed" | "abandoned" | "escalated"
+): boolean {
+  if (!csvResolutionStatus) return false;
+  const lower = csvResolutionStatus.toLowerCase();
+  const isLabeledResolved =
+    lower === "resolved" ||
+    lower === "completed" ||
+    lower === "false_positive_resolved";
+  return isLabeledResolved && outcome !== "success";
+}
+
+// ─── Metadata JSON parsing ──────────────────────────────────────────────────
+
+function parseMetadataJson(
+  val: string | undefined
+): { channel?: string; product?: string; plan_tier?: string } {
+  if (!val) return {};
+  try {
+    return JSON.parse(val);
+  } catch {
+    return {};
+  }
+}
+
 // ─── Failure breakdown generation ───────────────────────────────────────────
 
 function computeFailureBreakdown(
@@ -539,6 +666,12 @@ function generateActions(intents: IntentResult[]): ActionResult[] {
 // ─── Main analyzer ──────────────────────────────────────────────────────────
 
 export function analyzeConversations(rows: RawMessage[]): BriefingData {
+  // Check which CSV columns are available
+  const hasIntentCol = rows.some((r) => r.intent);
+  const hasSentimentCol = rows.some((r) => r.sentiment);
+  const hasResolutionCol = rows.some((r) => r.resolution_status);
+  const hasMetadataCol = rows.some((r) => r.metadata);
+
   // 1. Group by conversation_id
   const grouped = new Map<string, RawMessage[]>();
   for (const row of rows) {
@@ -573,9 +706,42 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
 
     if (userMessages.length === 0) continue;
 
-    const intent = classifyIntent(userMessages);
+    // Use CSV intent if available, otherwise classify heuristically
+    const intent = hasIntentCol && msgs[0]?.intent
+      ? msgs[0].intent
+      : classifyIntent(userMessages);
+
     const outcome = classifyOutcome(normalized);
     const patterns = detectPatterns(normalized, outcome);
+    const frustrationTriggers = extractFrustrationTriggers(normalized);
+
+    // Compute sentiment trajectory from CSV sentiments
+    let sentimentTrajectory: "worsened" | "improved" | "stable" = "stable";
+    if (hasSentimentCol) {
+      const sentiments = msgs
+        .map((m) => m.sentiment)
+        .filter((s): s is string => !!s);
+      sentimentTrajectory = computeSentimentTrajectoryForConvo(sentiments);
+    }
+
+    // Extract metadata from JSON column
+    let channel: string | undefined;
+    let product: string | undefined;
+    let planTier: string | undefined;
+    if (hasMetadataCol && msgs[0]?.metadata) {
+      const meta = parseMetadataJson(msgs[0].metadata);
+      channel = meta.channel;
+      product = meta.product;
+      planTier = meta.plan_tier;
+    }
+
+    // Get CSV resolution status
+    const csvResolutionStatus = hasResolutionCol
+      ? msgs[msgs.length - 1]?.resolution_status
+      : undefined;
+
+    // Detect false positives
+    const isFalsePositive = detectFalsePositive(csvResolutionStatus, outcome);
 
     classified.push({
       id,
@@ -586,6 +752,15 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
       patterns,
       messageCount: normalized.length,
       messages: normalized,
+      sentimentTrajectory,
+      channel,
+      product,
+      planTier,
+      csvResolutionStatus,
+      csvIntent: hasIntentCol ? msgs[0]?.intent : undefined,
+      resolutionMismatch: isFalsePositive,
+      isFalsePositive,
+      frustrationTriggers,
     });
   }
 
@@ -684,6 +859,7 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
   const actualResolved = classified.filter(
     (c) => c.outcome === "success"
   ).length;
+  const falsePositives = classified.filter((c) => c.isFalsePositive).length;
 
   // 6. Date range
   const timestamps = rows
@@ -724,6 +900,176 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
     }
   }
 
+  // 8. New dimensions
+
+  // Sentiment trajectory
+  const sentimentTrajectory = { worsened: 0, improved: 0, stable: 0 };
+  for (const c of classified) {
+    const t = c.sentimentTrajectory || "stable";
+    sentimentTrajectory[t]++;
+  }
+
+  // Resolution breakdown
+  const resolutionBreakdown: Record<string, number> = {
+    truly_resolved: 0,
+    resolved_after_frustration: 0,
+    false_positive_resolved: 0,
+    escalated_to_human: 0,
+    in_progress: 0,
+    cancelled: 0,
+  };
+  for (const c of classified) {
+    if (c.isFalsePositive) {
+      resolutionBreakdown.false_positive_resolved++;
+    } else if (c.outcome === "success" && (c.frustrationTriggers?.length ?? 0) > 0) {
+      resolutionBreakdown.resolved_after_frustration++;
+    } else if (c.outcome === "success") {
+      resolutionBreakdown.truly_resolved++;
+    } else if (c.outcome === "escalated") {
+      resolutionBreakdown.escalated_to_human++;
+    } else if (c.intent.includes("cancel")) {
+      resolutionBreakdown.cancelled++;
+    } else {
+      resolutionBreakdown.in_progress++;
+    }
+  }
+
+  // Channel breakdown
+  const channelMap = new Map<string, ClassifiedConversation[]>();
+  for (const c of classified) {
+    if (c.channel) {
+      if (!channelMap.has(c.channel)) channelMap.set(c.channel, []);
+      channelMap.get(c.channel)!.push(c);
+    }
+  }
+  const channelBreakdown = Array.from(channelMap.entries()).map(
+    ([channel, convos]) => ({
+      channel,
+      conversations: convos.length,
+      resolutionRate:
+        convos.length > 0
+          ? convos.filter((c) => c.outcome === "success").length / convos.length
+          : 0,
+      escalationRate:
+        convos.length > 0
+          ? convos.filter((c) => c.outcome === "escalated").length /
+            convos.length
+          : 0,
+    })
+  );
+
+  // Product breakdown
+  const productMap = new Map<string, ClassifiedConversation[]>();
+  for (const c of classified) {
+    if (c.product) {
+      if (!productMap.has(c.product)) productMap.set(c.product, []);
+      productMap.get(c.product)!.push(c);
+    }
+  }
+  const productBreakdown = Array.from(productMap.entries()).map(
+    ([product, convos]) => ({
+      product,
+      conversations: convos.length,
+      resolutionRate:
+        convos.length > 0
+          ? convos.filter((c) => c.outcome === "success").length / convos.length
+          : 0,
+    })
+  );
+
+  // Plan tier breakdown
+  const tierMap = new Map<string, ClassifiedConversation[]>();
+  for (const c of classified) {
+    if (c.planTier) {
+      if (!tierMap.has(c.planTier)) tierMap.set(c.planTier, []);
+      tierMap.get(c.planTier)!.push(c);
+    }
+  }
+  const planTierBreakdown = Array.from(tierMap.entries()).map(
+    ([tier, convos]) => ({
+      tier,
+      conversations: convos.length,
+      badOutcomeRate:
+        convos.length > 0
+          ? convos.filter(
+              (c) =>
+                c.outcome === "failed" ||
+                c.outcome === "abandoned" ||
+                c.outcome === "escalated"
+            ).length / convos.length
+          : 0,
+    })
+  );
+
+  // Churn risk
+  const cancellationConvos = classified.filter((c) =>
+    c.intent.toLowerCase().includes("cancel")
+  );
+  const complaintConvos = classified.filter(
+    (c) =>
+      c.intent.toLowerCase().includes("complaint") ||
+      c.intent.toLowerCase().includes("dispute")
+  );
+  const refundConvos = classified.filter((c) =>
+    c.intent.toLowerCase().includes("refund")
+  );
+  const churnRisk = {
+    total:
+      cancellationConvos.length +
+      complaintConvos.length +
+      refundConvos.length,
+    cancellationSaveRate:
+      cancellationConvos.length > 0
+        ? cancellationConvos.filter((c) => c.outcome === "success").length /
+          cancellationConvos.length
+        : 0,
+    complaintResolutionRate:
+      complaintConvos.length > 0
+        ? complaintConvos.filter((c) => c.outcome === "success").length /
+          complaintConvos.length
+        : 0,
+    refundResolutionRate:
+      refundConvos.length > 0
+        ? refundConvos.filter((c) => c.outcome === "success").length /
+          refundConvos.length
+        : 0,
+  };
+
+  // AI failure patterns
+  const triggerCounts = new Map<string, number>();
+  for (const c of classified) {
+    for (const trigger of c.frustrationTriggers || []) {
+      triggerCounts.set(trigger, (triggerCounts.get(trigger) || 0) + 1);
+    }
+  }
+  const aiFailurePatterns = Array.from(triggerCounts.entries())
+    .map(([trigger, count]) => ({ trigger, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // Duplicate response count (proxy: exhaustion loops)
+  const duplicateResponseCount = classified.filter((c) =>
+    c.patterns.includes("exhaustion_loop")
+  ).length;
+
+  // Revenue risk
+  const highValueConvos = classified.filter(
+    (c) => c.planTier === "enterprise" || c.planTier === "pro"
+  );
+  const highValueBadOutcomes = highValueConvos.filter(
+    (c) =>
+      c.outcome === "failed" ||
+      c.outcome === "abandoned" ||
+      c.outcome === "escalated"
+  );
+  const revenueRisk = {
+    highValueCustomers: highValueConvos.length,
+    highValueBadOutcomeRate:
+      highValueConvos.length > 0
+        ? highValueBadOutcomes.length / highValueConvos.length
+        : 0,
+  };
+
   return {
     summary: {
       totalConversations: total,
@@ -732,12 +1078,22 @@ export function analyzeConversations(rows: RawMessage[]): BriefingData {
         total > 0 ? Math.round((reportedResolved / total) * 100) : 0,
       actualResolutionRate:
         total > 0 ? Math.round((actualResolved / total) * 100) : 0,
-      falsePosCount: reportedResolved - actualResolved,
+      falsePosCount: falsePositives,
       dateRange: { start, end },
     },
     intents,
     patterns,
     actions,
     conversations: classified,
+    sentimentTrajectory,
+    resolutionBreakdown,
+    channelBreakdown,
+    productBreakdown,
+    planTierBreakdown,
+    churnRisk,
+    falsePositiveRate: total > 0 ? falsePositives / total : 0,
+    aiFailurePatterns,
+    duplicateResponseCount,
+    revenueRisk,
   };
 }

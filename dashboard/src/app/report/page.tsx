@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAnalysis } from "@/lib/analysis-context";
 import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -263,7 +264,103 @@ function trendArrow(dir: "up" | "down" | "flat") {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyData = Record<string, any>;
+
+function deriveReportData(data: AnyData) {
+  const summary = data.summary ?? {};
+  const intents = (data.intent_breakdown ?? []) as AnyData[];
+  const conversations = (data.conversations ?? []) as AnyData[];
+  const quality = data.quality_breakdown ?? {};
+  const total = summary.total_conversations ?? conversations.length;
+  const totalMessages = summary.total_messages ?? 0;
+  const reportedRate = Math.round((summary.reported_resolution_rate ?? 0) * 100);
+  const actualRate = Math.round((summary.actual_resolution_rate ?? 0) * 100);
+  const politeChurnerRate = Math.round((data.polite_churner_rate ?? 0) * 100);
+  const handoffRate = Math.round((data.handoff_rate ?? 0) * 100);
+  const falsePositiveRate = Math.round((data.false_positive_rate ?? 0) * 100);
+
+  // Outcome counts
+  const outcomeCounts: Record<string, number> = {};
+  for (const c of conversations) {
+    outcomeCounts[c.outcome] = (outcomeCounts[c.outcome] ?? 0) + 1;
+  }
+  const successCount = outcomeCounts["success"] ?? 0;
+  const failedCount = outcomeCounts["failed"] ?? 0;
+  const abandonedCount = outcomeCounts["abandoned"] ?? 0;
+  const escalatedCount = outcomeCounts["escalated"] ?? 0;
+
+  const executiveSummary = summary.key_insight
+    ? `${summary.key_insight} ${(summary.briefing ?? []).join(" ")}`
+    : EXECUTIVE_SUMMARY;
+
+  const keyMetrics: KeyMetric[] = [
+    { metric: "Total Conversations", thisWeek: total.toLocaleString(), lastWeek: "-", change: "-", direction: "flat", sentiment: "neutral" },
+    { metric: "Total Messages", thisWeek: totalMessages.toLocaleString(), lastWeek: "-", change: "-", direction: "flat", sentiment: "neutral" },
+    { metric: "Reported Resolution", thisWeek: `${reportedRate}%`, lastWeek: "-", change: "-", direction: "flat", sentiment: "neutral" },
+    { metric: "Actual Resolution", thisWeek: `${actualRate}%`, lastWeek: "-", change: `${actualRate - reportedRate}pp gap`, direction: actualRate < reportedRate ? "down" : "flat", sentiment: actualRate < reportedRate ? "bad" : "good" },
+    { metric: "Polite Churner Rate", thisWeek: `${politeChurnerRate}%`, lastWeek: "-", change: "-", direction: "flat", sentiment: politeChurnerRate > 15 ? "bad" : "neutral" },
+    { metric: "Escalation Rate", thisWeek: `${handoffRate}%`, lastWeek: "-", change: "-", direction: "flat", sentiment: handoffRate > 15 ? "bad" : "neutral" },
+    { metric: "Avg Quality Score", thisWeek: `${quality.avg_overall ?? "-"}`, lastWeek: "-", change: "-", direction: "flat", sentiment: (quality.avg_overall ?? 50) >= 65 ? "good" : "watch" },
+  ];
+
+  // Top issues from top_issues
+  const topIssuesData = (data.top_issues ?? []) as AnyData[];
+  const topIssues: Issue[] = topIssuesData.slice(0, 5).map((issue) => ({
+    title: issue.title ?? "Untitled",
+    description: issue.why ?? issue.impact ?? "",
+    data: `Intent: ${formatLabel(issue.intent ?? "unknown")} · Effort: ${issue.effort ?? "medium"}`,
+    impact: issue.impact ?? "",
+    action: issue.estimated_improvement ?? "",
+  }));
+
+  // Top wins — intents with high success rate
+  const topWins: Win[] = intents
+    .filter((i) => i.success_rate >= 0.7)
+    .sort((a, b) => b.success_rate - a.success_rate)
+    .slice(0, 3)
+    .map((i) => ({
+      title: `${formatLabel(i.display_name || i.name)} — ${Math.round(i.success_rate * 100)}% success rate`,
+      detail: `${i.sessions} conversations, avg quality ${i.avg_quality ?? "-"}/100. ${i.root_cause ? "Strength: " + i.root_cause : ""}`,
+    }));
+
+  // Intent breakdown table
+  const intentRows: IntentRow[] = intents.map((i) => ({
+    intent: i.name,
+    label: formatLabel(i.display_name || i.name),
+    quality: i.avg_quality ?? Math.round((i.success_rate ?? 0) * 100),
+    satisfaction: `${Math.round((i.success_rate ?? 0) * 100)}%`,
+    frustration: `${Math.round((1 - (i.success_rate ?? 0)) * 100)}%`,
+    trend: "-",
+    trendDir: "flat" as const,
+  }));
+
+  // Flagged conversations — lowest quality
+  const flaggedConvos: FlaggedConvo[] = conversations
+    .filter((c) => c.quality_score != null && c.quality_score <= 35)
+    .sort((a, b) => (a.quality_score ?? 0) - (b.quality_score ?? 0))
+    .slice(0, 8)
+    .map((c) => ({
+      id: c.id ?? "unknown",
+      intent: c.intent ?? "unknown",
+      model: c.channel ?? "-",
+      quality: c.quality_score ?? 0,
+      reason: c.summary ?? (c.failure_tags?.length > 0 ? c.failure_tags.join(", ") : "Low quality"),
+      snippet: c.key_excerpt ?? c.first_user_message ?? "",
+    }));
+
+  // Recommendations from top_issues
+  const recommendations = topIssuesData.map((issue, i) => ({
+    priority: i + 1,
+    title: issue.title ?? "Untitled",
+    description: `${issue.why ?? ""} ${issue.estimated_improvement ? "Estimated impact: " + issue.estimated_improvement : ""}`,
+  }));
+
+  return { executiveSummary, keyMetrics, topIssues, topWins, intentRows, flaggedConvos, recommendations, total, reportTitle: "Your Data" };
+}
+
 export default function Report() {
+  const { results } = useAnalysis();
   const [copyDone, setCopyDone] = useState(false);
   const [dateRange, setDateRange] = useState("7d");
   const [visibleSections, setVisibleSections] = useState<Set<SectionKey>>(
@@ -271,6 +368,19 @@ export default function Report() {
   );
   const [configOpen, setConfigOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+
+  // Derive data from analysis results, or fall back to demo mock data
+  const isLive = !!results;
+  const live = isLive ? deriveReportData(results.data) : null;
+
+  const executiveSummary = live?.executiveSummary ?? EXECUTIVE_SUMMARY;
+  const keyMetrics = live?.keyMetrics ?? KEY_METRICS;
+  const topIssues = live?.topIssues ?? TOP_ISSUES;
+  const topWins = live?.topWins ?? TOP_WINS;
+  const intentRows = live?.intentRows ?? INTENT_BREAKDOWN;
+  const flaggedConvos = live?.flaggedConvos ?? FLAGGED_CONVERSATIONS;
+  const recommendations = live?.recommendations ?? RECOMMENDATIONS;
+  const reportTitle = live?.reportTitle ?? "Character.ai";
 
   function toggleSection(key: SectionKey) {
     setVisibleSections((prev) => {
@@ -282,8 +392,7 @@ export default function Report() {
   }
 
   function handleCopy() {
-    // Collects visible text — stub for demo
-    navigator.clipboard.writeText("Weekly Product Intelligence Report — Character.ai\n\n" + EXECUTIVE_SUMMARY).then(() => {
+    navigator.clipboard.writeText("Weekly Product Intelligence Report\n\n" + executiveSummary).then(() => {
       setCopyDone(true);
       setTimeout(() => setCopyDone(false), 2000);
     });
@@ -307,9 +416,9 @@ export default function Report() {
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">
             Weekly Product Intelligence Report
           </p>
-          <h1 className="text-2xl font-bold text-white">Character.ai</h1>
+          <h1 className="text-2xl font-bold text-white">{reportTitle}</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            February 17–23, 2026 · Generated by Convometrics
+            {isLive ? "Generated from uploaded data" : "February 17–23, 2026"} · Generated by Convometrics
           </p>
         </div>
 
@@ -422,7 +531,7 @@ export default function Report() {
       {show("summary") && (
         <section className="rounded-xl border border-white/[0.07] bg-[#13141b] p-6 print:border-zinc-800">
           <h2 className="text-base font-semibold text-white mb-4">Executive Summary</h2>
-          <p className="text-sm text-zinc-300 leading-relaxed">{EXECUTIVE_SUMMARY}</p>
+          <p className="text-sm text-zinc-300 leading-relaxed">{executiveSummary}</p>
         </section>
       )}
 
@@ -442,7 +551,7 @@ export default function Report() {
               </tr>
             </thead>
             <tbody>
-              {KEY_METRICS.map((m) => (
+              {keyMetrics.map((m) => (
                 <tr key={m.metric} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                   <td className="px-5 py-3 text-zinc-300">{m.metric}</td>
                   <td className="px-5 py-3 text-white font-mono font-medium">{m.thisWeek}</td>
@@ -471,7 +580,7 @@ export default function Report() {
           <h2 className="text-base font-semibold text-white mb-1">Top Issues This Week</h2>
           <p className="text-xs text-zinc-500 mb-5">Highest-impact problems ranked by user impact</p>
           <div className="space-y-6">
-            {TOP_ISSUES.map((issue, i) => (
+            {topIssues.map((issue, i) => (
               <div key={i} className="border-l-2 border-red-500/40 pl-5 space-y-2.5">
                 <div className="flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-red-500/15 border border-red-500/25 flex items-center justify-center shrink-0">
@@ -506,7 +615,7 @@ export default function Report() {
           <h2 className="text-base font-semibold text-white mb-1">Top Wins This Week</h2>
           <p className="text-xs text-zinc-500 mb-5">What went right</p>
           <div className="space-y-4">
-            {TOP_WINS.map((win, i) => (
+            {topWins.map((win, i) => (
               <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-emerald-500/[0.04] border border-emerald-500/[0.12]">
                 <div className="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
                   <span className="text-xs font-bold text-emerald-400">{i + 1}</span>
@@ -522,7 +631,7 @@ export default function Report() {
       )}
 
       {/* ── 5. Model Performance ───────────────────────────────────────────── */}
-      {show("models") && (
+      {show("models") && !isLive && (
         <section className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden print:border-zinc-800">
           <div className="px-6 py-4 border-b border-white/[0.06]">
             <h2 className="text-base font-semibold text-white">Model Performance Comparison</h2>
@@ -559,7 +668,7 @@ export default function Report() {
         <section className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden print:border-zinc-800">
           <div className="px-6 py-4 border-b border-white/[0.06]">
             <h2 className="text-base font-semibold text-white">Intent Breakdown</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">All 9 intents — quality, satisfaction, and week-over-week trend</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{intentRows.length} intents — quality, satisfaction, and trend</p>
           </div>
           <table className="w-full text-sm">
             <thead>
@@ -570,7 +679,7 @@ export default function Report() {
               </tr>
             </thead>
             <tbody>
-              {INTENT_BREAKDOWN.map((row) => (
+              {intentRows.map((row) => (
                 <tr key={row.intent} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
                   <td className="px-5 py-3 text-zinc-200">{row.label}</td>
                   <td className="px-5 py-3">
@@ -605,7 +714,7 @@ export default function Report() {
           <h2 className="text-base font-semibold text-white mb-1">Recommendations</h2>
           <p className="text-xs text-zinc-500 mb-5">Specific actions ordered by estimated impact</p>
           <div className="space-y-4">
-            {RECOMMENDATIONS.map((rec) => (
+            {recommendations.map((rec) => (
               <div key={rec.priority} className="flex items-start gap-4 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                 <div className="w-8 h-8 rounded-full bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center shrink-0">
                   <span className="text-xs font-bold text-indigo-400">{rec.priority}</span>
@@ -624,9 +733,9 @@ export default function Report() {
       {show("flagged") && (
         <section className="rounded-xl border border-white/[0.07] bg-[#13141b] p-6 print:border-zinc-800">
           <h2 className="text-base font-semibold text-white mb-1">Appendix: Flagged Conversations</h2>
-          <p className="text-xs text-zinc-500 mb-5">{FLAGGED_CONVERSATIONS.length} conversations requiring human review — safety concerns, extreme failures, or notable edge cases</p>
+          <p className="text-xs text-zinc-500 mb-5">{flaggedConvos.length} conversations requiring human review — safety concerns, extreme failures, or notable edge cases</p>
           <div className="space-y-3">
-            {FLAGGED_CONVERSATIONS.map((conv) => (
+            {flaggedConvos.map((conv) => (
               <div key={conv.id} className="rounded-lg border border-red-500/10 bg-red-500/[0.03] p-4 space-y-2">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">

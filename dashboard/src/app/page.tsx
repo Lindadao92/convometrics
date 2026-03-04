@@ -126,8 +126,16 @@ function LiveDashboard({ data }: { data: AnyData }) {
   const reportedRate = Math.round((summary.reported_resolution_rate ?? 0) * 100);
   const actualRate = Math.round((summary.actual_resolution_rate ?? 0) * 100);
   const politeChurnerPct = Math.round((data.polite_churner_rate ?? 0) * 100);
+  const falsePositivePct = Math.round((data.false_positive_rate ?? 0) * 100);
   const handoffPct = Math.round((data.handoff_rate ?? 0) * 100);
   const briefing = (summary.briefing ?? []) as string[];
+  const sentimentTraj = data.sentiment_trajectory as AnyData | undefined;
+  const resBreakdown = data.resolution_breakdown as AnyData | undefined;
+  const channelBreakdown = (data.channel_breakdown ?? []) as AnyData[];
+  const productBreakdown = (data.product_breakdown ?? []) as AnyData[];
+  const planTierBreakdown = (data.plan_tier_breakdown ?? []) as AnyData[];
+  const aiFailurePatterns = (data.ai_failure_patterns ?? []) as AnyData[];
+  const churnRisk = data.churn_risk as AnyData | undefined;
 
   const outcomeCounts: Record<string, number> = {};
   for (const c of conversations) {
@@ -217,6 +225,13 @@ function LiveDashboard({ data }: { data: AnyData }) {
                     <p className="text-[10px] text-zinc-500 mb-0.5">Escalation Rate</p>
                     <p className="font-mono text-2xl font-bold text-amber-400">{handoffPct}%</p>
                   </div>
+                  {falsePositivePct > 0 && (
+                    <div>
+                      <p className="text-[10px] text-zinc-500 mb-0.5">False Positive Rate</p>
+                      <p className="font-mono text-2xl font-bold text-red-400">{falsePositivePct}%</p>
+                      <p className="text-[11px] text-zinc-500 leading-snug mt-0.5">Labeled resolved but user didn&rsquo;t get help</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -282,6 +297,58 @@ function LiveDashboard({ data }: { data: AnyData }) {
               ))}
             </div>
           </Section>
+
+          {/* ── SENTIMENT TRAJECTORY ── */}
+          {sentimentTraj && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Sentiment Trajectory</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg border border-red-400/[0.12] bg-red-400/[0.06] p-3 text-center">
+                  <p className="font-mono text-xl font-bold text-red-400">{sentimentTraj.worsened ?? 0}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Worsened</p>
+                </div>
+                <div className="rounded-lg border border-emerald-400/[0.12] bg-emerald-400/[0.06] p-3 text-center">
+                  <p className="font-mono text-xl font-bold text-emerald-400">{sentimentTraj.improved ?? 0}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Improved</p>
+                </div>
+                <div className="rounded-lg border border-zinc-500/[0.12] bg-zinc-500/[0.06] p-3 text-center">
+                  <p className="font-mono text-xl font-bold text-zinc-400">{sentimentTraj.stable ?? 0}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Stable</p>
+                </div>
+              </div>
+              {typeof sentimentTraj.worsened_pct === "number" && sentimentTraj.worsened_pct > 0 && (
+                <p className="text-[11px] text-zinc-500 mt-3">
+                  {Math.round(sentimentTraj.worsened_pct * 100)}% of conversations ended worse than they started
+                </p>
+              )}
+            </Section>
+          )}
+
+          {/* ── RESOLUTION BREAKDOWN ── */}
+          {resBreakdown && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Resolution Breakdown</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[
+                  { label: "Truly Resolved", key: "truly_resolved", color: "text-emerald-400", bg: "bg-emerald-400/[0.06] border-emerald-400/[0.12]" },
+                  { label: "Resolved w/ Frustration", key: "resolved_after_frustration", color: "text-amber-400", bg: "bg-amber-400/[0.06] border-amber-400/[0.12]" },
+                  { label: "False Positive", key: "false_positive_resolved", color: "text-red-400", bg: "bg-red-400/[0.06] border-red-400/[0.12]" },
+                  { label: "Escalated to Human", key: "escalated_to_human", color: "text-blue-400", bg: "bg-blue-400/[0.06] border-blue-400/[0.12]" },
+                  { label: "Unresolved", key: "in_progress", color: "text-zinc-400", bg: "bg-zinc-500/[0.06] border-zinc-500/[0.12]" },
+                  { label: "Cancelled", key: "cancelled", color: "text-zinc-500", bg: "bg-zinc-600/[0.06] border-zinc-600/[0.12]" },
+                ].map((item) => {
+                  const count = resBreakdown[item.key] ?? 0;
+                  if (count === 0 && item.key === "cancelled") return null;
+                  return (
+                    <div key={item.key} className={`rounded-lg border p-3 text-center ${item.bg}`}>
+                      <p className={`font-mono text-xl font-bold ${item.color}`}>{count}</p>
+                      <p className="text-[10px] text-zinc-500 mt-0.5">{item.label}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
 
           {/* ── INTENT MAP ── */}
           {intents.length > 0 && (
@@ -434,6 +501,152 @@ function LiveDashboard({ data }: { data: AnyData }) {
             </Section>
           )}
 
+          {/* ── CHANNEL BREAKDOWN ── */}
+          {channelBreakdown.length > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Channel Breakdown</p>
+              <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      {["Channel", "Conversations", "Resolution", "Escalation"].map((h) => (
+                        <th key={h} className="px-4 py-2 text-left text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {channelBreakdown.map((ch) => (
+                      <tr key={ch.channel} className="border-b border-white/[0.03]">
+                        <td className="px-4 py-2.5 text-zinc-300 text-[12px]">{ch.channel}</td>
+                        <td className="px-4 py-2.5 text-zinc-400 font-mono text-[12px]">{ch.conversations}</td>
+                        <td className="px-4 py-2.5 font-mono text-[12px]">
+                          <span className={ch.resolution_rate >= 0.7 ? "text-emerald-400" : ch.resolution_rate >= 0.4 ? "text-amber-400" : "text-red-400"}>
+                            {Math.round(ch.resolution_rate * 100)}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-[12px]">
+                          <span className={ch.escalation_rate >= 0.2 ? "text-red-400" : "text-zinc-400"}>
+                            {Math.round(ch.escalation_rate * 100)}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
+          )}
+
+          {/* ── PRODUCT BREAKDOWN ── */}
+          {productBreakdown.length > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Product Breakdown</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {productBreakdown.map((p) => (
+                  <div key={p.product} className="rounded-lg border border-white/[0.07] bg-[#13141b] p-3">
+                    <p className="text-[12px] font-semibold text-white mb-1">{p.product}</p>
+                    <p className="text-[10px] text-zinc-500">{p.conversations} conversations</p>
+                    <p className={`font-mono text-lg font-bold mt-1 ${p.resolution_rate >= 0.7 ? "text-emerald-400" : p.resolution_rate >= 0.4 ? "text-amber-400" : "text-red-400"}`}>
+                      {Math.round(p.resolution_rate * 100)}% resolved
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* ── PLAN TIER BREAKDOWN ── */}
+          {planTierBreakdown.length > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Plan Tier Breakdown</p>
+              <div className="rounded-xl border border-white/[0.07] bg-[#13141b] overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      {["Tier", "Conversations", "Bad Outcome Rate", "Escalation"].map((h) => (
+                        <th key={h} className="px-4 py-2 text-left text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planTierBreakdown.map((t) => (
+                      <tr key={t.tier} className="border-b border-white/[0.03]">
+                        <td className="px-4 py-2.5 text-zinc-300 text-[12px] capitalize">{t.tier}</td>
+                        <td className="px-4 py-2.5 text-zinc-400 font-mono text-[12px]">{t.conversations}</td>
+                        <td className="px-4 py-2.5 font-mono text-[12px]">
+                          <span className={t.bad_outcome_rate >= 0.3 ? "text-red-400" : t.bad_outcome_rate >= 0.15 ? "text-amber-400" : "text-emerald-400"}>
+                            {Math.round(t.bad_outcome_rate * 100)}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-[12px]">
+                          <span className={t.escalation_rate >= 0.2 ? "text-red-400" : "text-zinc-400"}>
+                            {Math.round(t.escalation_rate * 100)}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
+          )}
+
+          {/* ── AI FAILURE PATTERNS ── */}
+          {aiFailurePatterns.length > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">AI Failure Patterns</p>
+              <div className="space-y-2">
+                {aiFailurePatterns.map((p, i) => (
+                  <div key={i} className="rounded-lg border border-red-400/10 bg-[#13141b] p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[12px] font-semibold text-red-400">{p.trigger}</span>
+                      <span className="text-[10px] font-mono text-zinc-500">{p.count} occurrences</span>
+                    </div>
+                    {p.top_intents?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {p.top_intents.map((name: string) => (
+                          <span key={name} className="text-[9px] font-mono text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded">{formatLabel(name)}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* ── CHURN RISK ── */}
+          {churnRisk && churnRisk.total_churn_risk_conversations > 0 && (
+            <Section>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-widest text-zinc-600 mb-4">Churn Risk</p>
+              <div className="rounded-xl border border-red-400/10 bg-[#13141b] p-4">
+                <p className="text-[12px] text-zinc-400 mb-3">
+                  <span className="font-mono font-bold text-red-400">{churnRisk.total_churn_risk_conversations}</span> conversations with churn risk indicators
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <p className={`font-mono text-lg font-bold ${churnRisk.cancellation_save_rate >= 0.5 ? "text-emerald-400" : "text-red-400"}`}>
+                      {Math.round(churnRisk.cancellation_save_rate * 100)}%
+                    </p>
+                    <p className="text-[10px] text-zinc-500">Cancellation Save Rate</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`font-mono text-lg font-bold ${churnRisk.complaint_resolution_rate >= 0.5 ? "text-emerald-400" : "text-red-400"}`}>
+                      {Math.round(churnRisk.complaint_resolution_rate * 100)}%
+                    </p>
+                    <p className="text-[10px] text-zinc-500">Complaint Resolution</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`font-mono text-lg font-bold ${churnRisk.refund_resolution_rate >= 0.5 ? "text-emerald-400" : "text-red-400"}`}>
+                      {Math.round(churnRisk.refund_resolution_rate * 100)}%
+                    </p>
+                    <p className="text-[10px] text-zinc-500">Refund Resolution</p>
+                  </div>
+                </div>
+              </div>
+            </Section>
+          )}
+
           {/* ── TOP ACTIONS ── */}
           {topIssues.length > 0 && (
             <Section>
@@ -482,10 +695,19 @@ function LiveDashboard({ data }: { data: AnyData }) {
                         <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded ${sentimentColor(c.sentiment)}`}>
                           {c.sentiment}
                         </span>
+                        {c.sentiment_trajectory && c.sentiment_trajectory !== "stable" && (
+                          <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded ${c.sentiment_trajectory === "worsened" ? "text-red-400 bg-red-400/10" : "text-emerald-400 bg-emerald-400/10"}`}>
+                            {c.sentiment_trajectory === "worsened" ? "\u2198" : "\u2197"} {c.sentiment_trajectory}
+                          </span>
+                        )}
                         <span className="text-[10px] font-mono text-zinc-500">{formatLabel(c.intent)}</span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {c.channel && <span className="text-[10px] font-mono text-zinc-600">{c.channel}</span>}
                         {c.message_count != null && <span className="text-[10px] font-mono text-zinc-600">{c.message_count} msgs</span>}
+                        {c.resolution_mismatch && (
+                          <span className="text-[10px] font-mono text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">mismatch</span>
+                        )}
                         {c.quality_score != null && (
                           <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${c.quality_score >= 70 ? "text-emerald-400 bg-emerald-400/10" : c.quality_score >= 45 ? "text-amber-400 bg-amber-400/10" : "text-red-400 bg-red-400/10"}`}>
                             Q:{c.quality_score}
@@ -537,6 +759,18 @@ function LiveDashboard({ data }: { data: AnyData }) {
                                 <span key={i} className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${sigColor[sig] ?? "text-zinc-400/70 bg-white/[0.04]"}`}>{formatLabel(sig)}</span>
                               );
                             })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Frustration triggers */}
+                      {c.frustration_triggers?.length > 0 && (
+                        <div>
+                          <p className="text-[9px] font-mono font-semibold uppercase tracking-widest text-red-400/60 mb-1.5">Frustration Triggers</p>
+                          <div className="flex flex-wrap gap-1">
+                            {c.frustration_triggers.map((trigger: string, i: number) => (
+                              <span key={i} className="text-[9px] font-mono text-red-400/80 bg-red-400/[0.06] border border-red-400/[0.1] px-1.5 py-0.5 rounded">&ldquo;{trigger}&rdquo;</span>
+                            ))}
                           </div>
                         </div>
                       )}
