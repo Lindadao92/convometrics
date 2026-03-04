@@ -68,8 +68,19 @@ export async function GET(req: NextRequest) {
   const modelB = sp.get("modelB") ?? "Brainiac";
   const days   = parseInt(sp.get("days") ?? "30", 10);
 
-  const cutoff = Date.now() - days * 86400000;
-  const ALL = MOCK_CONVERSATIONS.filter((c) => new Date(c.timestamp).getTime() >= cutoff);
+  // Calculate cutoff at start of day (00:00:00) for consistent timezone handling
+  const now = new Date();
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const cutoff = cutoffDate.getTime();
+  
+  const ALL = MOCK_CONVERSATIONS.filter((c) => {
+    try {
+      return new Date(c.timestamp).getTime() >= cutoff;
+    } catch (e) {
+      console.warn('Invalid timestamp format:', c.timestamp);
+      return false; // Exclude conversations with invalid timestamps
+    }
+  });
   const availableModels = [...new Set(ALL.map((c) => c.model_version))].sort();
   const convosA = ALL.filter((c) => c.model_version === modelA);
   const convosB = ALL.filter((c) => c.model_version === modelB);
