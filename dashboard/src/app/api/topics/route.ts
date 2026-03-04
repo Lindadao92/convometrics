@@ -81,8 +81,10 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiRespo
   if (rowsErr) return NextResponse.json({ error: rowsErr.message }, { status: 500 });
 
   const totalConversations = rows?.length ?? 0;
-  const now = Date.now();
-  const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000;
+  // Calculate cutoff at start of day (00:00:00) for consistent timezone handling
+  const now = new Date();
+  const fourteenDaysAgoDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14);
+  const fourteenDaysAgo = fourteenDaysAgoDate.getTime();
 
   // 3. Single-pass aggregation: build byIntent and byCluster simultaneously
   const byIntent: Record<string, {
@@ -102,7 +104,15 @@ export async function GET(req: NextRequest): Promise<NextResponse<TopicsApiRespo
     const meta = row.metadata as Record<string, unknown> | null;
     const p = (meta?.platform as string) ?? "unknown";
     const turns = meta?.turns_count as number | null;
-    const createdMs = row.created_at ? new Date(row.created_at as string).getTime() : null;
+    let createdMs: number | null = null;
+    if (row.created_at) {
+      try {
+        createdMs = new Date(row.created_at as string).getTime();
+      } catch (e) {
+        console.warn('Invalid timestamp format:', row.created_at);
+        createdMs = null;
+      }
+    }
 
     // Per-intent tracking
     if (label) {
