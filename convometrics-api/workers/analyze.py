@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import logging
@@ -9,7 +10,7 @@ import redis
 from celery import Celery
 
 from utils.s3 import download_file, upload_file
-from utils.llm import analyze_conversation, aggregate_dashboard
+from utils.llm import analyze_conversation, aggregate_dashboard_deterministic, ConversationResult
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def _group_conversations(df: pd.DataFrame) -> dict[str, dict]:
         "csv_columns": list[str],  # which extra columns are available
     }
     """
-    df = df.sort_values("timestamp")
+    df = df.sort_values(["conversation_id", "timestamp"])
 
     # Identify which extra columns exist
     all_cols = set(df.columns)
@@ -70,7 +71,7 @@ def _group_conversations(df: pd.DataFrame) -> dict[str, dict]:
     csv_columns = sorted(extra_cols)
 
     grouped = {}
-    for convo_id, group in df.groupby("conversation_id"):
+    for convo_id, group in df.groupby("conversation_id", sort=True):
         lines = []
         # Collect per-message metadata
         sentiments = []
@@ -147,12 +148,38 @@ def _group_conversations(df: pd.DataFrame) -> dict[str, dict]:
             "metadata": metadata,
             "csv_columns": csv_columns,
         }
-    return grouped
+    return dict(sorted(grouped.items()))
+
+
+def _cache_key(conversation_text: str) -> str:
+    """Generate a deterministic cache key from conversation text."""
+    return f"convo_cache:{hashlib.sha256(conversation_text.encode()).hexdigest()}"
 
 
 def _analyze_one(convo_id: str, convo_data: dict):
-    """Wrapper for thread pool — analyses a single conversation with metadata."""
-    return analyze_conversation(convo_id, convo_data["messages_text"], convo_data["metadata"])
+    """Wrapper for thread pool — checks Redis cache first, then calls LLM."""
+    messages_text = convo_data["messages_text"]
+    metadata = convo_data["metadata"]
+    cache_key = _cache_key(messages_text)
+
+    cached = _redis.get(cache_key)
+    if cached:
+        try:
+            result = ConversationResult(**json.loads(cached))
+            result.id = convo_id
+            return result
+        except Exception:
+            pass  # Cache corrupted, re-analyze
+
+    result = analyze_conversation(convo_id, messages_text, metadata)
+
+    # Cache for 24 hours
+    try:
+        _redis.setex(cache_key, 86400, result.model_dump_json())
+    except Exception:
+        logger.warning("Failed to cache result for %s", convo_id)
+
+    return result
 
 
 # ── Celery task ────────────────────────────────────────────────────
@@ -197,8 +224,11 @@ def analyze_csv(self, job_id: str):
             for future in as_completed(futures):
                 results.append(future.result())
 
-        # 5. Aggregate into dashboard
-        dashboard = aggregate_dashboard(results)
+        # Sort results by conversation ID for deterministic ordering
+        results.sort(key=lambda r: r.id)
+
+        # 5. Aggregate into dashboard (deterministic — no LLM)
+        dashboard = aggregate_dashboard_deterministic(results)
         dashboard_json = dashboard.model_dump()
 
         # 6. Upload results to S3
