@@ -62,8 +62,19 @@ export async function GET(req: NextRequest) {
     const page      = parseInt(params.get("page") || "0", 10);
     const limit     = 25;
 
-    const cutoff = Date.now() - days * 86400000;
-    let filtered = allConvos.filter(c => new Date(c.timestamp).getTime() >= cutoff);
+    // Calculate cutoff at start of day (00:00:00) for consistent timezone handling
+    const now = new Date();
+    const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+    const cutoff = cutoffDate.getTime();
+    
+    let filtered = allConvos.filter(c => {
+      try {
+        return new Date(c.timestamp).getTime() >= cutoff;
+      } catch (e) {
+        console.warn('Invalid timestamp format:', c.timestamp);
+        return false; // Exclude conversations with invalid timestamps
+      }
+    });
     if (intent) filtered = filtered.filter(c => c.intent === intent);
     const minNum = minScore ? parseInt(minScore, 10) : NaN;
     const maxNum = maxScore ? parseInt(maxScore, 10) : NaN;

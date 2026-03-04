@@ -68,9 +68,19 @@ export async function GET(
   // Get conversations for this segment
   let convos = getSegmentConversations(segment);
 
-  // Filter by time range
-  const cutoff = Date.now() - days * 86400000;
-  convos = convos.filter((c) => new Date(c.timestamp).getTime() >= cutoff);
+  // Filter by time range with consistent timezone handling
+  const now = new Date();
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const cutoff = cutoffDate.getTime();
+  
+  convos = convos.filter((c) => {
+    try {
+      return new Date(c.timestamp).getTime() >= cutoff;
+    } catch (e) {
+      console.warn('Invalid timestamp format:', c.timestamp);
+      return false; // Exclude conversations with invalid timestamps
+    }
+  });
 
   // Filter by intent matching slug
   const intentConvos = convos.filter((c) => c.intent === slug);

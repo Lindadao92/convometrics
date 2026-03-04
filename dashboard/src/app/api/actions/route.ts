@@ -9,8 +9,19 @@ export async function GET(req: NextRequest) {
   const days = parseInt(req.nextUrl.searchParams.get("days") ?? "30", 10);
 
   const allConvos = getSegmentConversations(segment);
-  const cutoff = Date.now() - days * 86400000;
-  const convos = allConvos.filter(c => new Date(c.timestamp).getTime() >= cutoff);
+  // Calculate cutoff at start of day (00:00:00) for consistent timezone handling
+  const now = new Date();
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const cutoff = cutoffDate.getTime();
+  
+  const convos = allConvos.filter(c => {
+    try {
+      return new Date(c.timestamp).getTime() >= cutoff;
+    } catch (e) {
+      console.warn('Invalid timestamp format:', c.timestamp);
+      return false; // Exclude conversations with invalid timestamps
+    }
+  });
 
   // Group by intent and compute failure rates
   const intentMap = new Map<string, { count: number; failCount: number; qualitySum: number; turns: number[] }>();
