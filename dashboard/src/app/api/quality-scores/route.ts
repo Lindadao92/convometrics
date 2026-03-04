@@ -17,13 +17,22 @@ export async function GET(req: NextRequest) {
   const segment = sp.get("segment") ?? "ai_assistant";
   const days    = Math.min(90, Math.max(7, parseInt(sp.get("days") ?? "30", 10)));
 
-  const now      = Date.now();
-  const cutoffMs = now - days * 86400000;
+  // Calculate cutoff at start of day (00:00:00) for consistent timezone handling
+  const now = new Date();
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const cutoffMs = cutoffDate.getTime();
 
   const ALL_CONVOS = getSegmentConversations(segment);
 
   // ── Filter conversations ──────────────────────────────────────────────────
-  let convos = ALL_CONVOS.filter(c => new Date(c.timestamp).getTime() >= cutoffMs);
+  let convos = ALL_CONVOS.filter(c => {
+    try {
+      return new Date(c.timestamp).getTime() >= cutoffMs;
+    } catch (e) {
+      console.warn('Invalid timestamp format:', c.timestamp);
+      return false; // Exclude conversations with invalid timestamps
+    }
+  });
   if (intent) convos = convos.filter(c => c.intent === intent);
   if (model)  convos = convos.filter(c => c.model_version === model);
 
