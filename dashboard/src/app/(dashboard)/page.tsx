@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
+import { transformUploadToOverview } from "@/lib/upload-data-transforms";
 import { formatLabel } from "@/lib/formatLabel";
 import { StatCard } from "@/components/StatCard";
 
@@ -296,12 +298,24 @@ function TopicItem({
 export default function OverviewPage() {
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
+  const { results } = useAnalysis();
 
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // If we have uploaded CSV results, use those directly
+    if (results?.data) {
+      try {
+        setData(transformUploadToOverview(results.data) as OverviewData);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to transform upload data");
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -316,7 +330,7 @@ export default function OverviewPage() {
       .then((d: OverviewData) => setData(d))
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [segment, effectiveDays]);
+  }, [segment, effectiveDays, results]);
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) return <OverviewSkeleton />;

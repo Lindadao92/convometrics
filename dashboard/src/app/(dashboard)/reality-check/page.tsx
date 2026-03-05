@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
+import { transformUploadToRealityCheck } from "@/lib/upload-data-transforms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -128,11 +130,22 @@ function MetricRow({
 export default function RealityCheck() {
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
+  const { results } = useAnalysis();
   const [data, setData] = useState<RealityCheckData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (results?.data) {
+      try {
+        setData(transformUploadToRealityCheck(results.data) as RealityCheckData);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to transform upload data");
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     fetch(`/api/reality-check?segment=${segment}&days=${effectiveDays}`)
@@ -144,7 +157,7 @@ export default function RealityCheck() {
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [segment, effectiveDays]);
+  }, [segment, effectiveDays, results]);
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {

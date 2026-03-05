@@ -4,6 +4,8 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 import { useProductProfile } from "@/lib/product-profile-context";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
+import { transformUploadToConversations } from "@/lib/upload-data-transforms";
 import {
   DIMENSIONS, DimensionKey, QualityScores, computeDimensionsFromScore, dimColor,
   SIGNALS, SATISFACTION_META, InferredSatisfaction, computeSatisfactionFromScore,
@@ -416,6 +418,7 @@ export default function Conversations() {
   const { selectedPlatform, profile } = useProductProfile();
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
+  const { results } = useAnalysis();
 
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [total, setTotal] = useState(0);
@@ -471,6 +474,22 @@ export default function Conversations() {
   const serverSortBy: ServerSortField = isDimKey(sortBy) ? "quality_score" : sortBy as ServerSortField;
 
   const fetchData = useCallback(() => {
+    if (results?.data) {
+      try {
+        const uploaded = transformUploadToConversations(results.data);
+        let filtered = uploaded.conversations as Conversation[];
+        if (filterIntent) filtered = filtered.filter((c) => c.intent === filterIntent);
+        if (filterStatus) filtered = filtered.filter((c) => c.completion_status === filterStatus);
+        setConvos(filtered.slice(page * pageSize, (page + 1) * pageSize));
+        setTotal(filtered.length);
+        setIntents(uploaded.intents.map((i: string) => i));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to transform upload data");
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), sort: serverSortBy, order, days: String(effectiveDays) });
     if (segment) {
@@ -493,7 +512,7 @@ export default function Conversations() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment, effectiveDays]);
+  }, [page, serverSortBy, order, filterIntent, filterStatus, filterPlatform, filterMinScore, filterMaxScore, selectedPlatform, segment, effectiveDays, results]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
+import { transformUploadToActions } from "@/lib/upload-data-transforms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,11 +165,22 @@ function ActionCard({ action }: { action: Action }) {
 export default function Recommendations() {
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
+  const { results } = useAnalysis();
   const [data, setData] = useState<ActionsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (results?.data) {
+      try {
+        setData(transformUploadToActions(results.data) as ActionsData);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to transform upload data");
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     fetch(`/api/actions?segment=${segment}&days=${effectiveDays}`)
@@ -179,7 +192,7 @@ export default function Recommendations() {
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [segment, effectiveDays]);
+  }, [segment, effectiveDays, results]);
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {

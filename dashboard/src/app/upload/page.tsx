@@ -221,14 +221,20 @@ export default function UploadPage() {
   // ── Dropzone ────────────────────────────────────────────────────────────
   const onDrop = useCallback(
     (accepted: File[]) => {
-      if (accepted.length > 0) processFile(accepted[0]);
+      const file = accepted[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setError("Only .csv files are accepted. Got: " + file.name);
+        setState("error");
+        return;
+      }
+      processFile(file);
     },
     [processFile]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "text/csv": [".csv"] },
     maxFiles: 1,
     disabled: state === "parsing" || state === "analyzing",
   });

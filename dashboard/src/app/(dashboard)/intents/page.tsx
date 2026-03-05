@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
+import { transformUploadToTopics } from "@/lib/upload-data-transforms";
 import { formatLabel } from "@/lib/formatLabel";
 import { IntentBlock } from "@/components/IntentBlock";
 
@@ -89,12 +91,23 @@ function IntentsSkeleton() {
 export default function IntentsPage() {
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
+  const { results } = useAnalysis();
 
   const [data, setData] = useState<TopicsApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (results?.data) {
+      try {
+        setData(transformUploadToTopics(results.data) as TopicsApiResponse);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to transform upload data");
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -107,7 +120,7 @@ export default function IntentsPage() {
       .then((d: TopicsApiResponse) => setData(d))
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [segment, effectiveDays]);
+  }, [segment, effectiveDays, results]);
 
   // ── Classify intents by severity ───────────────────────────────────────────
 

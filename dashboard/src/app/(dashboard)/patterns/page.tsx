@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useDemoMode } from "@/lib/demo-mode-context";
 import { useTimeRange } from "@/lib/time-range-context";
+import { useAnalysis } from "@/lib/analysis-context";
+import { transformUploadToPatterns } from "@/lib/upload-data-transforms";
 import { formatLabel } from "@/lib/formatLabel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -184,11 +186,22 @@ function MetricRow({ label, value, accent }: { label: string; value: string; acc
 export default function HiddenPatterns() {
   const { segment } = useDemoMode();
   const { effectiveDays } = useTimeRange();
+  const { results } = useAnalysis();
   const [data, setData] = useState<PatternData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (results?.data) {
+      try {
+        setData(transformUploadToPatterns(results.data) as PatternData);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to transform upload data");
+      }
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     fetch(`/api/patterns?segment=${segment}&days=${effectiveDays}`)
@@ -200,7 +213,7 @@ export default function HiddenPatterns() {
       .then(setData)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [segment, effectiveDays]);
+  }, [segment, effectiveDays, results]);
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {
