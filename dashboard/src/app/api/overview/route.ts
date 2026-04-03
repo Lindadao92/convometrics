@@ -17,11 +17,18 @@ export async function GET(req: NextRequest) {
 
   const sb = getSupabaseServer();
 
-  // True counts via parallel HEAD requests (no rows fetched)
+  // Calculate date filter for time range
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  const cutoffIso = cutoffDate.toISOString();
+
+  // True counts via parallel HEAD requests (no rows fetched) - NOW WITH DATE FILTER
   const [totalCountResult, ...platformCountResults] = await Promise.all([
-    sb.from("conversations").select("*", { count: "exact", head: true }),
+    sb.from("conversations").select("*", { count: "exact", head: true }).gte("created_at", cutoffIso),
     ...PLATFORMS.map((p) =>
-      sb.from("conversations").select("*", { count: "exact", head: true }).eq("metadata->>platform", p)
+      sb.from("conversations").select("*", { count: "exact", head: true })
+        .eq("metadata->>platform", p)
+        .gte("created_at", cutoffIso)
     ),
   ]);
   if (totalCountResult.error)
@@ -33,18 +40,20 @@ export async function GET(req: NextRequest) {
     truePlatformTotals[PLATFORMS[i]] = platformCountResults[i].count ?? 0;
   }
 
-  // Sample rows for aggregation — metadata only
+  // Sample rows for aggregation — metadata only, filtered by date
   const { data: allMeta, error: allErr } = await sb
     .from("conversations")
-    .select("metadata")
+    .select("metadata, created_at")
+    .gte("created_at", cutoffIso)
     .limit(200000);
   if (allErr) return NextResponse.json({ error: allErr.message }, { status: 500 });
 
-  // All analyzed rows — no messages column
+  // All analyzed rows — no messages column, filtered by date
   const { data: analyzedRows, error: analyzedErr } = await sb
     .from("conversations")
     .select("id, intent, quality_score, completion_status, created_at, metadata")
     .not("intent", "is", null)
+    .gte("created_at", cutoffIso)
     .limit(100000);
   if (analyzedErr) return NextResponse.json({ error: analyzedErr.message }, { status: 500 });
 
