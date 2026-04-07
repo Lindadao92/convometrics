@@ -71,8 +71,42 @@ export function TimeRangeProvider({ children }: { children: ReactNode }) {
   }
 
   function setCustomRange(from: string, to: string) {
-    const diffMs = new Date(to).getTime() - new Date(from).getTime();
-    const days = Math.max(1, Math.ceil(diffMs / 86400000));
+    // Input validation
+    if (!from || !to) {
+      console.error("Both from and to dates are required");
+      return;
+    }
+
+    // Parse dates and validate
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    
+    // Check for invalid dates
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      console.error("Invalid date provided to setCustomRange:", { from, to });
+      return;
+    }
+    
+    // Ensure "to" date is not before "from" date
+    if (toDate < fromDate) {
+      console.error("End date cannot be before start date:", { from, to });
+      return;
+    }
+    
+    // Calculate difference using milliseconds with improved accuracy
+    const diffMs = toDate.getTime() - fromDate.getTime();
+    // Use more precise calculation for day difference
+    const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+    // Add 1 to include both start and end dates (inclusive range)
+    const days = Math.max(1, Math.ceil(diffMs / MILLISECONDS_PER_DAY) + 1);
+    
+    // Validate reasonable date range (prevent extremely large ranges)
+    const MAX_DAYS = 730; // 2 years maximum
+    if (days > MAX_DAYS) {
+      console.error("Date range too large:", { days, max: MAX_DAYS });
+      return;
+    }
+    
     persist({ preset: "custom", days, customFrom: from, customTo: to });
   }
 

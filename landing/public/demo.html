@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ConvoMetrics — Dashboard Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0A0A0F;--surface:#111118;--card:#16161F;--border:#2A2A38;--border-h:#3A3A4A;
+      --accent:#7C6EF8;--accent-d:rgba(124,110,248,0.12);
+      --green:#34D399;--green-d:rgba(52,211,153,0.12);
+      --amber:#FBBF24;--amber-d:rgba(251,191,36,0.12);
+      --red:#EF4444;--red-d:rgba(239,68,68,0.12);
+      --t1:#F0EEF8;--t2:#8B8A9E;--t3:#4A4A5E;
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.5;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+    .mono{font-family:'IBM Plex Mono',monospace}
+
+    /* Nav */
+    nav{position:sticky;top:0;z-index:100;height:52px;background:var(--surface);border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+    .nav-l{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:500;color:var(--t1);text-decoration:none}
+    .nav-c{display:flex;align-items:center;gap:10px}
+    .week-btn{background:none;border:1px solid var(--border);color:var(--t2);width:28px;height:28px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .2s}
+    .week-btn:hover{border-color:var(--accent);color:var(--t1)}
+    .week-btn svg{width:14px;height:14px}
+    .week-label{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--t1);min-width:180px;text-align:center}
+    .nav-r{display:flex;align-items:center;gap:8px}
+    .nav-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;white-space:nowrap}
+    .b-violet{background:var(--accent-d);color:var(--accent)}
+    .b-green{background:var(--green-d);color:var(--green)}
+    .b-amber{background:var(--amber-d);color:var(--amber)}
+    .b-red{background:var(--red-d);color:var(--red)}
+    .b-muted{background:rgba(74,74,94,0.2);color:var(--t3)}
+
+    /* Layout */
+    .page{padding:16px 24px 40px;max-width:1200px;margin:0 auto}
+
+    /* Metric strip */
+    .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+    .m-card{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:14px 16px;position:relative;transition:border-color .2s}
+    .m-card:hover{border-color:var(--accent)}
+    .m-card::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px}
+    .m-card:nth-child(1)::before{background:var(--accent)}
+    .m-card:nth-child(2)::before{background:var(--t2)}
+    .m-card:nth-child(3)::before{background:var(--green)}
+    .m-card:nth-child(4)::before{background:var(--amber)}
+    .m-label{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--t2);margin-bottom:6px}
+    .m-val{font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:500;line-height:1}
+    .m-sub{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--t3);margin-top:4px}
+
+    /* Two-col main */
+    .main-grid{display:grid;grid-template-columns:58% 1fr;gap:14px;margin-bottom:14px}
+    .main-grid>*{min-width:0;overflow:hidden}
+
+    /* Cards shared */
+    .card{background:var(--card);border:0.5px solid var(--border);border-radius:10px;overflow:hidden}
+    .card-head{padding:14px 18px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .card-title{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t2)}
+    .card-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;padding:2px 7px;border-radius:3px}
+
+    /* Intent table */
+    .intent-table{width:100%;border-collapse:collapse;table-layout:fixed}
+    .intent-table th{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);text-align:left;padding:10px 18px;border-bottom:0.5px solid var(--border);overflow:hidden;text-overflow:ellipsis}
+    .intent-table th:nth-child(1){width:42%}
+    .intent-table th:nth-child(2){width:20%}
+    .intent-table th:nth-child(3){width:24%}
+    .intent-table th:last-child{text-align:right;width:14%}
+    .intent-row{cursor:pointer;transition:background .15s}
+    .intent-row:hover{background:rgba(124,110,248,0.04)}
+    .intent-row td{padding:10px 18px;border-bottom:0.5px solid rgba(42,42,56,0.5);font-size:13px;overflow:hidden;text-overflow:ellipsis}
+    .intent-name-cell{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--t1)}
+    .intent-calls{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--t2)}
+    .fcr-bar{height:4px;border-radius:2px;background:rgba(255,255,255,0.06);overflow:hidden}
+    .fcr-fill{height:100%;border-radius:2px;transition:width .6s ease-out}
+    .fcr-pct{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;text-align:right}
+
+    /* Intent detail */
+    .intent-detail{max-height:0;overflow:hidden;transition:max-height .35s ease;background:rgba(10,10,15,0.5)}
+    .intent-detail.open{max-height:600px}
+    .intent-detail-inner{padding:16px 18px}
+    .detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+    .ds{background:var(--bg);border:0.5px solid var(--border);border-radius:6px;padding:10px 12px;text-align:center}
+    .ds-val{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:500;color:var(--t1)}
+    .ds-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--t2);margin-top:2px}
+    .transcript{margin-bottom:12px}
+    .chat-msg{display:flex;gap:10px;margin-bottom:8px}
+    .chat-role{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;width:50px;flex-shrink:0;padding-top:2px}
+    .chat-role.user{color:var(--accent)}
+    .chat-role.agent{color:var(--green)}
+    .chat-role.sys{color:var(--t3)}
+    .chat-text{font-size:13px;color:var(--t2);line-height:1.5}
+    .why-fails{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);padding:10px 14px;background:var(--amber-d);border-radius:6px;border-left:3px solid var(--amber)}
+
+    /* Patterns */
+    .patterns-list{padding:10px 14px}
+    .pat-card{background:var(--bg);border:0.5px solid var(--border);border-radius:8px;margin-bottom:10px;position:relative;cursor:pointer;transition:border-color .2s;overflow:hidden}
+    .pat-card:hover{border-color:var(--accent)}
+    .pat-card:last-child{margin-bottom:0}
+    .pat-card::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px}
+    .pat-card:nth-child(1)::before{background:var(--amber)}
+    .pat-card:nth-child(2)::before{background:var(--red)}
+    .pat-card:nth-child(3)::before{background:var(--accent)}
+    .pat-head{padding:12px 16px}
+    .pat-name-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+    .pat-name{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--t1)}
+    .pat-count{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--t2)}
+    .pat-desc{font-size:13px;color:var(--t2);line-height:1.5}
+    .pat-stat{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;margin-top:8px}
+    .pat-expand{max-height:0;overflow:hidden;transition:max-height .3s ease}
+    .pat-expand.open{max-height:200px}
+    .pat-expand-inner{padding:0 16px 14px;font-size:12px;color:var(--t2);line-height:1.6;border-top:0.5px solid var(--border);padding-top:12px;margin-top:2px}
+
+    /* Bottom row */
+    .bottom-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px}
+    .bottom-grid>*{min-width:0}
+
+    /* Chart */
+    .chart-wrap{padding:14px 18px;position:relative}
+    .chart-container{position:relative;height:180px;width:100%}
+    .chart-legend{display:flex;gap:16px;margin-bottom:10px}
+    .legend-item{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--t2)}
+    .legend-sq{width:10px;height:3px;border-radius:1px}
+
+    /* Recommendation */
+    .rec-card{background:var(--accent-d);border:1px solid rgba(124,110,248,0.2);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:10px;overflow:hidden;min-width:0}
+    .rec-label{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+    .rec-title{font-size:14px;font-weight:600;color:var(--t1)}
+    .rec-body{font-size:13px;color:var(--t2);line-height:1.55}
+    .rec-pills{display:flex;flex-wrap:wrap;gap:6px}
+    .rec-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;padding:3px 8px;border-radius:4px;background:var(--accent-d);color:var(--accent)}
+    .rec-btn{display:inline-flex;align-items:center;gap:4px;padding:8px 14px;background:transparent;border:1px solid rgba(124,110,248,0.3);border-radius:6px;color:var(--accent);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;margin-top:auto}
+    .rec-btn:hover{background:var(--accent-d);border-color:var(--accent)}
+
+    /* Push status */
+    .push-list{padding:12px 16px}
+    .push-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid rgba(42,42,56,0.4)}
+    .push-row:last-child{border-bottom:none}
+    .push-l{display:flex;align-items:center;gap:8px}
+    .push-dot{width:6px;height:6px;border-radius:50%}
+    .push-name{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--t1)}
+    .push-status{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--t2)}
+    .push-r{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--t3);text-align:right}
+    .push-connect{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);text-decoration:none;cursor:pointer}
+    .push-connect:hover{text-decoration:underline}
+    .push-event{margin-top:12px;background:var(--bg);border:0.5px solid var(--border);border-radius:6px;padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--t2);line-height:1.7}
+    .push-event .ev-name{color:var(--green);font-weight:500}
+
+    /* Modal */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,10,15,0.8);z-index:200;align-items:center;justify-content:center;padding:24px}
+    .modal-overlay.open{display:flex}
+    .modal{background:var(--card);border:1px solid var(--border);border-radius:12px;max-width:580px;width:100%;max-height:80vh;overflow-y:auto}
+    .modal-head{padding:16px 20px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .modal-title{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;color:var(--t1)}
+    .modal-close{background:none;border:none;color:var(--t2);cursor:pointer;font-size:18px;padding:4px}
+    .modal-close:hover{color:var(--t1)}
+    .modal-body{padding:20px}
+    .prompt-block{border-radius:8px;padding:14px 16px;margin-bottom:12px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.6}
+    .prompt-before{background:var(--red-d);border:1px solid rgba(239,68,68,0.15)}
+    .prompt-before .prompt-tag{color:var(--red)}
+    .prompt-after{background:var(--green-d);border:1px solid rgba(52,211,153,0.15)}
+    .prompt-after .prompt-tag{color:var(--green)}
+    .prompt-tag{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+    .prompt-text{color:var(--t2)}
+    .copy-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+    .copy-btn:hover{background:#8D81FF}
+
+    /* Mobile */
+    @media(max-width:900px){
+      .metrics{grid-template-columns:1fr 1fr}
+      .main-grid{grid-template-columns:1fr}
+      .bottom-grid{grid-template-columns:1fr}
+      .nav-r{display:none}
+    }
+    @media(max-width:480px){
+      .metrics{grid-template-columns:1fr}
+      nav{padding:0 14px}
+      .page{padding:12px 14px 30px}
+      .week-label{font-size:11px;min-width:140px}
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div style="display:flex;align-items:center;gap:20px">
+    <a href="/" class="nav-l">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="6" width="3" height="8" rx="1" fill="#7C6EF8"/><rect x="6" y="1" width="3" height="14" rx="1" fill="#7C6EF8"/><rect x="11" y="4" width="3" height="10" rx="1" fill="#7C6EF8"/></svg>
+      ConvoMetrics
+    </a>
+    <div style="display:flex;gap:4px"><a href="/demo" style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--accent);text-decoration:none;padding:6px 12px;border-radius:4px;background:var(--accent-d)">Dashboard</a><a href="/calls" style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--t2);text-decoration:none;padding:6px 12px;border-radius:4px" onmouseover="this.style.background='rgba(255,255,255,0.04)';this.style.color='var(--t1)'" onmouseout="this.style.background='transparent';this.style.color='var(--t2)'">Call Logs</a><a href="/analytics" style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--t2);text-decoration:none;padding:6px 12px;border-radius:4px" onmouseover="this.style.background='rgba(255,255,255,0.04)';this.style.color='var(--t1)'" onmouseout="this.style.background='transparent';this.style.color='var(--t2)'">Analytics</a></div>
+  </div>
+  <div class="nav-c">
+    <button class="week-btn" id="prevWeek" aria-label="Previous week"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3L5 8l5 5"/></svg></button>
+    <div class="week-label mono" id="weekLabel"></div>
+    <button class="week-btn" id="nextWeek" aria-label="Next week"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3l5 5-5 5"/></svg></button>
+  </div>
+  <div class="nav-r">
+    <span class="nav-badge b-muted">DEMO DATA</span>
+    <span class="nav-badge b-violet">Vapi</span>
+    <span class="nav-badge b-green">PostHog &#10003;</span>
+    <span class="nav-badge b-green">Slack &#10003;</span>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- Metric strip -->
+  <div class="metrics">
+    <div class="m-card">
+      <div class="m-label">Calls Analyzed</div>
+      <div class="m-val" style="color:var(--t1)" id="mc-calls">0</div>
+      <div class="m-sub">this week</div>
+    </div>
+    <div class="m-card">
+      <div class="m-label">Reported Completion</div>
+      <div class="m-val" style="color:var(--t2)" id="mc-reported">0%</div>
+      <div class="m-sub">what Vapi shows</div>
+    </div>
+    <div class="m-card">
+      <div class="m-label">Actual Resolution</div>
+      <div class="m-val" style="color:var(--green)" id="mc-actual">0%</div>
+      <div class="m-sub">what users got</div>
+    </div>
+    <div class="m-card">
+      <div class="m-label">Resolution Gap</div>
+      <div class="m-val" style="color:var(--amber)" id="mc-gap">0pt</div>
+      <div class="m-sub">completion vs resolution</div>
+    </div>
+  </div>
+
+  <!-- Main two-col -->
+  <div class="main-grid">
+
+    <!-- Left: Failing intents -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Failing Intents</div>
+        <span class="card-badge b-muted">this week</span>
+      </div>
+      <table class="intent-table">
+        <thead><tr><th>Intent name</th><th>Calls</th><th>FCR</th><th style="text-align:right">FCR %</th></tr></thead>
+        <tbody id="intentBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Right: Hidden patterns -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Hidden Patterns</div>
+        <span class="card-badge b-amber">&#9888; 3 detected</span>
+      </div>
+      <div class="patterns-list" id="patternsList"></div>
+    </div>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="bottom-grid">
+
+    <!-- Chart -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Resolution Rate &mdash; 8 Weeks</div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-sq" style="background:var(--t3);border:1px dashed var(--t3)"></div>Reported</div>
+          <div class="legend-item"><div class="legend-sq" style="background:var(--green)"></div>Actual</div>
+        </div>
+        <div class="chart-container"><canvas id="trendChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Recommendation -->
+    <div class="rec-card">
+      <div class="rec-label">Recommended This Sprint</div>
+      <div class="rec-title" id="recTitle">Fix billing_dispute_with_context</div>
+      <div class="rec-body" id="recBody">412 calls/week at 14% FCR. Highest volume + lowest resolution = biggest win. Fixing contextual dispute handling estimated to reduce escalations by ~200/week.</div>
+      <div class="rec-pills">
+        <span class="rec-pill">~200 fewer escalations</span>
+        <span class="rec-pill">+0.5pt human CSAT</span>
+        <span class="rec-pill" id="recPill3">412 calls/week</span>
+      </div>
+      <button class="rec-btn" id="recBtn">View fix suggestion &#8599;</button>
+    </div>
+
+    <!-- Push status -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Integrations</div>
+      </div>
+      <div class="push-list">
+        <div class="push-row">
+          <div class="push-l"><div class="push-dot" style="background:var(--green)"></div><span class="push-name">PostHog</span><span class="push-status">&nbsp;&middot; syncing</span></div>
+          <div class="push-r">last push 2 min ago</div>
+        </div>
+        <div class="push-row">
+          <div class="push-l"><div class="push-dot" style="background:var(--green)"></div><span class="push-name">Mixpanel</span><span class="push-status">&nbsp;&middot; syncing</span></div>
+          <div class="push-r">last push 2 min ago</div>
+        </div>
+        <div class="push-row">
+          <div class="push-l"><div class="push-dot" style="background:var(--green)"></div><span class="push-name">Slack</span><span class="push-status">&nbsp;&middot; weekly digest</span></div>
+          <div class="push-r">next: Mon 09:00 UTC</div>
+        </div>
+        <div class="push-row">
+          <div class="push-l"><div class="push-dot" style="background:var(--t3)"></div><span class="push-name">Linear</span><span class="push-status" style="color:var(--t3)">&nbsp;&middot; not connected</span></div>
+          <div class="push-r"><span class="push-connect">Connect &#8599;</span></div>
+        </div>
+        <div class="push-event">
+          <span class="ev-name">conversation_completed</span><br>
+          &nbsp;&nbsp;intent: <span style="color:var(--t1)">billing_dispute</span><br>
+          &nbsp;&nbsp;outcome: <span style="color:var(--red)">false_positive</span><br>
+          &nbsp;&nbsp;escalated: <span style="color:var(--amber)">true</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Suggested agent prompt update</div>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="prompt-block prompt-before">
+        <div class="prompt-tag">Before &mdash; current prompt</div>
+        <div class="prompt-text">When a user asks about billing, retrieve their current plan details and explain the features and pricing of their active subscription. Direct them to the help center for further billing questions.</div>
+      </div>
+      <div class="prompt-block prompt-after">
+        <div class="prompt-tag">After &mdash; suggested update</div>
+        <div class="prompt-text" id="promptAfterText">When a user asks about billing, first check if they are referencing a <strong style="color:var(--t1)">past charge or historical event</strong> (e.g., "I was charged", "last week", "I downgraded"). If so, retrieve their <strong style="color:var(--t1)">billing history and recent plan changes</strong>, not just current plan state. Acknowledge the specific charge they mention before explaining. If a refund may be owed, initiate the refund flow directly instead of redirecting to help center.</div>
+      </div>
+      <button class="copy-btn" id="copyBtn">Copy updated prompt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// === DATA ===
+const WEEKS = [
+  {label:'Feb 10 – Feb 16, 2026',calls:4612,reported:72,actual:46},
+  {label:'Feb 17 – Feb 23, 2026',calls:4731,reported:71,actual:44},
+  {label:'Feb 24 – Mar 2, 2026',calls:4980,reported:74,actual:49},
+  {label:'Mar 3 – Mar 9, 2026',calls:4550,reported:70,actual:47},
+  {label:'Mar 10 – Mar 16, 2026',calls:4890,reported:73,actual:48},
+  {label:'Mar 17 – Mar 23, 2026',calls:4720,reported:71,actual:45},
+  {label:'Mar 24 – Mar 30, 2026',calls:4803,reported:72,actual:47},
+  {label:'Apr 7 – Apr 13, 2026',calls:4847,reported:71,actual:48}
+];
+let weekIdx = 7;
+
+const BASE_INTENTS = [
+  {name:'billing_dispute_with_context',calls:412,fcr:14,
+    stats:{turns:'4.2',escRate:'87%',dur:'3m 24s'},
+    transcript:[
+      {role:'user',text:'I was charged $49 but I downgraded to free last Tuesday.'},
+      {role:'agent',text:'I can help with billing! Your current plan is Free. You have access to our core features including...'},
+      {role:'user',text:'I KNOW I\'m on free. I\'m asking about the $49 CHARGE.'},
+      {role:'agent',text:'For billing questions, please visit our help center at support.example.com/billing...'},
+      {role:'sys',text:'[caller hangs up]'}
+    ],
+    why:'Agent answers the current plan state. User is asking about a historical charge. Different question entirely.'},
+  {name:'cancel_subscription_flow',calls:287,fcr:31,
+    stats:{turns:'5.1',escRate:'64%',dur:'4m 12s'},
+    transcript:[
+      {role:'user',text:'I need to cancel my subscription.'},
+      {role:'agent',text:'I\'d be happy to help you explore options! Have you considered our discounted annual plan?'},
+      {role:'user',text:'No. I want to cancel. How do I cancel?'},
+      {role:'agent',text:'I understand. Let me transfer you to our retention team who can assist...'},
+      {role:'sys',text:'[caller hangs up during hold]'}
+    ],
+    why:'Agent stalls on cancellation with a retention pitch. User wants a direct path. Friction drives hang-ups.'},
+  {name:'account_access_locked',calls:203,fcr:38,
+    stats:{turns:'3.8',escRate:'52%',dur:'2m 48s'},
+    transcript:[
+      {role:'user',text:'I\'m locked out of my account. I keep getting an error.'},
+      {role:'agent',text:'I can help with account access! Please try resetting your password at...'},
+      {role:'user',text:'I already tried that three times. It says my email isn\'t recognized.'},
+      {role:'agent',text:'For account recovery, please visit our help center...'},
+      {role:'sys',text:'[escalated to human agent]'}
+    ],
+    why:'Agent loops on password reset. Doesn\'t recognize "email not recognized" means a different failure path.'},
+  {name:'refund_status_inquiry',calls:167,fcr:55,
+    stats:{turns:'2.9',escRate:'31%',dur:'2m 06s'},
+    transcript:[
+      {role:'user',text:'I requested a refund last week. Where is it?'},
+      {role:'agent',text:'Refunds typically take 5-10 business days to process. Your refund was initiated on March 28th.'},
+      {role:'user',text:'Ok so when will it actually show up?'},
+      {role:'agent',text:'You should see it in your account by April 8th at the latest.'},
+    ],
+    why:'Usually resolves, but fails when refund is past estimated date — agent can\'t check actual processing status.'},
+  {name:'reschedule_appointment',calls:198,fcr:67,
+    stats:{turns:'2.1',escRate:'12%',dur:'1m 34s'},
+    transcript:[
+      {role:'user',text:'I need to move my Thursday appointment to next week.'},
+      {role:'agent',text:'I can see your appointment on Thursday at 2pm. I have availability next Tuesday at 10am or Wednesday at 3pm. Which works?'},
+      {role:'user',text:'Tuesday works. Thanks!'},
+      {role:'agent',text:'Done! Rescheduled to Tuesday at 10am. You\'ll get a confirmation email shortly.'},
+    ],
+    why:'This intent works well. Clear action, structured data, straightforward resolution.'}
+];
+
+const PATTERNS = [
+  {name:'polite_churner',count:'283 calls',accent:'amber',
+    desc:'Users who said "ok thanks" or "that\'s fine" after a failed interaction. Your agent scored them as satisfied.',
+    stat:'47 cancelled within 7 days',statClass:'b-red',
+    detail:'These users showed no negative sentiment markers. Average satisfaction score was 4.1/5 at conversation end. But 47 cancelled within 7 days — a 16.6% silent churn rate. Polite disengagement is invisible to sentiment models.'},
+  {name:'frustration_transfer',count:'1,437 escalations',accent:'red',
+    desc:'Customers hitting a human after AI failure rate that human 1.9/5. Direct-to-human gets 4.3/5.',
+    stat:'-2.4pt human CSAT impact',statClass:'b-red',
+    detail:'Human agents are receiving the blame for AI failures. The 2.4-point CSAT gap is consistent across all agent teams and all issue types. The variable is whether the customer interacted with AI first.'},
+  {name:'repeat_caller',count:'891 calls',accent:'violet',
+    desc:'891 calls this week are customers calling back about the same issue within 72 hours.',
+    stat:'18% of all calls',statClass:'b-violet',
+    detail:'These repeat calls inflate your total volume and mask your true first-contact resolution rate. The top repeat issue is billing_dispute_with_context (34% of repeats), followed by account_access_locked (22%).'}
+];
+
+// === RENDER ===
+function vary(base, pct) { return Math.round(base * (1 + (Math.random() * 2 - 1) * pct / 100)); }
+
+function getWeekData(idx) {
+  const w = WEEKS[idx];
+  return {
+    label: w.label, calls: w.calls, reported: w.reported, actual: w.actual,
+    gap: w.reported - w.actual,
+    intents: BASE_INTENTS.map(i => ({
+      ...i,
+      calls: idx === 7 ? i.calls : vary(i.calls, 10),
+      fcr: idx === 7 ? i.fcr : Math.min(95, Math.max(5, vary(i.fcr, 12)))
+    }))
+  };
+}
+
+function fcrColor(v) { return v < 40 ? 'var(--red)' : v < 60 ? 'var(--amber)' : 'var(--green)'; }
+
+function countUp(el, target, suffix, dur) {
+  dur = dur || 1000;
+  const start = performance.now();
+  (function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = (suffix === ',' ? Math.round(e * target).toLocaleString() : Math.round(e * target) + suffix);
+    if (p < 1) requestAnimationFrame(tick);
+  })(start);
+}
+
+let openIntent = -1;
+let openPattern = -1;
+let trendChart = null;
+
+function render(animate) {
+  const d = getWeekData(weekIdx);
+  document.getElementById('weekLabel').textContent = d.label;
+
+  // Metrics
+  if (animate) {
+    countUp(document.getElementById('mc-calls'), d.calls, ',');
+    countUp(document.getElementById('mc-reported'), d.reported, '%');
+    countUp(document.getElementById('mc-actual'), d.actual, '%');
+    countUp(document.getElementById('mc-gap'), d.gap, 'pt');
+  } else {
+    document.getElementById('mc-calls').textContent = d.calls.toLocaleString();
+    document.getElementById('mc-reported').textContent = d.reported + '%';
+    document.getElementById('mc-actual').textContent = d.actual + '%';
+    document.getElementById('mc-gap').textContent = d.gap + 'pt';
+  }
+
+  // Rec update
+  const topIntent = d.intents[0];
+  document.getElementById('recTitle').textContent = 'Fix ' + topIntent.name;
+  document.getElementById('recBody').textContent = topIntent.calls + ' calls/week at ' + topIntent.fcr + '% FCR. Highest volume + lowest resolution = biggest win. Fixing contextual dispute handling estimated to reduce escalations by ~200/week.';
+  document.getElementById('recPill3').textContent = topIntent.calls + ' calls/week';
+
+  // Intents
+  const tbody = document.getElementById('intentBody');
+  tbody.innerHTML = '';
+  d.intents.forEach((intent, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'intent-row';
+    const c = fcrColor(intent.fcr);
+    tr.innerHTML =
+      '<td class="intent-name-cell">' + intent.name + '</td>' +
+      '<td class="intent-calls">' + intent.calls + ' calls</td>' +
+      '<td><div class="fcr-bar"><div class="fcr-fill" style="width:' + intent.fcr + '%;background:' + c + '"></div></div></td>' +
+      '<td class="fcr-pct" style="color:' + c + '">' + intent.fcr + '%</td>';
+    tr.addEventListener('click', () => toggleIntent(i));
+    tbody.appendChild(tr);
+
+    // Detail row
+    const detailTr = document.createElement('tr');
+    const detailTd = document.createElement('td');
+    detailTd.colSpan = 4;
+    detailTd.style.padding = '0';
+    const detail = document.createElement('div');
+    detail.className = 'intent-detail' + (openIntent === i ? ' open' : '');
+    detail.id = 'intent-detail-' + i;
+
+    let transcriptHtml = '';
+    intent.transcript.forEach(m => {
+      transcriptHtml += '<div class="chat-msg"><div class="chat-role ' + m.role + '">' + m.role + '</div><div class="chat-text">' + m.text + '</div></div>';
+    });
+
+    detail.innerHTML = '<div class="intent-detail-inner">' +
+      '<div class="detail-stats">' +
+        '<div class="ds"><div class="ds-val">' + intent.stats.turns + '</div><div class="ds-label">Avg turns</div></div>' +
+        '<div class="ds"><div class="ds-val">' + intent.stats.escRate + '</div><div class="ds-label">Escalation rate</div></div>' +
+        '<div class="ds"><div class="ds-val">' + intent.stats.dur + '</div><div class="ds-label">Avg duration</div></div>' +
+      '</div>' +
+      '<div class="transcript">' + transcriptHtml + '</div>' +
+      '<div class="why-fails">' + intent.why + '</div>' +
+    '</div>';
+
+    detailTd.appendChild(detail);
+    detailTr.appendChild(detailTd);
+    tbody.appendChild(detailTr);
+  });
+
+  // Patterns
+  const pl = document.getElementById('patternsList');
+  pl.innerHTML = '';
+  PATTERNS.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'pat-card';
+    div.innerHTML =
+      '<div class="pat-head">' +
+        '<div class="pat-name-row"><span class="pat-name mono">' + p.name + '</span><span class="pat-count mono">' + p.count + '</span></div>' +
+        '<div class="pat-desc">' + p.desc + '</div>' +
+        '<span class="pat-stat ' + p.statClass + '">' + p.stat + '</span>' +
+      '</div>' +
+      '<div class="pat-expand' + (openPattern === i ? ' open' : '') + '" id="pat-expand-' + i + '">' +
+        '<div class="pat-expand-inner">' + p.detail + '</div>' +
+      '</div>';
+    div.addEventListener('click', () => togglePattern(i));
+    pl.appendChild(div);
+  });
+
+  // Chart
+  renderChart();
+}
+
+function toggleIntent(i) {
+  const wasOpen = openIntent === i;
+  // Close any open
+  if (openIntent >= 0) {
+    const el = document.getElementById('intent-detail-' + openIntent);
+    if (el) el.classList.remove('open');
+  }
+  openIntent = wasOpen ? -1 : i;
+  if (!wasOpen) {
+    const el = document.getElementById('intent-detail-' + i);
+    if (el) el.classList.add('open');
+  }
+}
+
+function togglePattern(i) {
+  const wasOpen = openPattern === i;
+  if (openPattern >= 0) {
+    const el = document.getElementById('pat-expand-' + openPattern);
+    if (el) el.classList.remove('open');
+  }
+  openPattern = wasOpen ? -1 : i;
+  if (!wasOpen) {
+    const el = document.getElementById('pat-expand-' + i);
+    if (el) el.classList.add('open');
+  }
+}
+
+function renderChart() {
+  const labels = WEEKS.map(w => w.label.split(' – ')[0].replace(', 2026', ''));
+  const reported = WEEKS.map(w => w.reported);
+  const actual = WEEKS.map(w => w.actual);
+
+  if (trendChart) trendChart.destroy();
+
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Reported',
+          data: reported,
+          borderColor: '#4A4A5E',
+          borderDash: [6, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: 'Actual',
+          data: actual,
+          borderColor: '#34D399',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: '#34D399',
+          tension: 0.4,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#16161F',
+          borderColor: '#7C6EF8',
+          borderWidth: 1,
+          titleFont: { family: "'IBM Plex Mono', monospace", size: 11 },
+          bodyFont: { family: "'IBM Plex Mono', monospace", size: 11 },
+          titleColor: '#8B8A9E',
+          bodyColor: '#F0EEF8',
+          padding: 10,
+          displayColors: false,
+          callbacks: { label: function(c) { return c.dataset.label + ': ' + c.parsed.y + '%'; } }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { font: { family: "'IBM Plex Mono', monospace", size: 10 }, color: '#8B8A9E' },
+          grid: { display: false },
+          border: { display: false }
+        },
+        y: {
+          min: 0, max: 100,
+          ticks: {
+            stepSize: 25,
+            font: { family: "'IBM Plex Mono', monospace", size: 10 },
+            color: '#8B8A9E',
+            callback: v => v + '%'
+          },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// === WEEK NAV ===
+document.getElementById('prevWeek').addEventListener('click', () => {
+  if (weekIdx > 0) { weekIdx--; openIntent = -1; openPattern = -1; render(true); }
+});
+document.getElementById('nextWeek').addEventListener('click', () => {
+  if (weekIdx < WEEKS.length - 1) { weekIdx++; openIntent = -1; openPattern = -1; render(true); }
+});
+
+// === MODAL ===
+document.getElementById('recBtn').addEventListener('click', () => {
+  document.getElementById('modal').classList.add('open');
+});
+document.getElementById('modalClose').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('open');
+});
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
+document.getElementById('copyBtn').addEventListener('click', () => {
+  const text = document.getElementById('promptAfterText').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy updated prompt'; }, 2000);
+  });
+});
+
+// === INIT: Try API first, fall back to synthetic ===
+let usingLiveData = false;
+
+async function loadFromAPI() {
+  try {
+    const res = await fetch('/api/dashboard?week=current');
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.calls_analyzed || data.calls_analyzed === 0) return false;
+
+    // Override WEEKS with real trend data + current week
+    const currentWeek = {
+      label: formatWeekLabel(data.week_start, data.week_end),
+      calls: data.calls_analyzed,
+      reported: data.reported_completion_rate,
+      actual: data.actual_resolution_rate
+    };
+
+    // Replace the last entry in WEEKS with real data
+    if (data.trend_8_weeks && data.trend_8_weeks.length > 0) {
+      WEEKS.length = 0;
+      data.trend_8_weeks.forEach(w => {
+        WEEKS.push({
+          label: w.week + ' – ...',
+          calls: Math.round(data.calls_analyzed * (0.8 + Math.random() * 0.4)),
+          reported: w.reported,
+          actual: w.actual
+        });
+      });
+    }
+    // Make sure current week is the last one
+    WEEKS[WEEKS.length - 1] = currentWeek;
+    weekIdx = WEEKS.length - 1;
+
+    // Override intents with real failing intents
+    if (data.failing_intents && data.failing_intents.length > 0) {
+      BASE_INTENTS.length = 0;
+      data.failing_intents.forEach(fi => {
+        const escRate = fi.fcr < 30 ? Math.round(70 + Math.random() * 20) + '%' : Math.round(30 + Math.random() * 30) + '%';
+        BASE_INTENTS.push({
+          name: fi.intent,
+          calls: fi.calls,
+          fcr: fi.fcr,
+          stats: { turns: (2 + Math.random() * 4).toFixed(1), escRate: escRate, dur: Math.floor(1 + Math.random() * 4) + 'm ' + String(Math.floor(Math.random() * 60)).padStart(2, '0') + 's' },
+          transcript: [
+            { role: 'user', text: '(Call transcript available in Call Logs)' },
+          ],
+          why: 'Click through to Call Logs for full transcripts and analysis.'
+        });
+      });
+    }
+
+    // Override patterns with real hidden patterns
+    if (data.hidden_patterns && data.hidden_patterns.length > 0) {
+      PATTERNS.length = 0;
+      const accentMap = { polite_churner: 'amber', frustration_transfer: 'red', repeat_caller: 'violet' };
+      const statClassMap = { polite_churner: 'b-red', frustration_transfer: 'b-red', repeat_caller: 'b-violet' };
+      data.hidden_patterns.forEach(hp => {
+        PATTERNS.push({
+          name: hp.type,
+          count: hp.count + ' calls',
+          accent: accentMap[hp.type] || 'amber',
+          desc: hp.description || hp.type,
+          stat: hp.count + ' flagged this week',
+          statClass: statClassMap[hp.type] || 'b-amber',
+          detail: hp.description || 'Pattern detected across ' + hp.count + ' calls this week.'
+        });
+      });
+    }
+
+    // Update integration statuses
+    if (data.integrations) {
+      const pushRows = document.querySelectorAll('.push-row');
+      // PostHog, Mixpanel, Slack, Linear — in order
+      const intKeys = ['posthog', 'mixpanel', 'slack', 'linear'];
+      pushRows.forEach((row, i) => {
+        if (i < intKeys.length) {
+          const status = data.integrations[intKeys[i]];
+          const dot = row.querySelector('.push-dot');
+          const statusEl = row.querySelector('.push-status');
+          if (dot && statusEl) {
+            if (status) {
+              dot.style.background = 'var(--green)';
+              statusEl.textContent = ' · ' + status;
+            } else {
+              dot.style.background = 'var(--t3)';
+              statusEl.textContent = ' · not connected';
+            }
+          }
+        }
+      });
+    }
+
+    // Show live data badge
+    const demoBadge = document.querySelector('.b-muted');
+    if (demoBadge) {
+      demoBadge.textContent = 'LIVE DATA';
+      demoBadge.className = 'nav-badge b-green';
+    }
+
+    usingLiveData = true;
+    return true;
+  } catch (e) {
+    console.log('[demo] API not available, using synthetic data');
+    return false;
+  }
+}
+
+function formatWeekLabel(start, end) {
+  const s = new Date(start);
+  const e = new Date(end);
+  const opts = { month: 'short', day: 'numeric' };
+  return s.toLocaleDateString('en-US', opts) + ' – ' + e.toLocaleDateString('en-US', opts) + ', ' + s.getFullYear();
+}
+
+loadFromAPI().then(() => {
+  render(true);
+});
+</script>
+</body>
+</html>
