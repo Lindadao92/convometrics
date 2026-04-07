@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ConvoMetrics — Your voice agent "resolves" 71% of calls. Only 48% actually got helped.</title>
+  <meta name="description" content="Post-call resolution analytics for Vapi and Retell. ConvoMetrics reads every transcript, classifies intent and outcome, detects polite churners, and pushes structured events to Slack, PostHog, or Mixpanel. Works with chat too." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0A0A0F;
+      --surface: #111118;
+      --card: #16161F;
+      --card-deep: #0D0D14;
+      --border: #2A2A38;
+      --accent: #7C6EF8;
+      --accent-dim: rgba(124,110,248,0.15);
+      --accent-glow: rgba(124,110,248,0.35);
+      --success: #34D399;
+      --success-dim: rgba(52,211,153,0.12);
+      --warning: #FBBF24;
+      --danger: #EF4444;
+      --danger-dim: rgba(239,68,68,0.1);
+      --text: #F0EEF8;
+      --text2: #8B8A9E;
+      --t3: #4A4A5E;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+    section { position: relative; z-index: 1; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+
+    /* Nav */
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 52px; background: rgba(10,10,15,0.5); border-bottom: 1px solid transparent; transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s; }
+    nav.scrolled { background: rgba(10,10,15,0.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom-color: var(--border); }
+    .nav-logo { font-family: 'IBM Plex Mono', monospace; font-size: 0.95rem; font-weight: 500; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 7px; }
+    .nav-r { display: flex; gap: 8px; align-items: center; }
+    .nav-link { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: var(--text2); text-decoration: none; padding: 6px 12px; border-radius: 4px; transition: color .15s; }
+    .nav-link:hover { color: var(--text); }
+    .nav-btn { padding: 6px 14px; background: var(--accent); color: #fff; border: none; border-radius: 4px; font-family: 'DM Sans', sans-serif; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+    .nav-btn:hover { background: #8D81FF; box-shadow: 0 0 16px var(--accent-glow); }
+
+    /* Hero */
+    #hero { padding: 130px 24px 80px; text-align: center; }
+    .hero-inner { max-width: 660px; margin: 0 auto; }
+    .pill { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); background: var(--accent-dim); border-radius: 4px; padding: 4px 12px; margin-bottom: 24px; }
+    h1 { font-size: 48px; font-weight: 500; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 0; color: var(--text); }
+    .hero-sub { font-size: 17px; color: var(--text2); line-height: 1.6; max-width: 540px; margin: 20px auto 0; }
+    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+    .btn-fill { display: inline-flex; align-items: center; gap: 6px; padding: 11px 22px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+    .btn-fill:hover { background: #8D81FF; box-shadow: 0 0 20px var(--accent-glow); transform: translateY(-1px); }
+    .btn-ghost { display: inline-flex; align-items: center; gap: 6px; padding: 11px 22px; background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 500; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+    .btn-ghost:hover { background: var(--accent-dim); }
+
+    /* Badges */
+    .badge-rows { margin-top: 32px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    .badge-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .badge-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text2); margin-right: 2px; }
+    .badge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 14px; white-space: nowrap; }
+    .badge-muted { background: rgba(139,138,158,0.1); color: var(--text2); border: 1px solid rgba(139,138,158,0.15); }
+    .badge-violet { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(124,110,248,0.2); }
+
+    /* Stat card */
+    .stat-card { max-width: 560px; margin: 48px auto 0; background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 32px 36px 28px; text-align: left; }
+    .stat-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .stat-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); margin-bottom: 8px; }
+    .stat-num { font-family: 'IBM Plex Mono', monospace; font-size: 40px; font-weight: 500; line-height: 1; }
+    .stat-num-muted { color: var(--text2); }
+    .stat-num-green { color: var(--success); }
+    .stat-caption { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text2); margin-top: 6px; }
+    .stat-gap { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+    .stat-gap .gap-num { color: var(--accent); font-weight: 500; }
+    .stat-gap .gap-body { color: var(--text2); margin-top: 4px; font-size: 12px; }
+    .stat-date { text-align: center; margin-top: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text2); }
+
+    /* Sections shared */
+    .sec-head { text-align: center; margin-bottom: 48px; }
+    .sec-title { font-size: 32px; font-weight: 500; letter-spacing: -0.025em; line-height: 1.15; margin-bottom: 12px; }
+    .sec-sub { font-size: 16px; color: var(--text2); max-width: 520px; margin: 0 auto; line-height: 1.55; }
+
+    /* Problem */
+    #problem { padding: 100px 24px; }
+    .prob-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .prob-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 28px 24px; position: relative; transition: all 0.25s; }
+    .prob-card::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 2px; }
+    .prob-card:nth-child(1)::before { background: var(--danger); }
+    .prob-card:nth-child(2)::before { background: var(--warning); }
+    .prob-card:nth-child(3)::before { background: var(--text2); }
+    .prob-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .prob-stat { font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 500; margin-bottom: 12px; line-height: 1; }
+    .prob-stat-muted { color: var(--text2); }
+    .prob-stat-amber { color: var(--warning); }
+    .prob-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .prob-body { font-size: 14px; color: var(--text2); line-height: 1.55; }
+
+    /* How it works */
+    #how { padding: 100px 24px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; position: relative; }
+    .steps::before { content: ''; position: absolute; top: 22px; left: 16%; right: 16%; border-top: 1.5px dashed var(--border); z-index: 0; }
+    .step { background: var(--card); border: 0.5px solid var(--border); padding: 28px 22px; position: relative; z-index: 1; }
+    .step:first-child { border-radius: 10px 0 0 10px; }
+    .step:last-child { border-radius: 0 10px 10px 0; }
+    .step-num { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 500; color: var(--accent); margin-bottom: 14px; }
+    .step-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .step-body { font-size: 14px; color: var(--text2); line-height: 1.5; }
+    .step-tag { display: inline-block; margin-top: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text2); background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 3px; padding: 2px 8px; }
+
+    /* Briefing */
+    #briefing { padding: 100px 24px; }
+    .terminal { background: var(--card-deep); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; overflow: hidden; font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.7; }
+    .terminal-bar { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+    .terminal-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.06); }
+    .terminal-title { font-size: 11px; color: var(--text2); }
+    .terminal-body { padding: 24px 28px; }
+    .t-line { margin-bottom: 4px; }
+    .t-muted { color: var(--text2); }
+    .t-text { color: var(--text); }
+    .t-green { color: var(--success); }
+    .t-red { color: var(--danger); }
+    .t-amber { color: var(--warning); }
+    .t-accent { color: var(--accent); }
+    .t-bold { font-weight: 500; }
+    .t-dim { color: #555568; }
+    .t-gap { margin-bottom: 16px; }
+    .cursor { display: inline-block; color: var(--accent); animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+    .briefing-note { text-align: center; margin-top: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--t3); }
+
+    /* Prompt rewrite */
+    #prompt-fix { padding: 100px 24px; }
+    .prompt-context { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text2); text-align: center; margin-bottom: 32px; line-height: 1.6; }
+    .prompt-context strong { color: var(--text); font-weight: 500; }
+    .prompt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .prompt-block { border-radius: 10px; padding: 20px 22px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.65; }
+    .prompt-before { background: var(--danger-dim); border: 1px solid rgba(239,68,68,0.15); }
+    .prompt-after { background: var(--success-dim); border: 1px solid rgba(52,211,153,0.15); }
+    .prompt-tag { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    .prompt-before .prompt-tag { color: var(--danger); }
+    .prompt-after .prompt-tag { color: var(--success); }
+    .prompt-text { color: var(--text2); }
+    .prompt-text strong { color: var(--text); font-weight: 500; }
+    .prompt-story { background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 20px 24px; margin-bottom: 24px; font-size: 14px; color: var(--text2); line-height: 1.6; }
+    .prompt-story strong { color: var(--text); font-weight: 500; }
+    .prompt-impact { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .impact-pill { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; padding: 5px 12px; border-radius: 20px; background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(124,110,248,0.2); }
+    .prompt-note { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--t3); text-align: center; }
+
+    /* CTA */
+    #cta { padding: 100px 24px 80px; text-align: center; background: radial-gradient(ellipse at center, rgba(124,110,248,0.02) 0%, transparent 70%); }
+    .cta-title { font-size: 36px; font-weight: 500; letter-spacing: -0.025em; margin-bottom: 12px; }
+    .cta-sub { font-size: 16px; color: var(--text2); margin-bottom: 32px; }
+    .email-form { display: flex; gap: 8px; justify-content: center; max-width: 400px; margin: 0 auto 12px; }
+    .email-form input { flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    .email-form input::placeholder { color: var(--text2); }
+    .email-form input:focus { border-color: var(--accent); }
+    .email-form button { padding: 10px 18px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .email-form button:hover { background: #8D81FF; box-shadow: 0 0 16px var(--accent-glow); }
+    .email-ok { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--success); display: none; }
+    .cta-note { font-size: 12px; color: var(--text2); margin-top: 16px; }
+
+    /* Footer */
+    footer { position: relative; z-index: 1; padding: 20px 32px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text2); display: flex; justify-content: space-between; align-items: center; font-family: 'IBM Plex Mono', monospace; }
+    footer a { color: var(--text2); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+
+    /* Fade */
+    .fade { opacity: 0; transform: translateY(16px); transition: opacity 0.5s, transform 0.5s; }
+    .fade.vis { opacity: 1; transform: translateY(0); }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      #hero { padding: 110px 20px 60px; }
+      h1 { font-size: 32px; }
+      .stat-card { padding: 24px 20px 20px; }
+      .stat-num { font-size: 32px; }
+      .prob-grid { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .steps::before { display: none; }
+      .step { border-radius: 0 !important; }
+      .step:first-child { border-radius: 10px 10px 0 0 !important; }
+      .step:last-child { border-radius: 0 0 10px 10px !important; }
+      .terminal-body { padding: 16px 18px; font-size: 12px; }
+      .prompt-grid { grid-template-columns: 1fr; }
+      .email-form { flex-direction: column; }
+      footer { flex-direction: column; gap: 4px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav id="nav">
+  <a href="/" class="nav-logo">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="6" width="3" height="8" rx="1" fill="#7C6EF8"/><rect x="6" y="1" width="3" height="14" rx="1" fill="#7C6EF8"/><rect x="11" y="4" width="3" height="10" rx="1" fill="#7C6EF8"/></svg>
+    ConvoMetrics
+  </a>
+  <div class="nav-r">
+    <a href="/demo" class="nav-link">Live Demo</a>
+    <a href="/onboarding" class="nav-btn">Get Early Access</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section id="hero">
+  <div class="hero-inner">
+    <div class="pill">Post-call analytics &middot; Vapi &amp; Retell</div>
+    <h1>Your voice agent &ldquo;resolves&rdquo; 71% of calls.<br>Only 48% actually got helped.</h1>
+    <p class="hero-sub">Vapi and Retell tell you when a call ends. Neither tells you if the customer got what they needed. ConvoMetrics reads every transcript, classifies intent and outcome, and pushes structured events to Slack, PostHog, or Mixpanel. Works with chat too&mdash;Intercom, Zendesk, or any webhook.</p>
+
+    <div class="hero-ctas">
+      <a href="/onboarding" class="btn-fill">Connect Your Agent</a>
+      <a href="/demo" class="btn-ghost">See the demo &rarr;</a>
+    </div>
+
+    <div class="badge-rows">
+      <div class="badge-row">
+        <span class="badge-label">Connects to:</span>
+        <span class="badge badge-muted">Vapi</span>
+        <span class="badge badge-muted">Retell</span>
+        <span class="badge badge-muted">Intercom</span>
+        <span class="badge badge-muted">Zendesk</span>
+        <span class="badge badge-muted">Custom webhook</span>
+      </div>
+      <div class="badge-row">
+        <span class="badge-label">Pushes to:</span>
+        <span class="badge badge-violet">Slack</span>
+        <span class="badge badge-violet">PostHog</span>
+        <span class="badge badge-violet">Mixpanel</span>
+        <span class="badge badge-violet">Zapier</span>
+        <span class="badge badge-violet">Make</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-cols">
+        <div>
+          <div class="stat-label">Platform Completion Rate</div>
+          <div class="stat-num stat-num-muted" id="stat71">0%</div>
+          <div class="stat-caption">what Vapi / Retell reports</div>
+        </div>
+        <div>
+          <div class="stat-label">Actual Resolution Rate</div>
+          <div class="stat-num stat-num-green" id="stat48">0%</div>
+          <div class="stat-caption">after transcript analysis</div>
+        </div>
+      </div>
+      <div class="stat-gap">
+        <span class="gap-num">&uarr; 23-point gap</span>
+        <div class="gap-body">Vapi and Retell have no post-call resolution analytics. This is the gap.</div>
+      </div>
+    </div>
+    <div class="stat-date">4,847 calls + chats analyzed &middot; Mar 31 &ndash; Apr 6, 2026</div>
+  </div>
+</section>
+
+<!-- Problem -->
+<section id="problem" class="fade">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 class="sec-title">You&rsquo;re flying blind.</h2>
+      <p class="sec-sub">Vapi and Retell report call completion. Intercom reports ticket closure. Nobody reports whether the customer actually got what they needed.</p>
+    </div>
+    <div class="prob-grid">
+      <div class="prob-card">
+        <div class="prob-stat prob-stat-muted">71%</div>
+        <div class="prob-title">Completion &ne; Resolution</div>
+        <div class="prob-body">Your voice agent marks a call &ldquo;done&rdquo; when the caller hangs up. Your chat agent marks it &ldquo;done&rdquo; when the user stops typing. Neither knows if the issue was resolved. That&rsquo;s the number you report.</div>
+      </div>
+      <div class="prob-card">
+        <div class="prob-stat prob-stat-amber">96%</div>
+        <div class="prob-title">The polite churner problem</div>
+        <div class="prob-body">96% of customers who hit a dead end never complain. They say &ldquo;ok thanks&rdquo; and your agent logs positive sentiment. Resolved. Satisfied. 47 of them cancelled within a week. This pattern is invisible without transcript-level analysis.</div>
+      </div>
+      <div class="prob-card">
+        <div class="prob-stat prob-stat-muted">1%</div>
+        <div class="prob-title">You can&rsquo;t review every conversation</div>
+        <div class="prob-body">At 500 calls and chats a week, you spot-check maybe five. You&rsquo;re shipping prompt updates based on 1% of conversations. Hamming and Coval test before launch. Nobody analyzes what happens after.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section id="how" class="fade">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 class="sec-title">Three steps. One briefing. The truth.</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-title">Connect your agent</div>
+        <div class="step-body">Paste a Vapi or Retell API key. Or connect Intercom, Zendesk, anything&mdash;via Zapier, Make, or webhook. Five minutes.</div>
+        <div class="step-tag">vapi &middot; retell &middot; zapier &middot; make &middot; webhook</div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-title">Every conversation classified</div>
+        <div class="step-body">LLM reads every transcript. Intent, outcome, failure pattern. Voice or chat. No manual tagging.</div>
+        <div class="step-tag">automatic &middot; no labeling</div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-title">Structured events, not dashboards</div>
+        <div class="step-body">Events push to PostHog, Mixpanel, or anywhere via Zapier. Weekly briefing lands in Slack every Monday.</div>
+        <div class="step-tag">slack &middot; posthog &middot; mixpanel &middot; zapier</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Briefing -->
+<section id="briefing" class="fade">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 class="sec-title">What lands in your Slack every Monday.</h2>
+    </div>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot"></div><div class="terminal-dot"></div><div class="terminal-dot"></div>
+        <div class="terminal-title">convometrics &mdash; weekly briefing</div>
+      </div>
+      <div class="terminal-body">
+        <div class="t-line t-gap"><span class="t-accent t-bold">&#9889; WEEKLY BRIEFING</span> <span class="t-dim">&mdash; Vapi Voice Agent + Intercom Chat</span></div>
+        <div class="t-line"><span class="t-muted">period:</span> <span class="t-text">Mar 31 &ndash; Apr 6, 2026</span></div>
+        <div class="t-line t-gap"><span class="t-muted">transcripts analyzed:</span> <span class="t-text">4,847</span> <span class="t-dim">(3,102 calls &middot; 1,745 chats)</span></div>
+        <div class="t-line"><span class="t-muted">platform completion rate:</span> <span class="t-muted">71%</span></div>
+        <div class="t-line"><span class="t-muted">actual resolution rate:</span> <span class="t-green t-bold">48%</span> <span class="t-amber">&larr; 23pt gap</span></div>
+        <div class="t-line t-gap"><span class="t-muted">neither Vapi nor Intercom reports this number.</span></div>
+        <div class="t-line"><span class="t-muted">top failing intents:</span></div>
+        <div class="t-line">&nbsp; <span class="t-red">&bull;</span> <span class="t-text">billing_dispute_with_context</span> <span class="t-dim">&mdash; 412 transcripts, 14% resolved</span></div>
+        <div class="t-line">&nbsp; <span class="t-red">&bull;</span> <span class="t-text">cancel_subscription_flow</span> <span class="t-dim">&mdash; 289 transcripts, 22% resolved</span></div>
+        <div class="t-line t-gap">&nbsp; <span class="t-green">&bull;</span> <span class="t-text">reschedule_appointment</span> <span class="t-dim">&mdash; 847 transcripts, 91% resolved</span></div>
+        <div class="t-line"><span class="t-amber t-bold">&#128269; hidden pattern: polite_churner</span></div>
+        <div class="t-line"><span class="t-muted">&nbsp; 283 customers said &ldquo;ok thanks&rdquo; after a failed response.</span></div>
+        <div class="t-line"><span class="t-muted">&nbsp; agent flagged all as resolved. positive sentiment.</span></div>
+        <div class="t-line t-gap">&nbsp; <span class="t-red t-bold">47 of them cancelled within 7 days.</span></div>
+        <div class="t-line"><span class="t-green t-bold">PUSHED TO:</span> <span class="t-green">Slack &#10003;</span> &nbsp;<span class="t-green">PostHog &#10003;</span> &nbsp;<span class="t-green">Zapier &#10003;</span></div>
+        <div class="t-line"><span class="cursor">&block;</span></div>
+      </div>
+    </div>
+    <div class="briefing-note">Every number is computed from real transcripts, not estimated.</div>
+  </div>
+</section>
+
+<!-- Prompt Fix -->
+<section id="prompt-fix" class="fade">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2 class="sec-title">Fix it, not just find it.</h2>
+      <p class="sec-sub">ConvoMetrics doesn&rsquo;t just tell you what&rsquo;s failing. It shows you exactly how to fix your agent&rsquo;s prompts&mdash;with a before/after rewrite based on real failure patterns.</p>
+    </div>
+
+    <div class="prompt-context">
+      <strong>billing_dispute_with_context</strong> &mdash; 412 transcripts/week, 14% first-contact resolution.<br>
+      Your agent answers the question customers didn&rsquo;t ask.
+    </div>
+
+    <div class="prompt-grid">
+      <div class="prompt-block prompt-before">
+        <div class="prompt-tag">Before &mdash; current prompt</div>
+        <div class="prompt-text">When a user asks about billing, retrieve their current plan details and explain the features and pricing of their active subscription. Direct them to the help center for further billing questions.</div>
+      </div>
+      <div class="prompt-block prompt-after">
+        <div class="prompt-tag">After &mdash; suggested rewrite</div>
+        <div class="prompt-text">When a user asks about billing, first check if they are referencing a <strong>past charge or historical event</strong> (e.g. &ldquo;I was charged&rdquo;, &ldquo;last week&rdquo;, &ldquo;I downgraded&rdquo;). If so, retrieve their <strong>billing history and recent plan changes</strong>&mdash;not just current plan state. Acknowledge the specific charge before explaining. If a refund may be owed, initiate the refund flow directly.</div>
+      </div>
+    </div>
+
+    <div class="prompt-story">
+      A customer says &ldquo;I was charged $49 but I downgraded last week.&rdquo; Your agent explains what the Free plan includes. The customer says <strong>&ldquo;I KNOW I&rsquo;m on free. I&rsquo;m asking about the CHARGE.&rdquo;</strong> Your agent sends them to the help center. They hang up. Your dashboard marks it resolved.
+    </div>
+
+    <div class="prompt-impact">
+      <span class="impact-pill">~200 fewer escalations/week</span>
+      <span class="impact-pill">+0.5pt human CSAT recovery</span>
+      <span class="impact-pill">412 transcripts/week affected</span>
+    </div>
+    <div class="prompt-note">Every suggestion is generated from clustered failure transcripts&mdash;not templates.</div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta" class="fade">
+  <div class="wrap" style="max-width:600px;">
+    <h2 class="cta-title">Stop guessing what your agent gets wrong.</h2>
+    <p class="cta-sub">Paste an API key. Get your first briefing. Free to start. No credit card.</p>
+    <form class="email-form" id="emailForm">
+      <input type="email" placeholder="your@startup.com" required />
+      <button type="submit">Get Early Access</button>
+    </form>
+    <div class="email-ok" id="emailOk">You&rsquo;re on the list. First briefing incoming.</div>
+    <p class="cta-note">Vapi &middot; Retell &middot; Intercom &middot; Zendesk &middot; Zapier &middot; Make &middot; Any webhook</p>
+  </div>
+</section>
+
+<footer>
+  <span>ConvoMetrics &mdash; Resolution intelligence for AI agents</span>
+  <span>&copy; 2026 &middot; <a href="mailto:linda@convometrics.com">linda@convometrics.com</a></span>
+</footer>
+
+<script>
+  // Nav scroll
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 10);
+  }, { passive: true });
+
+  // Fade-in
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('vis'); });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.fade').forEach(el => obs.observe(el));
+
+  // Count-up
+  function countUp(el, target, suffix) {
+    const dur = 1200, start = performance.now();
+    (function tick(now) {
+      const p = Math.min((now - start) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(eased * target) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    })(start);
+  }
+  const s71 = document.getElementById('stat71');
+  const s48 = document.getElementById('stat48');
+  const cardObs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        countUp(s71, 71, '%');
+        countUp(s48, 48, '%');
+        cardObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.3 });
+  cardObs.observe(document.querySelector('.stat-card'));
+
+  // Email form
+  document.getElementById('emailForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    this.style.display = 'none';
+    document.getElementById('emailOk').style.display = 'block';
+  });
+</script>
+
+</body>
+</html>

@@ -1,4 +1,16 @@
 {
-  "name": "convometrics-landing",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/demo", "destination": "/demo.html" },
+    { "source": "/calls", "destination": "/calls.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/analyze",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/weekly-briefing",
+      "schedule": "0 9 * * 1"
+    }
+  ]
 }

@@ -19,11 +19,11 @@ export default function NotFound() {
           >
             View Demo
           </Link>
-          <Link 
-            href="/upload"
+          <Link
+            href="mailto:linda@convometrics.com"
             className="px-6 py-2.5 rounded-lg border border-white/[0.08] text-sm text-zinc-400 hover:text-white hover:border-white/[0.15] transition-colors"
           >
-            Upload Data
+            Contact Us
           </Link>
         </div>
         

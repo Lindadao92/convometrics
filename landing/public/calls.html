@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ConvoMetrics — Call Logs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0A0A0F;--surface:#111118;--card:#16161F;--border:#2A2A38;--border-h:#3A3A4A;
+      --accent:#7C6EF8;--accent-d:rgba(124,110,248,0.12);
+      --green:#34D399;--green-d:rgba(52,211,153,0.12);
+      --amber:#FBBF24;--amber-d:rgba(251,191,36,0.12);
+      --red:#EF4444;--red-d:rgba(239,68,68,0.12);
+      --t1:#F0EEF8;--t2:#8B8A9E;--t3:#4A4A5E;
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--t1);line-height:1.5;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+    .mono{font-family:'IBM Plex Mono',monospace}
+
+    /* Nav */
+    nav{position:sticky;top:0;z-index:100;height:52px;background:var(--surface);border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+    .nav-l{display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:500;color:var(--t1);text-decoration:none}
+    .nav-links{display:flex;align-items:center;gap:4px}
+    .nav-link{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--t2);text-decoration:none;padding:6px 12px;border-radius:4px;transition:all .15s}
+    .nav-link:hover{color:var(--t1);background:rgba(255,255,255,0.04)}
+    .nav-link.active{color:var(--accent);background:var(--accent-d)}
+    .nav-r{display:flex;align-items:center;gap:8px}
+    .nav-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;white-space:nowrap}
+    .b-violet{background:var(--accent-d);color:var(--accent)}
+    .b-green{background:var(--green-d);color:var(--green)}
+    .b-amber{background:var(--amber-d);color:var(--amber)}
+    .b-red{background:var(--red-d);color:var(--red)}
+    .b-muted{background:rgba(74,74,94,0.2);color:var(--t3)}
+
+    /* Page */
+    .page{padding:16px 24px 40px;max-width:1200px;margin:0 auto}
+
+    /* Header row */
+    .page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+    .page-title{font-size:18px;font-weight:600;color:var(--t1)}
+    .page-count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--t2);margin-left:8px}
+
+    /* Filters */
+    .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .filter-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;padding:5px 12px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--t2);cursor:pointer;transition:all .15s;white-space:nowrap}
+    .filter-btn:hover{border-color:var(--border-h);color:var(--t1)}
+    .filter-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-d)}
+    .search-box{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:5px 12px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--t1);outline:none;width:220px;transition:border-color .2s}
+    .search-box::placeholder{color:var(--t3)}
+    .search-box:focus{border-color:var(--accent)}
+
+    /* Table */
+    .calls-card{background:var(--card);border:0.5px solid var(--border);border-radius:10px;overflow:hidden}
+    .calls-table{width:100%;border-collapse:collapse}
+    .calls-table th{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);text-align:left;padding:12px 16px;border-bottom:0.5px solid var(--border);white-space:nowrap;position:sticky;top:52px;background:var(--card);z-index:10}
+    .calls-table th:last-child{text-align:right}
+
+    .call-row{cursor:pointer;transition:background .12s}
+    .call-row:hover{background:rgba(124,110,248,0.03)}
+    .call-row td{padding:11px 16px;border-bottom:0.5px solid rgba(42,42,56,0.4);font-size:13px;vertical-align:middle}
+    .call-row.expanded{background:rgba(124,110,248,0.03)}
+
+    .call-id{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--t2)}
+    .call-intent{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--t1)}
+    .call-time{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--t2);white-space:nowrap}
+    .call-dur{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--t2)}
+
+    .outcome-pill{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;padding:3px 8px;border-radius:3px;white-space:nowrap}
+    .o-resolved{background:var(--green-d);color:var(--green)}
+    .o-gave-up{background:var(--red-d);color:var(--red)}
+    .o-escalated{background:var(--amber-d);color:var(--amber)}
+    .o-abandoned{background:rgba(74,74,94,0.15);color:var(--t2)}
+
+    .flag-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;padding:2px 6px;border-radius:3px;margin-left:4px}
+
+    .sentiment{font-family:'IBM Plex Mono',monospace;font-size:11px;text-align:right}
+
+    /* Expanded detail */
+    .call-detail-row td{padding:0;border-bottom:0.5px solid rgba(42,42,56,0.4)}
+    .call-detail{max-height:0;overflow:hidden;transition:max-height .35s ease}
+    .call-detail.open{max-height:1200px}
+    .call-detail-inner{padding:20px 24px;background:rgba(10,10,15,0.4)}
+
+    /* Detail layout: 3 stats + transcript + analytics sidebar */
+    .detail-top{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+    .d-stat{background:var(--surface);border:0.5px solid var(--border);border-radius:6px;padding:10px 12px;text-align:center}
+    .d-stat-val{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:500;color:var(--t1)}
+    .d-stat-label{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t2);margin-top:3px}
+
+    .detail-body{display:grid;grid-template-columns:1fr 280px;gap:16px}
+
+    /* Transcript */
+    .transcript-card{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;overflow:hidden}
+    .transcript-head{padding:10px 14px;border-bottom:0.5px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t2)}
+    .transcript-body{padding:14px}
+    .msg{display:flex;gap:10px;margin-bottom:10px}
+    .msg:last-child{margin-bottom:0}
+    .msg-role{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;width:48px;flex-shrink:0;padding-top:3px}
+    .msg-role.caller{color:var(--accent)}
+    .msg-role.agent{color:var(--green)}
+    .msg-role.system{color:var(--t3)}
+    .msg-text{font-size:13px;color:var(--t2);line-height:1.55}
+    .msg-ts{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--t3);margin-top:2px}
+
+    /* Analytics sidebar */
+    .analytics-card{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;overflow:hidden}
+    .analytics-head{padding:10px 14px;border-bottom:0.5px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t2)}
+    .analytics-body{padding:14px}
+    .a-row{margin-bottom:14px}
+    .a-row:last-child{margin-bottom:0}
+    .a-label{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:4px}
+    .a-val{font-size:13px;color:var(--t1);font-weight:500}
+    .a-bar{height:4px;border-radius:2px;background:rgba(255,255,255,0.06);margin-top:4px;overflow:hidden}
+    .a-bar-fill{height:100%;border-radius:2px}
+    .a-note{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);padding:10px 12px;background:var(--amber-d);border-radius:6px;border-left:3px solid var(--amber);line-height:1.5;margin-top:14px}
+    .a-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .a-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;padding:2px 7px;border-radius:3px}
+
+    /* Pagination */
+    .pagination{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-top:0.5px solid var(--border)}
+    .page-info{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--t2)}
+    .page-btns{display:flex;gap:4px}
+    .page-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--t2);cursor:pointer;transition:all .15s}
+    .page-btn:hover{border-color:var(--accent);color:var(--t1)}
+    .page-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-d)}
+    .page-btn:disabled{opacity:0.3;cursor:default}
+    .page-btn:disabled:hover{border-color:var(--border);color:var(--t2)}
+
+    /* Mobile */
+    @media(max-width:900px){
+      .detail-top{grid-template-columns:repeat(3,1fr)}
+      .detail-body{grid-template-columns:1fr}
+      .nav-r{display:none}
+      .calls-table th:nth-child(5),.call-row td:nth-child(5){display:none}
+    }
+    @media(max-width:600px){
+      .detail-top{grid-template-columns:1fr 1fr}
+      .filters{flex-direction:column}
+      .search-box{width:100%}
+      .calls-table th:nth-child(4),.call-row td:nth-child(4),.calls-table th:nth-child(6),.call-row td:nth-child(6){display:none}
+      nav{padding:0 14px}
+      .page{padding:12px 14px 30px}
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div style="display:flex;align-items:center;gap:20px">
+    <a href="/demo" class="nav-l">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="6" width="3" height="8" rx="1" fill="#7C6EF8"/><rect x="6" y="1" width="3" height="14" rx="1" fill="#7C6EF8"/><rect x="11" y="4" width="3" height="10" rx="1" fill="#7C6EF8"/></svg>
+      ConvoMetrics
+    </a>
+    <div class="nav-links">
+      <a href="/demo" class="nav-link">Dashboard</a>
+      <a href="/calls" class="nav-link active">Call Logs</a>
+      <a href="/analytics" class="nav-link">Analytics</a>
+    </div>
+  </div>
+  <div class="nav-r">
+    <span class="nav-badge b-muted">DEMO DATA</span>
+    <span class="nav-badge b-violet">Vapi</span>
+    <span class="nav-badge b-green">PostHog &#10003;</span>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="page-head">
+    <div style="display:flex;align-items:baseline">
+      <h1 class="page-title">Call Logs</h1>
+      <span class="page-count" id="callCount">4,847 calls this week</span>
+    </div>
+    <input type="text" class="search-box" id="search" placeholder="Search intent, caller ID..."/>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="resolved">Resolved</button>
+    <button class="filter-btn" data-filter="gave_up">Gave up</button>
+    <button class="filter-btn" data-filter="escalated">Escalated</button>
+    <button class="filter-btn" data-filter="abandoned">Abandoned</button>
+    <button class="filter-btn" data-filter="flagged">Flagged only</button>
+  </div>
+
+  <div class="calls-card">
+    <table class="calls-table">
+      <thead>
+        <tr>
+          <th>Call ID</th>
+          <th>Intent</th>
+          <th>Outcome</th>
+          <th>Duration</th>
+          <th>Flags</th>
+          <th style="text-align:right">Sentiment</th>
+        </tr>
+      </thead>
+      <tbody id="callsBody"></tbody>
+    </table>
+    <div class="pagination">
+      <div class="page-info" id="pageInfo"></div>
+      <div class="page-btns" id="pageBtns"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// === CALL DATA ===
+const INTENTS = [
+  'billing_dispute_with_context','cancel_subscription_flow','account_access_locked',
+  'refund_status_inquiry','reschedule_appointment','upgrade_plan','check_balance',
+  'shipping_status','password_reset','product_return'
+];
+const OUTCOMES = ['resolved','gave_up','escalated','abandoned'];
+const OUTCOME_WEIGHTS = [0.35, 0.28, 0.22, 0.15];
+const FLAGS_MAP = {
+  polite_churner: {label:'polite_churner',cls:'b-amber'},
+  frustration_transfer: {label:'frustration_transfer',cls:'b-red'},
+  repeat_caller: {label:'repeat_caller',cls:'b-violet'}
+};
+
+const TRANSCRIPTS = {
+  billing_dispute_with_context: {
+    resolved: [
+      {role:'caller',text:"Hi, I was charged $49 on my card but I downgraded to the free plan last Tuesday.",ts:'0:04'},
+      {role:'agent',text:"I can see you downgraded on March 29th. It looks like the $49 charge was processed the day before your downgrade took effect. I'll initiate a refund for the full amount right now.",ts:'0:12'},
+      {role:'caller',text:"Ok great, when will I see it?",ts:'0:18'},
+      {role:'agent',text:"The refund should appear within 3-5 business days. I've also sent a confirmation email to your address on file. Is there anything else I can help with?",ts:'0:24'},
+      {role:'caller',text:"No, that's perfect. Thank you!",ts:'0:28'}
+    ],
+    gave_up: [
+      {role:'caller',text:"I was charged $49 but I downgraded to free last Tuesday.",ts:'0:03'},
+      {role:'agent',text:"I can help with billing! Your current plan is Free. You have access to our core features including...",ts:'0:08'},
+      {role:'caller',text:"I KNOW I'm on free. I'm asking about the $49 CHARGE.",ts:'0:15'},
+      {role:'agent',text:"I understand you have a billing concern. For detailed billing inquiries, please visit our help center at support.example.com/billing where you can review your payment history.",ts:'0:22'},
+      {role:'caller',text:"This is useless.",ts:'0:26'},
+      {role:'system',text:"[caller hung up]",ts:'0:27'}
+    ],
+    escalated: [
+      {role:'caller',text:"I got charged $49 even though I downgraded last week. I need this fixed.",ts:'0:04'},
+      {role:'agent',text:"I can help with billing! Your current plan is Free. You have access to...",ts:'0:09'},
+      {role:'caller',text:"Stop. I need to talk to a real person. Now.",ts:'0:14'},
+      {role:'agent',text:"I understand. Let me connect you with a billing specialist right away.",ts:'0:18'},
+      {role:'system',text:"[transferred to human agent — queue time 4m 12s]",ts:'0:20'}
+    ]
+  },
+  cancel_subscription_flow: {
+    resolved: [
+      {role:'caller',text:"I need to cancel my subscription.",ts:'0:03'},
+      {role:'agent',text:"I can process that cancellation for you. Your current plan is Pro at $29/month. Would you like me to cancel effective immediately or at the end of your current billing cycle on April 14th?",ts:'0:10'},
+      {role:'caller',text:"End of billing cycle is fine.",ts:'0:14'},
+      {role:'agent',text:"Done. Your Pro plan will remain active until April 14th, then switch to Free. You'll get a confirmation email shortly.",ts:'0:20'},
+      {role:'caller',text:"Thanks.",ts:'0:22'}
+    ],
+    gave_up: [
+      {role:'caller',text:"I want to cancel my subscription.",ts:'0:03'},
+      {role:'agent',text:"I'd be happy to help you explore your options! Before we proceed, have you considered our annual plan? You'd save 40% compared to monthly billing.",ts:'0:10'},
+      {role:'caller',text:"No, I just want to cancel.",ts:'0:14'},
+      {role:'agent',text:"I understand. Many of our customers find value in our Lite plan at just $9/month. Would you like to hear about that option?",ts:'0:20'},
+      {role:'caller',text:"Forget it.",ts:'0:23'},
+      {role:'system',text:"[caller hung up]",ts:'0:24'}
+    ],
+    escalated: [
+      {role:'caller',text:"Cancel my subscription immediately.",ts:'0:02'},
+      {role:'agent',text:"I'd love to help you explore options that might work better for you! What prompted your decision to cancel?",ts:'0:08'},
+      {role:'caller',text:"I don't want options, I want to cancel. Get me a human.",ts:'0:12'},
+      {role:'agent',text:"Of course, transferring you now.",ts:'0:15'},
+      {role:'system',text:"[transferred to human agent]",ts:'0:16'}
+    ]
+  },
+  account_access_locked: {
+    resolved: [
+      {role:'caller',text:"I'm locked out of my account. It keeps saying invalid password.",ts:'0:04'},
+      {role:'agent',text:"I can help you regain access. I'll send a password reset link to the email on file. Can you confirm the email address associated with your account?",ts:'0:12'},
+      {role:'caller',text:"It's john@example.com.",ts:'0:16'},
+      {role:'agent',text:"Reset link sent to j***@example.com. Check your inbox, including spam. The link expires in 30 minutes.",ts:'0:22'},
+      {role:'caller',text:"Got it. I'm back in. Thanks!",ts:'0:34'}
+    ],
+    gave_up: [
+      {role:'caller',text:"I'm locked out. I keep getting an error when I try to log in.",ts:'0:03'},
+      {role:'agent',text:"I can help with account access! Please try resetting your password at example.com/reset.",ts:'0:08'},
+      {role:'caller',text:"I already tried that three times. It says my email isn't recognized.",ts:'0:14'},
+      {role:'agent',text:"For account recovery when email isn't recognized, please visit our help center at support.example.com/account-recovery.",ts:'0:20'},
+      {role:'caller',text:"Ok thanks I guess.",ts:'0:24'},
+      {role:'system',text:"[caller hung up]",ts:'0:25'}
+    ],
+    escalated: [
+      {role:'caller',text:"I can't get into my account. Password reset doesn't work. My email isn't recognized.",ts:'0:05'},
+      {role:'agent',text:"I'm sorry to hear that. Let me try to look up your account. Can you provide the email you signed up with?",ts:'0:11'},
+      {role:'caller',text:"I've given it three times already to your bot. Just connect me to support.",ts:'0:16'},
+      {role:'agent',text:"Connecting you to a support specialist now.",ts:'0:19'},
+      {role:'system',text:"[transferred to human agent]",ts:'0:20'}
+    ]
+  },
+  refund_status_inquiry: {
+    resolved: [
+      {role:'caller',text:"I requested a refund last week. Where is it?",ts:'0:03'},
+      {role:'agent',text:"I can see your refund of $29 was initiated on March 28th. It typically takes 5-10 business days. Based on the processing timeline, you should see it by April 8th.",ts:'0:12'},
+      {role:'caller',text:"Ok, so a few more days. Got it.",ts:'0:17'},
+      {role:'agent',text:"Exactly. You'll receive an email notification once it's processed. Anything else?",ts:'0:22'},
+      {role:'caller',text:"Nope, that's all. Thanks.",ts:'0:25'}
+    ],
+    gave_up: [
+      {role:'caller',text:"My refund was supposed to arrive 10 days ago. It's not here.",ts:'0:04'},
+      {role:'agent',text:"Refunds typically take 5-10 business days to process. Your refund was initiated on March 22nd.",ts:'0:10'},
+      {role:'caller',text:"Right, that's 12 days ago. So where is it?",ts:'0:15'},
+      {role:'agent',text:"I apologize for the delay. Refund processing times can vary by payment provider. If you haven't received it within 15 business days, please contact us again.",ts:'0:22'},
+      {role:'caller',text:"So you can't actually do anything?",ts:'0:26'},
+      {role:'agent',text:"I understand your frustration. I'd recommend checking with your bank as well, as sometimes refunds appear as pending transactions.",ts:'0:32'},
+      {role:'system',text:"[caller hung up]",ts:'0:34'}
+    ],
+    escalated: [
+      {role:'caller',text:"Where is my refund? I was told 5 days and it's been two weeks.",ts:'0:04'},
+      {role:'agent',text:"Refunds typically take 5-10 business days...",ts:'0:08'},
+      {role:'caller',text:"I need someone who can actually look into this, not a script.",ts:'0:12'},
+      {role:'agent',text:"Let me transfer you to our billing team who can trace the refund.",ts:'0:16'},
+      {role:'system',text:"[transferred to human agent]",ts:'0:17'}
+    ]
+  },
+  reschedule_appointment: {
+    resolved: [
+      {role:'caller',text:"I need to move my Thursday appointment to next week.",ts:'0:03'},
+      {role:'agent',text:"I can see your appointment Thursday at 2pm. Next week I have openings Tuesday 10am, Wednesday 3pm, or Thursday 11am. Which works best?",ts:'0:10'},
+      {role:'caller',text:"Tuesday 10am.",ts:'0:14'},
+      {role:'agent',text:"Done! Rescheduled to Tuesday April 8th at 10am. Confirmation email sent. Anything else?",ts:'0:19'},
+      {role:'caller',text:"That's it, thanks!",ts:'0:22'}
+    ],
+    gave_up: [
+      {role:'caller',text:"I need to reschedule my appointment to sometime next Monday.",ts:'0:03'},
+      {role:'agent',text:"I'd be happy to help reschedule. Let me check availability. I have openings on Tuesday at 10am and Wednesday at 3pm.",ts:'0:10'},
+      {role:'caller',text:"I said Monday. Do you have anything Monday?",ts:'0:14'},
+      {role:'agent',text:"I apologize, I don't see Monday availability in the system. Would Tuesday work instead?",ts:'0:19'},
+      {role:'caller',text:"I'll just call the office directly.",ts:'0:22'},
+      {role:'system',text:"[caller hung up]",ts:'0:23'}
+    ],
+    escalated: [
+      {role:'caller',text:"I need to reschedule and also change the location to your downtown office.",ts:'0:04'},
+      {role:'agent',text:"I can help with rescheduling! When would you like your new appointment?",ts:'0:09'},
+      {role:'caller',text:"Next Tuesday, but at the downtown location. Can you do that?",ts:'0:14'},
+      {role:'agent',text:"I can reschedule the time, but I'm unable to change locations. Let me connect you with someone who can.",ts:'0:20'},
+      {role:'system',text:"[transferred to human agent]",ts:'0:21'}
+    ]
+  }
+};
+
+// Generic fallback transcripts
+const GENERIC = {
+  resolved: [
+    {role:'caller',text:"Hi, I need help with my account.",ts:'0:03'},
+    {role:'agent',text:"I'd be happy to help. Let me pull up your account. What do you need?",ts:'0:08'},
+    {role:'caller',text:"I just need to update my payment method.",ts:'0:12'},
+    {role:'agent',text:"Done! Your payment method has been updated. You'll see the change reflected immediately.",ts:'0:20'},
+    {role:'caller',text:"Great, thanks.",ts:'0:23'}
+  ],
+  gave_up: [
+    {role:'caller',text:"I have an issue with my recent order.",ts:'0:03'},
+    {role:'agent',text:"I can help with orders! Could you provide your order number?",ts:'0:08'},
+    {role:'caller',text:"I don't have it on me. Can you look it up by my email?",ts:'0:13'},
+    {role:'agent',text:"I'm not able to look up orders by email. Please locate your order number in your confirmation email and call back.",ts:'0:19'},
+    {role:'caller',text:"Fine.",ts:'0:22'},
+    {role:'system',text:"[caller hung up]",ts:'0:23'}
+  ],
+  escalated: [
+    {role:'caller',text:"I've called three times about this issue and nothing has been done.",ts:'0:04'},
+    {role:'agent',text:"I apologize for the inconvenience. Let me see how I can help.",ts:'0:09'},
+    {role:'caller',text:"Just get me a manager or someone who can actually fix this.",ts:'0:13'},
+    {role:'agent',text:"Connecting you with a supervisor now.",ts:'0:16'},
+    {role:'system',text:"[transferred to human agent]",ts:'0:17'}
+  ],
+  abandoned: [
+    {role:'system',text:"[call connected]",ts:'0:00'},
+    {role:'agent',text:"Thank you for calling! How can I help you today?",ts:'0:03'},
+    {role:'system',text:"[no response — 15 seconds]",ts:'0:18'},
+    {role:'agent',text:"Are you still there? I'm ready to help whenever you are.",ts:'0:22'},
+    {role:'system',text:"[call disconnected]",ts:'0:30'}
+  ]
+};
+
+// Analysis notes per intent+outcome
+const ANALYSIS = {
+  billing_dispute_with_context: {
+    gave_up: "Agent answered current plan state instead of addressing the historical charge. Missed contextual billing dispute entirely.",
+    escalated: "Customer explicitly asked for human after generic response. Agent didn't attempt to address the actual charge dispute.",
+    resolved: "Agent correctly identified the downgrade timing gap and initiated refund proactively."
+  },
+  cancel_subscription_flow: {
+    gave_up: "Agent ran a retention script instead of processing the cancellation. Customer asked twice and was ignored both times.",
+    escalated: "Retention flow frustrated the customer. Direct cancellation path would have resolved without escalation.",
+    resolved: "Agent provided immediate cancellation options without retention pressure."
+  },
+  account_access_locked: {
+    gave_up: "Agent suggested password reset, but user's actual problem was email not recognized — a different failure path the agent didn't handle.",
+    escalated: "User already tried self-service. Agent repeated the same failed solution instead of escalating to account lookup.",
+    resolved: "Agent confirmed email and sent reset link. Straightforward resolution."
+  },
+  refund_status_inquiry: {
+    gave_up: "Refund was past estimated delivery. Agent couldn't check actual processing status and offered no actionable next step.",
+    escalated: "Agent had no ability to trace the refund. Should have auto-escalated when refund was overdue.",
+    resolved: "Refund was within expected window. Agent gave clear timeline."
+  },
+  reschedule_appointment: {
+    gave_up: "User requested a specific day the agent couldn't accommodate. No alternative offered beyond adjacent days.",
+    escalated: "Agent couldn't handle location change. Correctly escalated but could have been avoided with multi-field rescheduling.",
+    resolved: "Clear options presented, quick selection, immediate confirmation."
+  }
+};
+
+// Generate synthetic calls
+function rng(seed) {
+  let s = seed;
+  return function() { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
+}
+
+function generateCalls() {
+  const calls = [];
+  const r = rng(42);
+  const names = ['billing_dispute_with_context','cancel_subscription_flow','account_access_locked','refund_status_inquiry','reschedule_appointment','upgrade_plan','check_balance','shipping_status','password_reset','product_return'];
+  const intentWeights = [0.18, 0.12, 0.09, 0.08, 0.10, 0.08, 0.10, 0.09, 0.09, 0.07];
+
+  for (let i = 0; i < 120; i++) {
+    // Pick intent by weight
+    let rval = r(), cumul = 0, intentIdx = 0;
+    for (let j = 0; j < intentWeights.length; j++) {
+      cumul += intentWeights[j];
+      if (rval < cumul) { intentIdx = j; break; }
+    }
+    const intent = names[intentIdx];
+
+    // Pick outcome by intent (worse intents get worse outcomes)
+    const badIntent = intentIdx < 3;
+    let outcome;
+    const oRoll = r();
+    if (badIntent) {
+      outcome = oRoll < 0.15 ? 'resolved' : oRoll < 0.45 ? 'gave_up' : oRoll < 0.80 ? 'escalated' : 'abandoned';
+    } else if (intentIdx < 5) {
+      outcome = oRoll < 0.45 ? 'resolved' : oRoll < 0.65 ? 'gave_up' : oRoll < 0.85 ? 'escalated' : 'abandoned';
+    } else {
+      outcome = oRoll < 0.65 ? 'resolved' : oRoll < 0.80 ? 'gave_up' : oRoll < 0.92 ? 'escalated' : 'abandoned';
+    }
+
+    // Duration
+    const baseDur = outcome === 'resolved' ? 120 : outcome === 'gave_up' ? 90 : outcome === 'escalated' ? 75 : 30;
+    const dur = Math.round(baseDur + (r() - 0.5) * 80);
+    const durMin = Math.floor(dur / 60);
+    const durSec = dur % 60;
+
+    // Turns
+    const turns = outcome === 'abandoned' ? 1 : Math.round(2 + r() * 5);
+
+    // Sentiment
+    let sentiment;
+    if (outcome === 'resolved') sentiment = (3.5 + r() * 1.5);
+    else if (outcome === 'gave_up') sentiment = (1.5 + r() * 1.5);
+    else if (outcome === 'escalated') sentiment = (1 + r() * 2);
+    else sentiment = null;
+
+    // Flags
+    const flags = [];
+    if (outcome === 'gave_up' && r() < 0.35) flags.push('polite_churner');
+    if (outcome === 'escalated' && r() < 0.25) flags.push('frustration_transfer');
+    if (r() < 0.15) flags.push('repeat_caller');
+
+    // Timestamp (random within the week)
+    const day = Math.floor(r() * 7);
+    const hour = Math.floor(8 + r() * 12);
+    const min = Math.floor(r() * 60);
+    const date = new Date(2026, 3, 7 + day, hour, min);
+
+    calls.push({
+      id: 'call_' + String(1000 + i).slice(1) + String(Math.floor(r()*9000)+1000),
+      intent,
+      outcome,
+      duration: durMin + 'm ' + String(durSec).padStart(2,'0') + 's',
+      durationSec: dur,
+      turns,
+      sentiment: sentiment ? sentiment.toFixed(1) : null,
+      flags,
+      timestamp: date,
+      timeStr: date.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' ' + date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+    });
+  }
+
+  // Sort by time descending
+  calls.sort((a, b) => b.timestamp - a.timestamp);
+  return calls;
+}
+
+const ALL_CALLS = generateCalls();
+let filtered = [...ALL_CALLS];
+let currentPage = 0;
+const PER_PAGE = 20;
+let openCall = -1;
+let activeFilter = 'all';
+
+function getTranscript(intent, outcome) {
+  const key = outcome === 'abandoned' ? 'abandoned' : outcome;
+  if (TRANSCRIPTS[intent] && TRANSCRIPTS[intent][key]) return TRANSCRIPTS[intent][key];
+  if (GENERIC[key]) return GENERIC[key];
+  return GENERIC.resolved;
+}
+
+function getAnalysis(intent, outcome) {
+  if (ANALYSIS[intent] && ANALYSIS[intent][outcome]) return ANALYSIS[intent][outcome];
+  if (outcome === 'resolved') return "Call resolved successfully. No issues detected.";
+  if (outcome === 'gave_up') return "Caller disengaged without resolution. Review agent response for missed context.";
+  if (outcome === 'escalated') return "Caller requested human agent. Agent could not resolve within its capabilities.";
+  return "Call abandoned before meaningful interaction.";
+}
+
+function outcomeLabel(o) {
+  const map = {resolved:'Resolved',gave_up:'Gave up',escalated:'Escalated',abandoned:'Abandoned'};
+  return map[o] || o;
+}
+function outcomeCls(o) {
+  const map = {resolved:'o-resolved',gave_up:'o-gave-up',escalated:'o-escalated',abandoned:'o-abandoned'};
+  return map[o] || '';
+}
+function sentimentColor(s) {
+  if (!s) return 'var(--t3)';
+  const v = parseFloat(s);
+  if (v >= 3.5) return 'var(--green)';
+  if (v >= 2.5) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+function applyFilters() {
+  const search = document.getElementById('search').value.toLowerCase();
+  filtered = ALL_CALLS.filter(c => {
+    if (activeFilter === 'flagged' && c.flags.length === 0) return false;
+    if (activeFilter !== 'all' && activeFilter !== 'flagged' && c.outcome !== activeFilter) return false;
+    if (search && !c.intent.includes(search) && !c.id.includes(search)) return false;
+    return true;
+  });
+  currentPage = 0;
+  openCall = -1;
+  render();
+}
+
+function render() {
+  const start = currentPage * PER_PAGE;
+  const pageData = filtered.slice(start, start + PER_PAGE);
+  const totalPages = Math.ceil(filtered.length / PER_PAGE);
+
+  document.getElementById('callCount').textContent = filtered.length.toLocaleString() + ' calls' + (activeFilter !== 'all' ? ' (filtered)' : ' this week');
+
+  const tbody = document.getElementById('callsBody');
+  tbody.innerHTML = '';
+
+  pageData.forEach((call, i) => {
+    const globalIdx = start + i;
+    const isOpen = openCall === globalIdx;
+
+    // Main row
+    const tr = document.createElement('tr');
+    tr.className = 'call-row' + (isOpen ? ' expanded' : '');
+    let flagsHtml = '';
+    call.flags.forEach(f => {
+      const fm = FLAGS_MAP[f];
+      if (fm) flagsHtml += '<span class="flag-pill ' + fm.cls + '">' + fm.label + '</span>';
+    });
+
+    tr.innerHTML =
+      '<td class="call-id">' + call.id + '</td>' +
+      '<td class="call-intent">' + call.intent + '</td>' +
+      '<td><span class="outcome-pill ' + outcomeCls(call.outcome) + '">' + outcomeLabel(call.outcome) + '</span></td>' +
+      '<td class="call-dur">' + call.duration + '</td>' +
+      '<td>' + (flagsHtml || '<span style="color:var(--t3)">—</span>') + '</td>' +
+      '<td class="sentiment" style="color:' + sentimentColor(call.sentiment) + '">' + (call.sentiment || '—') + '</td>';
+
+    tr.addEventListener('click', () => {
+      openCall = openCall === globalIdx ? -1 : globalIdx;
+      render();
+    });
+    tbody.appendChild(tr);
+
+    // Detail row
+    const detTr = document.createElement('tr');
+    detTr.className = 'call-detail-row';
+    const detTd = document.createElement('td');
+    detTd.colSpan = 6;
+    detTd.style.padding = '0';
+
+    const detail = document.createElement('div');
+    detail.className = 'call-detail' + (isOpen ? ' open' : '');
+
+    if (isOpen) {
+      const transcript = getTranscript(call.intent, call.outcome);
+      const analysis = getAnalysis(call.intent, call.outcome);
+      const fcrEst = call.outcome === 'resolved' ? Math.round(55 + Math.random() * 35) : Math.round(8 + Math.random() * 30);
+
+      let msgsHtml = '';
+      transcript.forEach(m => {
+        const roleCls = m.role === 'caller' ? 'caller' : m.role === 'agent' ? 'agent' : 'system';
+        msgsHtml += '<div class="msg"><div class="msg-role ' + roleCls + '">' + m.role + '</div><div class="msg-text">' + m.text + '<div class="msg-ts">' + m.ts + '</div></div></div>';
+      });
+
+      let flagsDetail = '';
+      call.flags.forEach(f => {
+        const fm = FLAGS_MAP[f];
+        if (fm) flagsDetail += '<span class="a-tag ' + fm.cls + '">' + fm.label + '</span>';
+      });
+      if (!flagsDetail) flagsDetail = '<span style="color:var(--t3);font-size:12px">None</span>';
+
+      detail.innerHTML =
+        '<div class="call-detail-inner">' +
+          '<div class="detail-top">' +
+            '<div class="d-stat"><div class="d-stat-val">' + call.turns + '</div><div class="d-stat-label">Turns</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val">' + call.duration + '</div><div class="d-stat-label">Duration</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val" style="color:' + sentimentColor(call.sentiment) + '">' + (call.sentiment || '—') + '</div><div class="d-stat-label">Sentiment</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val" style="color:' + (fcrEst < 40 ? 'var(--red)' : fcrEst < 60 ? 'var(--amber)' : 'var(--green)') + '">' + fcrEst + '%</div><div class="d-stat-label">Intent FCR</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val">' + call.timeStr + '</div><div class="d-stat-label">Timestamp</div></div>' +
+          '</div>' +
+          '<div class="detail-body">' +
+            '<div class="transcript-card">' +
+              '<div class="transcript-head">Transcript</div>' +
+              '<div class="transcript-body">' + msgsHtml + '</div>' +
+            '</div>' +
+            '<div class="analytics-card">' +
+              '<div class="analytics-head">Analysis</div>' +
+              '<div class="analytics-body">' +
+                '<div class="a-row"><div class="a-label">Classified Intent</div><div class="a-val mono" style="font-size:12px">' + call.intent + '</div></div>' +
+                '<div class="a-row"><div class="a-label">Outcome</div><div class="a-val"><span class="outcome-pill ' + outcomeCls(call.outcome) + '">' + outcomeLabel(call.outcome) + '</span></div></div>' +
+                '<div class="a-row"><div class="a-label">Confidence</div><div class="a-val">' + (78 + Math.floor(Math.random() * 19)) + '%</div><div class="a-bar"><div class="a-bar-fill" style="width:' + (78 + Math.floor(Math.random() * 19)) + '%;background:var(--accent)"></div></div></div>' +
+                '<div class="a-row"><div class="a-label">Flags</div><div class="a-tags">' + flagsDetail + '</div></div>' +
+                '<div class="a-note">' + analysis + '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    detTd.appendChild(detail);
+    detTr.appendChild(detTd);
+    tbody.appendChild(detTr);
+  });
+
+  // Pagination
+  document.getElementById('pageInfo').textContent = 'Showing ' + (start + 1) + '–' + Math.min(start + PER_PAGE, filtered.length) + ' of ' + filtered.length;
+  const pageBtns = document.getElementById('pageBtns');
+  pageBtns.innerHTML = '';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'page-btn';
+  prevBtn.textContent = '‹ Prev';
+  prevBtn.disabled = currentPage === 0;
+  prevBtn.addEventListener('click', () => { if (currentPage > 0) { currentPage--; openCall = -1; render(); } });
+  pageBtns.appendChild(prevBtn);
+
+  for (let p = 0; p < Math.min(totalPages, 6); p++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (p === currentPage ? ' active' : '');
+    btn.textContent = p + 1;
+    btn.addEventListener('click', () => { currentPage = p; openCall = -1; render(); });
+    pageBtns.appendChild(btn);
+  }
+
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'page-btn';
+  nextBtn.textContent = 'Next ›';
+  nextBtn.disabled = currentPage >= totalPages - 1;
+  nextBtn.addEventListener('click', () => { if (currentPage < totalPages - 1) { currentPage++; openCall = -1; render(); } });
+  pageBtns.appendChild(nextBtn);
+}
+
+// Filters
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    applyFilters();
+  });
+});
+
+// Search
+let searchTimeout;
+document.getElementById('search').addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(applyFilters, 200);
+});
+
+// === INIT: Try API, fall back to synthetic ===
+async function loadFromAPI() {
+  try {
+    const res = await fetch('/api/calls?filter=all&page=1');
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.calls || data.calls.length === 0) return false;
+
+    // Replace ALL_CALLS with real data
+    ALL_CALLS.length = 0;
+    data.calls.forEach(c => {
+      const ts = c.started_at ? new Date(c.started_at) : new Date();
+      const durMin = c.duration ? Math.floor(c.duration / 60) : 0;
+      const durSec = c.duration ? c.duration % 60 : 0;
+
+      // Build transcript from API data or use fallback
+      let apiTranscript = null;
+      if (c.transcript && Array.isArray(c.transcript) && c.transcript.length > 0) {
+        apiTranscript = c.transcript;
+      }
+
+      ALL_CALLS.push({
+        id: c.call_id || c.id,
+        intent: c.intent || 'unknown',
+        outcome: c.outcome || 'pending',
+        flags: c.flags || [],
+        sentiment: c.sentiment ? String(c.sentiment) : null,
+        duration: durMin + 'm ' + String(durSec).padStart(2, '0') + 's',
+        durationSec: c.duration || 0,
+        turns: apiTranscript ? apiTranscript.filter(t => t.role === 'caller' || t.role === 'user').length : 0,
+        timestamp: ts,
+        timeStr: ts.toLocaleDateString('en-US', {month:'short',day:'numeric'}) + ' ' + ts.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),
+        // Store real transcript + analysis for the detail view
+        _realTranscript: apiTranscript,
+        _realAnalysis: c.analysis,
+        _analysisStatus: c.analysis_status,
+      });
+    });
+
+    filtered = [...ALL_CALLS];
+
+    // Show live data indicator
+    const badge = document.querySelector('.b-muted');
+    if (badge) {
+      badge.textContent = 'LIVE DATA';
+      badge.className = 'nav-badge b-green';
+    }
+
+    document.getElementById('callCount').textContent = data.total.toLocaleString() + ' calls';
+
+    return true;
+  } catch (e) {
+    console.log('[calls] API not available, using synthetic data');
+    return false;
+  }
+}
+
+// Override getTranscript and getAnalysis to use real data when available
+const _origGetTranscript = getTranscript;
+const _origGetAnalysis = getAnalysis;
+
+function getTranscriptForCall(call) {
+  if (call._realTranscript && call._realTranscript.length > 0) {
+    return call._realTranscript.map(t => ({
+      role: t.role === 'caller' ? 'user' : t.role,
+      text: t.text,
+      ts: t.timestamp_seconds ? Math.floor(t.timestamp_seconds / 60) + ':' + String(t.timestamp_seconds % 60).padStart(2, '0') : ''
+    }));
+  }
+  return _origGetTranscript(call.intent, call.outcome);
+}
+
+function getAnalysisForCall(call) {
+  if (call._realAnalysis) return call._realAnalysis;
+  return _origGetAnalysis(call.intent, call.outcome);
+}
+
+// Patch render to use the new functions
+const _origRender = render;
+render = function() {
+  const start = currentPage * PER_PAGE;
+  const pageData = filtered.slice(start, start + PER_PAGE);
+  const totalPages = Math.ceil(filtered.length / PER_PAGE);
+
+  document.getElementById('callCount').textContent = filtered.length.toLocaleString() + ' calls' + (activeFilter !== 'all' ? ' (filtered)' : '');
+
+  const tbody = document.getElementById('callsBody');
+  tbody.innerHTML = '';
+
+  pageData.forEach((call, i) => {
+    const globalIdx = start + i;
+    const isOpen = openCall === globalIdx;
+
+    const tr = document.createElement('tr');
+    tr.className = 'call-row' + (isOpen ? ' expanded' : '');
+    let flagsHtml = '';
+    call.flags.forEach(f => {
+      const fm = FLAGS_MAP[f];
+      if (fm) flagsHtml += '<span class="flag-pill ' + fm.cls + '">' + fm.label + '</span>';
+    });
+
+    tr.innerHTML =
+      '<td class="call-id">' + call.id + '</td>' +
+      '<td class="call-intent">' + call.intent + '</td>' +
+      '<td><span class="outcome-pill ' + outcomeCls(call.outcome) + '">' + outcomeLabel(call.outcome) + '</span></td>' +
+      '<td class="call-dur">' + call.duration + '</td>' +
+      '<td>' + (flagsHtml || '<span style="color:var(--t3)">—</span>') + '</td>' +
+      '<td class="sentiment" style="color:' + sentimentColor(call.sentiment) + '">' + (call.sentiment || '—') + '</td>';
+
+    tr.addEventListener('click', () => {
+      openCall = openCall === globalIdx ? -1 : globalIdx;
+      render();
+    });
+    tbody.appendChild(tr);
+
+    // Detail row
+    const detTr = document.createElement('tr');
+    detTr.className = 'call-detail-row';
+    const detTd = document.createElement('td');
+    detTd.colSpan = 6;
+    detTd.style.padding = '0';
+
+    const detail = document.createElement('div');
+    detail.className = 'call-detail' + (isOpen ? ' open' : '');
+
+    if (isOpen) {
+      const transcript = getTranscriptForCall(call);
+      const analysis = getAnalysisForCall(call);
+
+      let msgsHtml = '';
+      transcript.forEach(m => {
+        const roleCls = (m.role === 'caller' || m.role === 'user') ? 'caller' : m.role === 'agent' ? 'agent' : 'system';
+        msgsHtml += '<div class="msg"><div class="msg-role ' + roleCls + '">' + m.role + '</div><div class="msg-text">' + m.text + (m.ts ? '<div class="msg-ts">' + m.ts + '</div>' : '') + '</div></div>';
+      });
+
+      const fcrEst = call.outcome === 'resolved' ? Math.round(55 + Math.random() * 35) : Math.round(8 + Math.random() * 30);
+      let flagsDetail = '';
+      call.flags.forEach(f => {
+        const fm = FLAGS_MAP[f];
+        if (fm) flagsDetail += '<span class="a-tag ' + fm.cls + '">' + fm.label + '</span>';
+      });
+      if (!flagsDetail) flagsDetail = '<span style="color:var(--t3);font-size:12px">None</span>';
+
+      detail.innerHTML =
+        '<div class="call-detail-inner">' +
+          '<div class="detail-top">' +
+            '<div class="d-stat"><div class="d-stat-val">' + call.turns + '</div><div class="d-stat-label">Turns</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val">' + call.duration + '</div><div class="d-stat-label">Duration</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val" style="color:' + sentimentColor(call.sentiment) + '">' + (call.sentiment || '—') + '</div><div class="d-stat-label">Sentiment</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val" style="color:' + (fcrEst < 40 ? 'var(--red)' : fcrEst < 60 ? 'var(--amber)' : 'var(--green)') + '">' + fcrEst + '%</div><div class="d-stat-label">Intent FCR</div></div>' +
+            '<div class="d-stat"><div class="d-stat-val">' + call.timeStr + '</div><div class="d-stat-label">Timestamp</div></div>' +
+          '</div>' +
+          '<div class="detail-body">' +
+            '<div class="transcript-card">' +
+              '<div class="transcript-head">Transcript</div>' +
+              '<div class="transcript-body">' + msgsHtml + '</div>' +
+            '</div>' +
+            '<div class="analytics-card">' +
+              '<div class="analytics-head">Analysis</div>' +
+              '<div class="analytics-body">' +
+                '<div class="a-row"><div class="a-label">Classified Intent</div><div class="a-val mono" style="font-size:12px">' + call.intent + '</div></div>' +
+                '<div class="a-row"><div class="a-label">Outcome</div><div class="a-val"><span class="outcome-pill ' + outcomeCls(call.outcome) + '">' + outcomeLabel(call.outcome) + '</span></div></div>' +
+                '<div class="a-row"><div class="a-label">Flags</div><div class="a-tags">' + flagsDetail + '</div></div>' +
+                '<div class="a-note">' + analysis + '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    detTd.appendChild(detail);
+    detTr.appendChild(detTd);
+    tbody.appendChild(detTr);
+  });
+
+  // Pagination
+  document.getElementById('pageInfo').textContent = 'Showing ' + (start + 1) + '–' + Math.min(start + PER_PAGE, filtered.length) + ' of ' + filtered.length;
+  const pageBtns = document.getElementById('pageBtns');
+  pageBtns.innerHTML = '';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'page-btn';
+  prevBtn.textContent = '‹ Prev';
+  prevBtn.disabled = currentPage === 0;
+  prevBtn.addEventListener('click', () => { if (currentPage > 0) { currentPage--; openCall = -1; render(); } });
+  pageBtns.appendChild(prevBtn);
+
+  for (let p = 0; p < Math.min(totalPages, 6); p++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (p === currentPage ? ' active' : '');
+    btn.textContent = p + 1;
+    btn.addEventListener('click', () => { currentPage = p; openCall = -1; render(); });
+    pageBtns.appendChild(btn);
+  }
+
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'page-btn';
+  nextBtn.textContent = 'Next ›';
+  nextBtn.disabled = currentPage >= totalPages - 1;
+  nextBtn.addEventListener('click', () => { if (currentPage < totalPages - 1) { currentPage++; openCall = -1; render(); } });
+  pageBtns.appendChild(nextBtn);
+};
+
+loadFromAPI().then(() => {
+  render();
+});
+</script>
+</body>
+</html>
