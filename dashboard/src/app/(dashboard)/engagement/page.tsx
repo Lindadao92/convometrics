@@ -114,7 +114,7 @@ export default function EngagementPage() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Daily Engagement Rate</p>
         <p className="text-xs text-zinc-600 mb-4">% of sessions with 10+ turns (deep conversations)</p>
         <div style={{ height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer aspect={2} width="100%" height="100%" minHeight={200}>
             <AreaChart data={ENGAGEMENT_DAILY} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="engGrad" x1="0" y1="0" x2="0" y2="1">
@@ -159,7 +159,7 @@ export default function EngagementPage() {
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Turn Distribution</p>
           <p className="text-xs text-zinc-600 mb-4">Sessions by number of turns</p>
           <div style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer aspect={2} width="100%" height="100%" minHeight={200}>
               <BarChart data={TURN_DISTRIBUTION} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="bucket" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -176,7 +176,7 @@ export default function EngagementPage() {
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Avg Session Duration</p>
           <p className="text-xs text-zinc-600 mb-4">Daily average in minutes</p>
           <div style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer aspect={2} width="100%" height="100%" minHeight={200}>
               <LineChart data={AVG_DURATION_TREND} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} interval={4} />

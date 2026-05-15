@@ -1,0 +1,12 @@
+var R=require("../../chunks/ssr/[turbopack]_runtime.js")("server/app/_not-found/page.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0ghj-1x._.js")
+R.c("server/chunks/ssr/050s_next_dist_esm_build_templates_app-page_0uc8mt8.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0lvtojm._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0v4q7r5._.js")
+R.c("server/chunks/ssr/convometrics_landing_app_layout_tsx_04vj0b_._.js")
+R.c("server/chunks/ssr/050s_next_dist_client_components_0nszr08._.js")
+R.c("server/chunks/ssr/050s_next_dist_client_components_builtin_forbidden_0wj~ql_.js")
+R.c("server/chunks/ssr/050s_next_dist_client_components_builtin_unauthorized_03kciwj.js")
+R.c("server/chunks/ssr/convometrics_landing__next-internal_server_app__not-found_page_actions_0.mesef.js")
+R.m(81965)
+module.exports=R.m(81965).exports

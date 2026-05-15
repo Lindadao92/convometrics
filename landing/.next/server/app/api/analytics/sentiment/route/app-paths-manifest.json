@@ -1,0 +1,3 @@
+{
+  "/api/analytics/sentiment/route": "app/api/analytics/sentiment/route.js"
+}

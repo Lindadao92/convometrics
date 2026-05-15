@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/analyze": {
+      "maxDuration": 60
+    },
+    "/api/setup/seed-full": {
+      "maxDuration": 60
+    }
+  }
+}

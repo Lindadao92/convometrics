@@ -96,7 +96,7 @@ export default function AtRiskPage() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Daily At-Risk DAU Count</p>
         <p className="text-xs text-zinc-600 mb-4">Number of at-risk daily active users over 30 days</p>
         <div style={{ height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer aspect={2} width="100%" height="100%" minHeight={200}>
             <AreaChart data={ATRISK_DAILY} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="riskGrad" x1="0" y1="0" x2="0" y2="1">
@@ -122,7 +122,7 @@ export default function AtRiskPage() {
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Top Failures Driving Risk</p>
           <p className="text-xs text-zinc-600 mb-4">Failure types among at-risk user sessions</p>
           <div style={{ height: 250 }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer aspect={2} width="100%" height="100%" minHeight={200}>
               <BarChart data={failureBarData} layout="vertical" margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
                 <XAxis type="number" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />

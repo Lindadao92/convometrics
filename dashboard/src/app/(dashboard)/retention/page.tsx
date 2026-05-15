@@ -90,7 +90,7 @@ export default function RetentionPage() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Retention Curve</p>
         <p className="text-xs text-zinc-600 mb-4">% of users returning at each time interval</p>
         <div style={{ height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer aspect={2} width="100%" height="100%" minHeight={200}>
             <AreaChart data={RETENTION_CURVE} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="retGrad" x1="0" y1="0" x2="0" y2="1">
