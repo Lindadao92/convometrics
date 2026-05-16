@@ -302,7 +302,7 @@ function CompanionQualityOverviewTab() {
       <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Overall Quality — 30-Day Trend</p>
         <p className="text-xs text-zinc-600 mb-4">Composite quality score across all 7 dimensions, daily average</p>
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer aspect={2} width="100%" height={240} minHeight={240}>
           <AreaChart data={COMPANION_QUALITY_TREND_30D} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="qualGrad" x1="0" y1="0" x2="0" y2="1">
@@ -362,7 +362,7 @@ function CompanionQualityOverviewTab() {
       {/* Quality by Topic — horizontal bar chart */}
       <ChartCard title="Quality by Topic"
         subtitle="Companion intents sorted worst to best — red = needs improvement, green = performing well">
-        <ResponsiveContainer width="100%" height={COMPANION_QUALITY_BY_TOPIC.length * 32}>
+        <ResponsiveContainer aspect={2} width="100%" height={COMPANION_QUALITY_BY_TOPIC.length * 32}>
           <BarChart data={[...COMPANION_QUALITY_BY_TOPIC].reverse()}
             layout="vertical" margin={{ left: 0, right: 50, top: 0, bottom: 0 }}>
             <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -378,7 +378,7 @@ function CompanionQualityOverviewTab() {
       {/* Quality by Conversation Length */}
       <ChartCard title="Quality by Conversation Length"
         subtitle="Does quality drop in longer companion sessions? (turn buckets)">
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer aspect={2} width="100%" height={220} minHeight={220}>
           <LineChart data={COMPANION_QUALITY_BY_TURNS} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
             <XAxis dataKey="group" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -406,7 +406,7 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
 
       <ChartCard title="Quality Score Distribution"
         subtitle="Distribution of AI quality scores — skew left = AI struggles, skew right = AI excels">
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer aspect={2} width="100%" height={220} minHeight={220}>
           <BarChart data={data.qualityDistribution} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
             <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -423,7 +423,7 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
         {data.qualityByTopic.length === 0 ? (
           <p className="text-sm text-zinc-600 py-4">No topic quality data available yet.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={Math.max(200, data.qualityByTopic.length * 28)}>
+          <ResponsiveContainer aspect={2} width="100%" height={Math.max(200, data.qualityByTopic.length * 28)}>
             <BarChart data={data.qualityByTopic.map((d) => ({ ...d, label: formatLabel(d.intent).slice(0, 30) }))}
               layout="vertical" margin={{ left: 0, right: 50, top: 0, bottom: 0 }}>
               <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -440,7 +440,7 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
       {isMultiPlatform && data.qualityByPlatform.length > 0 && (
         <ChartCard title="Quality by Platform"
           subtitle="Average quality score per AI platform">
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer aspect={2} width="100%" height={220} minHeight={220}>
             <BarChart data={data.qualityByPlatform.map((d) => ({ ...d, label: PLATFORM_LABELS[d.platform] ?? d.platform }))}
               margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
               <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -457,7 +457,7 @@ function QualityTab({ data, isMultiPlatform }: { data: PerformanceData; isMultiP
       {data.qualityByTurns.length > 0 && (
         <ChartCard title="Quality by Conversation Length"
           subtitle="Does AI quality drop in longer conversations?">
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer aspect={2} width="100%" height={220} minHeight={220}>
             <LineChart data={data.qualityByTurns.map((d) => ({ group: d.group, quality: d.avgQuality }))}
               margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -498,7 +498,7 @@ function EngagementAnalysisTab() {
       <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Engagement Over Time</p>
         <p className="text-xs text-zinc-600 mb-4">Daily % of sessions reaching engagement thresholds — 30 days</p>
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer aspect={2} width="100%" height={240} minHeight={240}>
           <LineChart data={COMPANION_ENGAGEMENT_TREND} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
             <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false}
@@ -623,7 +623,7 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
           <p className="text-sm text-zinc-600 py-4">No completion data — run analysis workers.</p>
         ) : (
           <div className="flex items-center gap-8">
-            <ResponsiveContainer width="40%" height={200}>
+            <ResponsiveContainer aspect={2} width="40%" height={200}>
               <PieChart>
                 <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={58} outerRadius={84} strokeWidth={0}>
                   {donutData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
@@ -653,7 +653,7 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
         {data.completionByTopic.length === 0 ? (
           <p className="text-sm text-zinc-600 py-4">No topic completion data available.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={Math.max(200, data.completionByTopic.length * 28)}>
+          <ResponsiveContainer aspect={2} width="100%" height={Math.max(200, data.completionByTopic.length * 28)}>
             <BarChart data={data.completionByTopic.map((d) => ({ ...d, label: formatLabel(d.intent).slice(0, 30) }))}
               layout="vertical" margin={{ left: 0, right: 50, top: 0, bottom: 0 }}>
               <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -672,7 +672,7 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
       {isMultiPlatform && data.qualityByPlatform.length > 0 && (
         <ChartCard title="Completion Rate by Platform"
           subtitle="Which AI platform has the highest rate of users successfully achieving their goals?">
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer aspect={2} width="100%" height={220} minHeight={220}>
             <BarChart data={data.qualityByPlatform.filter((d) => d.completionRate !== null).map((d) => ({ ...d, label: PLATFORM_LABELS[d.platform] ?? d.platform }))}
               margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
               <XAxis dataKey="label" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -689,7 +689,7 @@ function CompletionTab({ data, isMultiPlatform }: { data: PerformanceData; isMul
       {data.abandonmentHistogram.length > 0 && (
         <ChartCard title="Abandonment Patterns"
           subtitle="At which turn do users most often give up?">
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer aspect={2} width="100%" height={220} minHeight={220}>
             <BarChart data={data.abandonmentHistogram} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
               <XAxis dataKey="turn" tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false}
                 label={{ value: "Turn #", position: "insideBottomRight", fill: "#52525b", fontSize: 10, dy: 12 }} />
@@ -767,7 +767,7 @@ function FixPrioritiesTab({ data, isCompanion }: { data: PerformanceData; isComp
           <p className="text-sm text-zinc-600 py-4">No impact data — run analysis workers.</p>
         ) : (
           <div className="relative">
-            <ResponsiveContainer width="100%" height={340}>
+            <ResponsiveContainer aspect={2} width="100%" height={340} minHeight={340}>
               <ScatterChart margin={{ top: 16, right: 24, bottom: 32, left: 16 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis type="number" dataKey="x" name="Failure Rate" domain={[0, 100]}
@@ -930,7 +930,7 @@ function QualityDimensionsTab({ isCompanion }: { isCompanion: boolean }) {
         <>
           <ChartCard title="Quality Dimensions Over Time"
             subtitle="Daily average score per dimension — spot which axes are improving or degrading">
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer aspect={2} width="100%" height={300} minHeight={300}>
               <LineChart data={qData.trendData} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false}
@@ -1087,7 +1087,7 @@ function SatisfactionTab() {
         <>
           <ChartCard title="Satisfaction Over Time"
             subtitle="Daily % of satisfied vs frustrated conversations">
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer aspect={2} width="100%" height={280} minHeight={280}>
               <LineChart data={satData.dailyTrend} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false}
@@ -1117,7 +1117,7 @@ function SatisfactionTab() {
 
           <ChartCard title="Satisfaction by Intent"
             subtitle="Stacked 100% bar — intents sorted by highest frustration rate first">
-            <ResponsiveContainer width="100%" height={Math.max(220, satData.byIntent.slice(0, 10).length * 34)}>
+            <ResponsiveContainer aspect={2} width="100%" height={Math.max(220, satData.byIntent.slice(0, 10).length * 34)}>
               <BarChart data={satData.byIntent.slice(0, 10).map((d) => ({ ...d, label: d.label.slice(0, 28) }))}
                 layout="vertical" margin={{ left: 0, right: 60, top: 0, bottom: 0 }}>
                 <XAxis type="number" domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />

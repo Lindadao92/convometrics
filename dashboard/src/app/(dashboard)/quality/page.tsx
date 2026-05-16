@@ -173,7 +173,7 @@ export default function QualityIntent() {
 
           {/* Scatter chart */}
           <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
-            <ResponsiveContainer width="100%" height={380}>
+            <ResponsiveContainer aspect={2} width="100%" height={380} minHeight={380}>
               <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
                 <XAxis
                   type="number" dataKey="x" name="Quality" domain={[0, 100]}

@@ -99,7 +99,7 @@ export default function SatisfactionPage() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-1">Daily Satisfaction Rate</p>
         <p className="text-xs text-zinc-600 mb-4">% of conversations inferred as satisfied</p>
         <div style={{ height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer aspect={2} width="100%" height="100%" minHeight={200}>
             <AreaChart data={SATISFACTION_DAILY} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="satGrad" x1="0" y1="0" x2="0" y2="1">
@@ -133,7 +133,7 @@ export default function SatisfactionPage() {
         <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">Distribution</p>
           <div className="flex items-center gap-6">
-            <ResponsiveContainer width={140} height={140}>
+            <ResponsiveContainer aspect={2} width={140} height={140}>
               <PieChart>
                 <Pie data={donutData} dataKey="value" nameKey="name" cx="50%" cy="50%"
                   innerRadius={40} outerRadius={62} strokeWidth={0}>

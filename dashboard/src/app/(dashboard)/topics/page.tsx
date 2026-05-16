@@ -620,7 +620,7 @@ export default function Topics() {
             ))}
           </div>
 
-          <ResponsiveContainer width="100%" height={360}>
+          <ResponsiveContainer aspect={2} width="100%" height={360} minHeight={360}>
             <Treemap
               data={companionTreemapData}
               dataKey="size"
@@ -804,7 +804,7 @@ export default function Topics() {
                                 {/* 4-week trend */}
                                 <div className="md:col-span-2 rounded-lg bg-white/[0.03] border border-white/[0.06] p-4">
                                   <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-3">4-Week Quality Trend</p>
-                                  <ResponsiveContainer width="100%" height={120}>
+                                  <ResponsiveContainer aspect={2} width="100%" height={120} minHeight={120}>
                                     <LineChart data={dive.trend} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                                       <XAxis dataKey="week" tick={{ fill: "#71717a", fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -990,7 +990,7 @@ export default function Topics() {
             ))}
           </div>
 
-          <ResponsiveContainer width="100%" height={360}>
+          <ResponsiveContainer aspect={2} width="100%" height={360} minHeight={360}>
             <Treemap
               data={treemapData}
               dataKey="size"
@@ -1256,7 +1256,7 @@ export default function Topics() {
             <div className="rounded-xl border border-white/[0.07] bg-[#13141b] p-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 mb-0.5">Failure Trends</p>
               <p className="text-xs text-zinc-600 mb-4">Weekly failure count per type — is your hallucination rate improving?</p>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer aspect={2} width="100%" height={220} minHeight={220}>
                 <LineChart data={failureData.weeklyTrend} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                   <XAxis dataKey="week" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />

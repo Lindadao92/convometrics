@@ -242,7 +242,7 @@ export default function PlatformComparison() {
                 Avg Quality Score by Platform
               </p>
               <p className="text-xs text-zinc-600 mb-4">Higher is better — score out of 100</p>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer aspect={2} width="100%" height={200} minHeight={200}>
                 <BarChart data={chartData.filter((d) => d.avgQuality !== null)} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -265,7 +265,7 @@ export default function PlatformComparison() {
                 Completion Rate by Platform
               </p>
               <p className="text-xs text-zinc-600 mb-4">% of conversations where user got what they needed</p>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer aspect={2} width="100%" height={200} minHeight={200}>
                 <BarChart data={chartData.filter((d) => d.completionRate !== null)} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
                   <XAxis dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis domain={[0, 100]} tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
